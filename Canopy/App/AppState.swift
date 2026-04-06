@@ -136,11 +136,13 @@ final class AppState: ObservableObject {
         }
 
         let session = SessionInfo(name: finalName, workingDirectory: workDir)
-        if tabSortMode == .manual {
-            sessions.append(session)
-        } else {
-            sessions.append(session)
-            sessions = orderedSessions
+        withAnimation(.easeOut(duration: 0.25)) {
+            if tabSortMode == .manual {
+                sessions.append(session)
+            } else {
+                sessions.append(session)
+                sessions = orderedSessions
+            }
         }
         activeSessionId = session.id
 
@@ -236,13 +238,15 @@ final class AppState: ObservableObject {
                 branchName: branchName,
                 worktreePath: worktreePath
             )
-            if tabSortMode == .manual {
-                sessions.append(session)
-            } else {
-                sessions.append(session)
-                sessions = orderedSessions
+            withAnimation(.easeOut(duration: 0.25)) {
+                if tabSortMode == .manual {
+                    sessions.append(session)
+                } else {
+                    sessions.append(session)
+                    sessions = orderedSessions
+                }
+                activeSessionId = session.id
             }
-            activeSessionId = session.id
 
         } catch {
             worktreeSetupInProgress = false
@@ -267,9 +271,11 @@ final class AppState: ObservableObject {
     func performCloseSession(id: UUID) {
         terminalSessions[id]?.stop()
         terminalSessions.removeValue(forKey: id)
-        sessions.removeAll { $0.id == id }
-        if activeSessionId == id {
-            activeSessionId = sessions.last?.id
+        withAnimation(.easeOut(duration: 0.25)) {
+            sessions.removeAll { $0.id == id }
+            if activeSessionId == id {
+                activeSessionId = sessions.last?.id
+            }
         }
         pendingCloseSessionId = nil
     }
@@ -319,8 +325,14 @@ final class AppState: ObservableObject {
     func addProject(_ project: Project) {
         // Prevent duplicates by repo path
         guard !projects.contains(where: { $0.repositoryPath == project.repositoryPath }) else { return }
-        projects.append(project)
-        expandedProjects.insert(project.id)
+        var newProject = project
+        if newProject.colorIndex == nil {
+            newProject.colorIndex = ProjectColor.nextIndex(
+                existingIndices: projects.compactMap(\.colorIndex)
+            )
+        }
+        projects.append(newProject)
+        expandedProjects.insert(newProject.id)
         saveProjects()
     }
 
@@ -370,6 +382,15 @@ final class AppState: ObservableObject {
         try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
 
         projects = decoded
+        // Auto-assign colors to projects that predate the color system
+        var needsSave = false
+        for i in projects.indices where projects[i].colorIndex == nil {
+            projects[i].colorIndex = ProjectColor.nextIndex(
+                existingIndices: projects.compactMap(\.colorIndex)
+            )
+            needsSave = true
+        }
+        if needsSave { saveProjects() }
         // Auto-expand all projects on load
         expandedProjects = Set(decoded.map(\.id))
     }

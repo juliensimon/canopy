@@ -27,6 +27,9 @@ struct Project: Identifiable, Codable {
     /// Override global Claude flags for this project. nil = use global.
     var claudeFlags: String?
 
+    /// Color index into ProjectColor palette. Auto-assigned on creation, user-overridable.
+    var colorIndex: Int?
+
     init(
         name: String,
         repositoryPath: String,
@@ -34,7 +37,8 @@ struct Project: Identifiable, Codable {
         symlinkPaths: [String] = [],
         setupCommands: [String] = [],
         autoStartClaude: Bool? = nil,
-        claudeFlags: String? = nil
+        claudeFlags: String? = nil,
+        colorIndex: Int? = nil
     ) {
         self.id = UUID()
         self.name = name
@@ -44,6 +48,7 @@ struct Project: Identifiable, Codable {
         self.setupCommands = setupCommands
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
+        self.colorIndex = colorIndex
     }
 
     // Forward-compatible decoding
@@ -58,6 +63,7 @@ struct Project: Identifiable, Codable {
         worktreeBaseDir = try container.decodeIfPresent(String.self, forKey: .worktreeBaseDir)
         autoStartClaude = try container.decodeIfPresent(Bool.self, forKey: .autoStartClaude)
         claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags)
+        colorIndex = try container.decodeIfPresent(Int.self, forKey: .colorIndex)
     }
 
     /// Returns the base directory for worktrees.

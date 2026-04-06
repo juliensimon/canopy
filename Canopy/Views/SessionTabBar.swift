@@ -12,17 +12,33 @@ struct SessionTabBar: View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 1) {
-                    ForEach(appState.orderedSessions) { session in
+                    ForEach(Array(appState.orderedSessions.enumerated()), id: \.element.id) { index, session in
+                        if index > 0 {
+                            let prevSession = appState.orderedSessions[index - 1]
+                            let hidesSeparator = session.id == appState.activeSessionId || prevSession.id == appState.activeSessionId
+                            if !hidesSeparator {
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.08))
+                                    .frame(width: 1, height: 16)
+                            }
+                        }
+
+                        let projectColor = projectColorFor(session)
+
                         LiveSessionTab(
                             session: session,
                             isActive: session.id == appState.activeSessionId,
                             terminalSession: appState.terminalSessions[session.id],
                             onSelect: { appState.activeSessionId = session.id },
-                            onClose: { appState.closeSession(id: session.id) }
+                            onClose: { appState.closeSession(id: session.id) },
+                            projectColor: projectColor
                         )
                         .opacity(draggingSessionId == session.id ? 0.5 : 1.0)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .opacity.combined(with: .scale(scale: 0.8))
+                        ))
                         .draggable(session.id.uuidString) {
-                            // Drag preview
                             Text(session.name)
                                 .font(.system(size: 11, weight: .medium))
                                 .padding(.horizontal, 12)
@@ -40,11 +56,7 @@ struct SessionTabBar: View {
                                 appState.swapSessions(droppedId, session.id)
                             }
                             return true
-                        } isTargeted: { isTargeted in
-                            if isTargeted {
-                                // no-op; opacity handled via draggingSessionId
-                            }
-                        }
+                        } isTargeted: { _ in }
                         .onDrag {
                             draggingSessionId = session.id
                             return NSItemProvider(object: session.id.uuidString as NSString)
@@ -89,6 +101,14 @@ struct SessionTabBar: View {
         .frame(height: 36)
         .background(.bar)
     }
+
+    private func projectColorFor(_ session: SessionInfo) -> Color {
+        guard let projectId = session.projectId,
+              let project = appState.projects.first(where: { $0.id == projectId }) else {
+            return .gray
+        }
+        return ProjectColor.color(for: project.colorIndex)
+    }
 }
 
 /// A single tab in the session tab bar.
@@ -98,13 +118,18 @@ struct SessionTab: View {
     var activity: SessionActivity = .idle
     let onSelect: () -> Void
     let onClose: () -> Void
+    var projectColor: Color = .gray
     var onCopySession: (@MainActor () -> Void)?
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 6) {
-            ActivityDot(activity: activity)
+            // Project color dot (replaces ActivityDot in tabs)
+            Circle()
+                .fill(projectColor)
+                .opacity(activity == .idle ? 0.5 : 1.0)
+                .frame(width: 7, height: 7)
 
             Text(session.name)
                 .font(.system(size: 11, weight: isActive ? .semibold : .regular))
@@ -134,8 +159,16 @@ struct SessionTab: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isActive ? Color.accentColor.opacity(0.15) : (isHovering ? Color.gray.opacity(0.1) : Color.clear))
+                .fill(isActive ? Color.accentColor.opacity(0.10) : (isHovering ? Color.gray.opacity(0.1) : Color.clear))
         )
+        .overlay(alignment: .bottom) {
+            if isActive {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(height: 2)
+                    .padding(.horizontal, 4)
+            }
+        }
         .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
     }
@@ -148,14 +181,16 @@ struct LiveSessionTab: View {
     @ObservedObject var terminalSession: TerminalSession
     let onSelect: () -> Void
     let onClose: () -> Void
+    var projectColor: Color = .gray
 
-    init(session: SessionInfo, isActive: Bool, terminalSession: TerminalSession?, onSelect: @escaping () -> Void, onClose: @escaping () -> Void) {
+    init(session: SessionInfo, isActive: Bool, terminalSession: TerminalSession?, onSelect: @escaping () -> Void, onClose: @escaping () -> Void, projectColor: Color = .gray) {
         self.session = session
         self.isActive = isActive
         // Use a dummy session if none exists yet
         self._terminalSession = ObservedObject(wrappedValue: terminalSession ?? TerminalSession(id: session.id, workingDirectory: ""))
         self.onSelect = onSelect
         self.onClose = onClose
+        self.projectColor = projectColor
     }
 
     var body: some View {
@@ -165,6 +200,7 @@ struct LiveSessionTab: View {
             activity: terminalSession.activity,
             onSelect: onSelect,
             onClose: onClose,
+            projectColor: projectColor,
             onCopySession: { terminalSession.copyFullSessionToClipboard() }
         )
     }
