@@ -6,12 +6,13 @@ import SwiftUI
 /// Each tab shows the session name and a subtle status indicator.
 struct SessionTabBar: View {
     @EnvironmentObject var appState: AppState
+    @State private var draggingSessionId: UUID?
 
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 1) {
-                    ForEach(appState.sessions) { session in
+                    ForEach(appState.orderedSessions) { session in
                         LiveSessionTab(
                             session: session,
                             isActive: session.id == appState.activeSessionId,
@@ -19,11 +20,59 @@ struct SessionTabBar: View {
                             onSelect: { appState.activeSessionId = session.id },
                             onClose: { appState.closeSession(id: session.id) }
                         )
+                        .opacity(draggingSessionId == session.id ? 0.5 : 1.0)
+                        .draggable(session.id.uuidString) {
+                            // Drag preview
+                            Text(session.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.accentColor.opacity(0.15))
+                                )
+                        }
+                        .dropDestination(for: String.self) { items, _ in
+                            guard let droppedIdString = items.first,
+                                  let droppedId = UUID(uuidString: droppedIdString),
+                                  droppedId != session.id else { return false }
+                            withAnimation {
+                                appState.swapSessions(droppedId, session.id)
+                            }
+                            return true
+                        } isTargeted: { isTargeted in
+                            if isTargeted {
+                                // no-op; opacity handled via draggingSessionId
+                            }
+                        }
+                        .onDrag {
+                            draggingSessionId = session.id
+                            return NSItemProvider(object: session.id.uuidString as NSString)
+                        }
                     }
                 }
             }
 
             Spacer()
+
+            // Sort menu
+            Menu {
+                Picker("Sort By", selection: $appState.tabSortMode) {
+                    ForEach(TabSortMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(appState.tabSortMode == .manual ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Sort tabs")
 
             // New session button
             Button(action: { appState.createSessionWithPicker() }) {
