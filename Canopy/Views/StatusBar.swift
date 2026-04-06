@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Bottom status bar showing current session info.
 /// Phase 1: just the working directory.
-/// Phase 3+: branch name, watchdog status, resource usage.
+/// Phase 3+: branch name, resource usage.
 struct StatusBar: View {
     @EnvironmentObject var appState: AppState
 

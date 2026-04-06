@@ -66,16 +66,16 @@ struct Project: Identifiable, Codable {
             return custom
         }
         let parent = (repositoryPath as NSString).deletingLastPathComponent
-        return (parent as NSString).appendingPathComponent("tempo-worktrees/\(name)")
+        return (parent as NSString).appendingPathComponent("canopy-worktrees/\(name)")
     }
 
     /// Resolves whether Claude should auto-start, falling back to global settings.
-    func shouldAutoStartClaude(globalSettings: TempoSettings) -> Bool {
+    func shouldAutoStartClaude(globalSettings: CanopySettings) -> Bool {
         autoStartClaude ?? globalSettings.autoStartClaude
     }
 
     /// Resolves the Claude command, falling back to global settings.
-    func resolvedClaudeCommand(globalSettings: TempoSettings) -> String {
+    func resolvedClaudeCommand(globalSettings: CanopySettings) -> String {
         var cmd = "claude"
         let flags = claudeFlags ?? globalSettings.claudeFlags
         let trimmed = flags.trimmingCharacters(in: .whitespaces)

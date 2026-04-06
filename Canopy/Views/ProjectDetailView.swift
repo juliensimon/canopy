@@ -10,7 +10,9 @@ struct ProjectDetailView: View {
     @State private var currentBranch: String = ""
     @State private var isLoading = true
     @State private var worktreeToDelete: WorktreeInfo?
+    @State private var deleteWarning: String = ""
     @State private var deleteError: String?
+    @State private var showNewWorktree = false
 
     private let git = GitService()
 
@@ -38,7 +40,7 @@ struct ProjectDetailView: View {
                 }
 
                 // Primary action
-                Button(action: { appState.showNewWorktreeSheet = true }) {
+                Button(action: { showNewWorktree = true }) {
                     Label("New Worktree Session", systemImage: "arrow.triangle.branch")
                 }
                 .buttonStyle(.borderedProminent)
@@ -75,6 +77,10 @@ struct ProjectDetailView: View {
         .task {
             await loadGitInfo()
         }
+        .sheet(isPresented: $showNewWorktree) {
+            WorktreeSheet(preselectedProjectId: project.id)
+                .environmentObject(appState)
+        }
         .alert("Delete Worktree?", isPresented: Binding(
             get: { worktreeToDelete != nil },
             set: { if !$0 { worktreeToDelete = nil } }
@@ -86,7 +92,35 @@ struct ProjectDetailView: View {
             }
             Button("Cancel", role: .cancel) { worktreeToDelete = nil }
         } message: {
-            Text("This will permanently remove the worktree at:\n\(worktreeToDelete?.path ?? "")\n\nAny uncommitted changes will be lost.")
+            Text("This will permanently remove the worktree at:\n\(worktreeToDelete?.path ?? "")\n\n\(deleteWarning)")
+        }
+    }
+
+    private func prepareDelete(_ wt: WorktreeInfo) {
+        Task {
+            var warnings: [String] = []
+
+            let hasChanges = await git.worktreeHasChanges(worktreePath: wt.path)
+            if hasChanges {
+                warnings.append("⚠️ This worktree has uncommitted changes that will be lost.")
+            }
+
+            if let branch = wt.branch {
+                let unmerged = await git.branchHasUnmergedCommits(
+                    repoPath: project.repositoryPath,
+                    branch: branch
+                )
+                if unmerged {
+                    warnings.append("⚠️ Branch \"\(branch)\" has commits not merged into main.")
+                }
+            }
+
+            await MainActor.run {
+                deleteWarning = warnings.isEmpty
+                    ? "This cannot be undone."
+                    : warnings.joined(separator: "\n") + "\n\nThis cannot be undone."
+                worktreeToDelete = wt
+            }
         }
     }
 
@@ -99,6 +133,10 @@ struct ProjectDetailView: View {
         Task {
             do {
                 try await git.removeWorktree(repoPath: project.repositoryPath, worktreePath: wt.path)
+                // Also delete the branch
+                if let branch = wt.branch {
+                    try? await git.deleteBranch(repoPath: project.repositoryPath, branch: branch)
+                }
                 await MainActor.run {
                     worktrees.removeAll { $0.id == wt.id }
                     deleteError = nil
@@ -241,7 +279,7 @@ struct ProjectDetailView: View {
 
                 // Delete button (not for main worktree)
                 if !isMain {
-                    Button(role: .destructive, action: { worktreeToDelete = wt }) {
+                    Button(role: .destructive, action: { prepareDelete(wt) }) {
                         Image(systemName: "trash")
                             .font(.system(size: 11))
                     }
@@ -261,12 +299,16 @@ struct ProjectDetailView: View {
 
     /// Creates a session in an existing worktree directory (no git worktree add).
     private func resumeWorktree(_ wt: WorktreeInfo) {
+        // Look up the most recent Claude session for this worktree
+        let sessionId = ClaudeSessionFinder.findLatestSessionId(for: wt.path)
+
         let session = SessionInfo(
             name: wt.branch ?? "session",
             workingDirectory: wt.path,
             projectId: project.id,
             branchName: wt.branch,
-            worktreePath: wt.path
+            worktreePath: wt.path,
+            claudeSessionId: sessionId
         )
         appState.sessions.append(session)
         appState.selectSession(session.id)

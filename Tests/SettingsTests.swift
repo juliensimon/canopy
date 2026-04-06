@@ -1,15 +1,15 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
-@Suite("TempoSettings")
+@Suite("CanopySettings")
 struct SettingsTests {
 
     // MARK: - Defaults
 
     @Test func defaultValues() {
-        let settings = TempoSettings()
-        #expect(settings.autoStartClaude == false)
+        let settings = CanopySettings()
+        #expect(settings.autoStartClaude == true)
         #expect(settings.claudeFlags == "--permission-mode auto")
         #expect(settings.confirmBeforeClosing == true)
         #expect(settings.idePath == "/Applications/Cursor.app")
@@ -18,30 +18,30 @@ struct SettingsTests {
     // MARK: - Claude Command
 
     @Test func claudeCommandDefault() {
-        let settings = TempoSettings()
+        let settings = CanopySettings()
         #expect(settings.claudeCommand == "claude --permission-mode auto")
     }
 
     @Test func claudeCommandWithFlags() {
-        var settings = TempoSettings()
+        var settings = CanopySettings()
         settings.claudeFlags = "--model sonnet --verbose"
         #expect(settings.claudeCommand == "claude --model sonnet --verbose")
     }
 
     @Test func claudeCommandTrimsWhitespace() {
-        var settings = TempoSettings()
+        var settings = CanopySettings()
         settings.claudeFlags = "  --model opus  "
         #expect(settings.claudeCommand == "claude --model opus")
     }
 
     @Test func claudeCommandEmptyFlags() {
-        var settings = TempoSettings()
+        var settings = CanopySettings()
         settings.claudeFlags = "   "
         #expect(settings.claudeCommand == "claude")
     }
 
     @Test func claudeCommandWithDangerousFlags() {
-        var settings = TempoSettings()
+        var settings = CanopySettings()
         settings.claudeFlags = "--dangerously-skip-permissions"
         #expect(settings.claudeCommand == "claude --dangerously-skip-permissions")
     }
@@ -49,12 +49,12 @@ struct SettingsTests {
     // MARK: - Codable Round-Trip
 
     @Test func codableRoundTrip() throws {
-        var original = TempoSettings()
+        var original = CanopySettings()
         original.autoStartClaude = true
         original.claudeFlags = "--model sonnet --verbose"
 
         let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(TempoSettings.self, from: data)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
 
         #expect(decoded.autoStartClaude == true)
         #expect(decoded.claudeFlags == "--model sonnet --verbose")
@@ -63,8 +63,8 @@ struct SettingsTests {
     @Test func decodesWithMissingFields() throws {
         let json = "{}"
         let data = json.data(using: .utf8)!
-        let decoded = try JSONDecoder().decode(TempoSettings.self, from: data)
-        #expect(decoded.autoStartClaude == false)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.autoStartClaude == true)
         #expect(decoded.claudeFlags == "--permission-mode auto")
         #expect(decoded.confirmBeforeClosing == true)
     }
@@ -72,17 +72,17 @@ struct SettingsTests {
     // MARK: - Persistence
 
     @Test func saveAndLoad() {
-        var settings = TempoSettings()
+        var settings = CanopySettings()
         settings.autoStartClaude = true
         settings.claudeFlags = "--model haiku"
         settings.save()
 
-        let loaded = TempoSettings.load()
+        let loaded = CanopySettings.load()
         #expect(loaded.autoStartClaude == true)
         #expect(loaded.claudeFlags == "--model haiku")
 
         // Reset to defaults
-        var reset = TempoSettings()
+        var reset = CanopySettings()
         reset.save()
     }
 }

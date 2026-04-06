@@ -74,8 +74,12 @@ struct SessionView: View {
                 let shouldStart = project?.shouldAutoStartClaude(globalSettings: appState.settings)
                     ?? appState.settings.autoStartClaude
                 if shouldStart {
-                    let command = project?.resolvedClaudeCommand(globalSettings: appState.settings)
+                    var command = project?.resolvedClaudeCommand(globalSettings: appState.settings)
                         ?? appState.settings.claudeCommand
+                    // Resume a specific Claude session if we have its ID
+                    if let sessionId = session.claudeSessionId {
+                        command += " --resume \(sessionId)"
+                    }
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(500))
                         terminalSession.sendCommand(command)
@@ -88,28 +92,46 @@ struct SessionView: View {
 /// Shown when no session is active.
 struct WelcomeView: View {
     @EnvironmentObject var appState: AppState
+    @State private var showHelp = false
 
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bolt.horizontal.circle")
-                .font(.system(size: 48))
-                .foregroundStyle(.tertiary)
+            Text("🌳")
+                .font(.system(size: 56))
 
-            Text("Tempo")
+            Text("Canopy")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Parallel Claude Code sessions with smart watchdogs")
+            Text("Parallel Claude Code sessions with git worktrees")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Button("New Session ⌘T") {
-                appState.createSessionWithPicker()
+            VStack(spacing: 10) {
+                Button("Add Project ⌘⇧P") {
+                    appState.showAddProjectSheet = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Button("New Session ⌘T") {
+                    appState.createSessionWithPicker()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+
+                Button("Getting Started ⌘?") {
+                    showHelp = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .controlSize(.regular)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.background)
+        .sheet(isPresented: $showHelp) {
+            HelpView()
+        }
     }
 }

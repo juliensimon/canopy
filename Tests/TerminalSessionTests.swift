@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
 /// Tests for TerminalSession — environment building, process exit, callbacks.
 /// We can't test actual PTY/terminal rendering without a window, but we can

@@ -2,10 +2,13 @@ import SwiftUI
 
 /// Sheet for creating a new worktree-backed session.
 /// The user picks a project, names a branch, and chooses a base branch.
-/// Tempo then creates the worktree, copies configs, and opens a session.
+/// Canopy then creates the worktree, copies configs, and opens a session.
 struct WorktreeSheet: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
+
+    /// If set, the project picker is hidden and this project is used.
+    let preselectedProjectId: UUID?
 
     @State private var selectedProjectId: UUID?
     @State private var branchName = ""
@@ -16,9 +19,15 @@ struct WorktreeSheet: View {
 
     private let git = GitService()
 
+    init(preselectedProjectId: UUID? = nil) {
+        self.preselectedProjectId = preselectedProjectId
+    }
+
     var selectedProject: Project? {
         appState.projects.first { $0.id == selectedProjectId }
     }
+
+    private var isProjectLocked: Bool { preselectedProjectId != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -34,6 +43,12 @@ struct WorktreeSheet: View {
         }
         .padding(20)
         .frame(width: 450, height: 380)
+        .onAppear {
+            if let preId = preselectedProjectId {
+                selectedProjectId = preId
+                loadBranches()
+            }
+        }
     }
 
     private var noProjectsView: some View {
@@ -58,20 +73,30 @@ struct WorktreeSheet: View {
 
     private var formView: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Project picker
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Project")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Picker("", selection: $selectedProjectId) {
-                    Text("Select a project...").tag(nil as UUID?)
-                    ForEach(appState.projects) { project in
-                        Text(project.name).tag(project.id as UUID?)
+            // Project picker (hidden when preselected)
+            if !isProjectLocked {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Project")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Picker("", selection: $selectedProjectId) {
+                        Text("Select a project...").tag(nil as UUID?)
+                        ForEach(appState.projects) { project in
+                            Text(project.name).tag(project.id as UUID?)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: selectedProjectId) { _, _ in
+                        loadBranches()
                     }
                 }
-                .labelsHidden()
-                .onChange(of: selectedProjectId) { _, _ in
-                    loadBranches()
+            } else if let project = selectedProject {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder.fill")
+                        .foregroundStyle(.orange)
+                    Text(project.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                 }
             }
 

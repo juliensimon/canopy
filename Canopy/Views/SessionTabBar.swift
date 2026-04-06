@@ -12,9 +12,10 @@ struct SessionTabBar: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 1) {
                     ForEach(appState.sessions) { session in
-                        SessionTab(
+                        LiveSessionTab(
                             session: session,
                             isActive: session.id == appState.activeSessionId,
+                            terminalSession: appState.terminalSessions[session.id],
                             onSelect: { appState.activeSessionId = session.id },
                             onClose: { appState.closeSession(id: session.id) }
                         )
@@ -45,31 +46,39 @@ struct SessionTabBar: View {
 struct SessionTab: View {
     let session: SessionInfo
     let isActive: Bool
+    var activity: SessionActivity = .idle
     let onSelect: () -> Void
     let onClose: () -> Void
+    var onCopySession: (@MainActor () -> Void)?
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 6) {
-            // Status dot
-            Circle()
-                .fill(isActive ? Color.green : Color.gray.opacity(0.4))
-                .frame(width: 6, height: 6)
+            ActivityDot(activity: activity)
 
             Text(session.name)
                 .font(.system(size: 11, weight: isActive ? .semibold : .regular))
                 .lineLimit(1)
 
-            // Close button (visible on hover or when active)
+            // Copy + Close buttons (visible on hover or when active)
             if isHovering || isActive {
+                Button(action: { onCopySession?() }) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 14, height: 14)
+                .help("Copy session output")
+
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .frame(width: 16, height: 16)
+                .frame(width: 14, height: 14)
             }
         }
         .padding(.horizontal, 12)
@@ -80,5 +89,34 @@ struct SessionTab: View {
         )
         .onTapGesture(perform: onSelect)
         .onHover { isHovering = $0 }
+    }
+}
+
+/// Wrapper that observes TerminalSession for live activity updates in tabs.
+struct LiveSessionTab: View {
+    let session: SessionInfo
+    let isActive: Bool
+    @ObservedObject var terminalSession: TerminalSession
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    init(session: SessionInfo, isActive: Bool, terminalSession: TerminalSession?, onSelect: @escaping () -> Void, onClose: @escaping () -> Void) {
+        self.session = session
+        self.isActive = isActive
+        // Use a dummy session if none exists yet
+        self._terminalSession = ObservedObject(wrappedValue: terminalSession ?? TerminalSession(id: session.id, workingDirectory: ""))
+        self.onSelect = onSelect
+        self.onClose = onClose
+    }
+
+    var body: some View {
+        SessionTab(
+            session: session,
+            isActive: isActive,
+            activity: terminalSession.activity,
+            onSelect: onSelect,
+            onClose: onClose,
+            onCopySession: { terminalSession.copyFullSessionToClipboard() }
+        )
     }
 }

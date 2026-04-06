@@ -19,9 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct TempoApp: App {
+struct CanopyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
+    @State private var showAbout = false
+    @State private var showHelp = false
 
     var body: some Scene {
         WindowGroup {
@@ -30,6 +32,12 @@ struct TempoApp: App {
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)
                         .environmentObject(appState)
+                }
+                .sheet(isPresented: $showAbout) {
+                    AboutView()
+                }
+                .sheet(isPresented: $showHelp) {
+                    HelpView()
                 }
         }
         .windowStyle(.titleBar)
@@ -43,6 +51,7 @@ struct TempoApp: App {
                 .keyboardShortcut("t", modifiers: [.command])
 
                 Button("New Worktree Session...") {
+                    appState.worktreeSheetProjectId = nil
                     appState.showNewWorktreeSheet = true
                 }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
@@ -55,7 +64,21 @@ struct TempoApp: App {
                 .keyboardShortcut("p", modifiers: [.command, .shift])
             }
 
-            // App menu — Settings
+            // App menu
+            CommandGroup(replacing: .appInfo) {
+                Button("About Canopy") {
+                    showAbout = true
+                }
+            }
+
+            // Help menu
+            CommandGroup(replacing: .help) {
+                Button("Canopy Help") {
+                    showHelp = true
+                }
+                .keyboardShortcut("?", modifiers: [.command])
+            }
+
             CommandGroup(after: .appSettings) {
                 Button("Settings...") {
                     appState.showSettings = true

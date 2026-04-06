@@ -14,7 +14,7 @@ struct Sidebar: View {
     @State private var renamingSessionId: UUID?
     @State private var renameText = ""
     @State private var infoSession: SessionInfo?
-    @State private var watchdogSessionId: UUID?
+    @State private var projectToDelete: Project?
 
     private var plainSessions: [SessionInfo] {
         appState.sessions.filter { $0.projectId == nil }
@@ -53,8 +53,10 @@ struct Sidebar: View {
         .sheet(isPresented: $appState.showAddProjectSheet) {
             AddProjectSheet()
         }
-        .sheet(isPresented: $appState.showNewWorktreeSheet) {
-            WorktreeSheet()
+        .sheet(isPresented: $appState.showNewWorktreeSheet, onDismiss: {
+            appState.worktreeSheetProjectId = nil
+        }) {
+            WorktreeSheet(preselectedProjectId: appState.worktreeSheetProjectId)
         }
         .sheet(item: $editingProject) { project in
             EditProjectSheet(project: project)
@@ -63,15 +65,19 @@ struct Sidebar: View {
             SessionInfoSheet(session: session)
                 .environmentObject(appState)
         }
-        .sheet(isPresented: Binding(
-            get: { watchdogSessionId != nil },
-            set: { if !$0 { watchdogSessionId = nil } }
+        .alert("Delete Project?", isPresented: Binding(
+            get: { projectToDelete != nil },
+            set: { if !$0 { projectToDelete = nil } }
         )) {
-            if let sessionId = watchdogSessionId {
-                let ts = appState.terminalSessions[sessionId]
-                WatchdogConfigView(sessionId: sessionId, config: ts?.watchdog.config)
-                    .environmentObject(appState)
+            Button("Delete", role: .destructive) {
+                if let project = projectToDelete {
+                    appState.removeProject(id: project.id)
+                    projectToDelete = nil
+                }
             }
+            Button("Cancel", role: .cancel) { projectToDelete = nil }
+        } message: {
+            Text("Remove \"\(projectToDelete?.name ?? "")\" from Canopy? This does not delete the repository or its worktrees from disk.")
         }
     }
 
@@ -89,10 +95,11 @@ struct Sidebar: View {
                     renamingSessionId = nil
                 })
             } else {
-                SidebarSessionRow(
-                    session: session,
-                    watchdogActive: appState.terminalSessions[session.id]?.watchdog.isActive ?? false
-                )
+                if let ts = appState.terminalSessions[session.id] {
+                    LiveSessionRow(session: session, terminalSession: ts)
+                } else {
+                    SidebarSessionRow(session: session)
+                }
             }
 
             Spacer()
@@ -113,15 +120,14 @@ struct Sidebar: View {
 
     @ViewBuilder
     private func sessionContextMenu(_ session: SessionInfo) -> some View {
-        Button("Watchdog...") {
-            watchdogSessionId = session.id
-        }
-
-        Divider()
 
         Button("Rename...") {
             renameText = session.name
             renamingSessionId = session.id
+        }
+
+        Button("Copy Session Output") {
+            appState.terminalSessions[session.id]?.copyFullSessionToClipboard()
         }
 
         Button("Copy Working Directory") {
@@ -199,6 +205,7 @@ struct Sidebar: View {
     @ViewBuilder
     private func projectContextMenu(_ project: Project) -> some View {
         Button("New Worktree Session...") {
+            appState.worktreeSheetProjectId = project.id
             appState.showNewWorktreeSheet = true
         }
 
@@ -216,7 +223,7 @@ struct Sidebar: View {
         Divider()
 
         Button("Delete Project", role: .destructive) {
-            appState.removeProject(id: project.id)
+            projectToDelete = project
         }
     }
 
@@ -240,28 +247,37 @@ struct Sidebar: View {
     }
 }
 
+// MARK: - Live Session Row (observes TerminalSession for activity updates)
+
+/// Wrapper that uses @ObservedObject to react to activity changes.
+struct LiveSessionRow: View {
+    let session: SessionInfo
+    @ObservedObject var terminalSession: TerminalSession
+
+    var body: some View {
+        SidebarSessionRow(
+            session: session,
+            activity: terminalSession.activity
+        )
+    }
+}
+
 // MARK: - Session Row (reusable)
 
 struct SidebarSessionRow: View {
     let session: SessionInfo
-    var watchdogActive: Bool = false
+    var activity: SessionActivity = .idle
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: session.isWorktreeSession ? "arrow.triangle.branch" : "terminal")
-                .font(.system(size: 12))
-                .foregroundStyle(session.isWorktreeSession ? .blue : .secondary)
+            ActivityDot(activity: activity)
+                .frame(width: 10)
+
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(session.name)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
-                    if watchdogActive {
-                        Image(systemName: "shield.checkered")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.green)
-                            .help("Watchdog active")
-                    }
                 }
                 Text(subtitle)
                     .font(.system(size: 10))

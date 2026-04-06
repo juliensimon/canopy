@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
 /// Tests for GitService — worktree CRUD, branch listing, file operations.
 /// Each test creates a temporary git repo, runs the test, and cleans up.
@@ -11,7 +11,7 @@ struct GitServiceTests {
 
     /// Creates a temporary git repo with an initial commit, runs the body, cleans up.
     private func withTempRepo(_ body: (String) async throws -> Void) async throws {
-        let repoPath = NSTemporaryDirectory() + "tempo-test-\(UUID().uuidString)"
+        let repoPath = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
         try fm.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: repoPath) }
 
@@ -134,8 +134,8 @@ struct GitServiceTests {
     // MARK: - File Copy
 
     @Test func copyFiles() throws {
-        let src = NSTemporaryDirectory() + "tempo-copy-src-\(UUID().uuidString)"
-        let dst = NSTemporaryDirectory() + "tempo-copy-dst-\(UUID().uuidString)"
+        let src = NSTemporaryDirectory() + "canopy-copy-src-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-copy-dst-\(UUID().uuidString)"
         try fm.createDirectory(atPath: src, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: src); try? fm.removeItem(atPath: dst) }
@@ -150,8 +150,8 @@ struct GitServiceTests {
     }
 
     @Test func copyFilesCreatesParentDirs() throws {
-        let src = NSTemporaryDirectory() + "tempo-nested-src-\(UUID().uuidString)"
-        let dst = NSTemporaryDirectory() + "tempo-nested-dst-\(UUID().uuidString)"
+        let src = NSTemporaryDirectory() + "canopy-nested-src-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-nested-dst-\(UUID().uuidString)"
         try fm.createDirectory(atPath: "\(src)/config/deep", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: src); try? fm.removeItem(atPath: dst) }
@@ -165,8 +165,8 @@ struct GitServiceTests {
     }
 
     @Test func copyFilesOverwrites() throws {
-        let src = NSTemporaryDirectory() + "tempo-ow-src-\(UUID().uuidString)"
-        let dst = NSTemporaryDirectory() + "tempo-ow-dst-\(UUID().uuidString)"
+        let src = NSTemporaryDirectory() + "canopy-ow-src-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-ow-dst-\(UUID().uuidString)"
         try fm.createDirectory(atPath: src, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: src); try? fm.removeItem(atPath: dst) }
@@ -182,8 +182,8 @@ struct GitServiceTests {
     // MARK: - Symlinks
 
     @Test func createSymlinks() throws {
-        let src = NSTemporaryDirectory() + "tempo-sym-src-\(UUID().uuidString)"
-        let dst = NSTemporaryDirectory() + "tempo-sym-dst-\(UUID().uuidString)"
+        let src = NSTemporaryDirectory() + "canopy-sym-src-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-sym-dst-\(UUID().uuidString)"
         try fm.createDirectory(atPath: "\(src)/node_modules", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: src); try? fm.removeItem(atPath: dst) }
@@ -200,7 +200,7 @@ struct GitServiceTests {
     }
 
     @Test func createSymlinksSkipsMissing() throws {
-        let dst = NSTemporaryDirectory() + "tempo-sym-skip-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-sym-skip-\(UUID().uuidString)"
         try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: dst) }
 
@@ -211,7 +211,7 @@ struct GitServiceTests {
     // MARK: - Setup Commands
 
     @Test func runSetupCommand() async throws {
-        let dir = NSTemporaryDirectory() + "tempo-setup-\(UUID().uuidString)"
+        let dir = NSTemporaryDirectory() + "canopy-setup-\(UUID().uuidString)"
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: dir) }
 
@@ -222,7 +222,7 @@ struct GitServiceTests {
     }
 
     @Test func runSetupCommandFailsOnError() async {
-        let dir = NSTemporaryDirectory() + "tempo-setup-fail-\(UUID().uuidString)"
+        let dir = NSTemporaryDirectory() + "canopy-setup-fail-\(UUID().uuidString)"
         try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: dir) }
 

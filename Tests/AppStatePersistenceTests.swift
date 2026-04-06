@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
 /// Tests for AppState persistence, worktree session creation, and expanded state.
 @Suite("AppState Persistence & Worktree")
@@ -99,7 +99,7 @@ struct AppStatePersistenceTests {
 
     @Test @MainActor func createWorktreeSessionEndToEnd() async throws {
         // Create a real temp git repo
-        let repoPath = NSTemporaryDirectory() + "tempo-wt-e2e-\(UUID().uuidString)"
+        let repoPath = NSTemporaryDirectory() + "canopy-wt-e2e-\(UUID().uuidString)"
         let fm = FileManager.default
         try fm.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: repoPath) }
@@ -139,7 +139,7 @@ struct AppStatePersistenceTests {
     }
 
     @Test @MainActor func createWorktreeSessionSetsStatusMessages() async throws {
-        let repoPath = NSTemporaryDirectory() + "tempo-wt-status-\(UUID().uuidString)"
+        let repoPath = NSTemporaryDirectory() + "canopy-wt-status-\(UUID().uuidString)"
         let fm = FileManager.default
         try fm.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: repoPath) }

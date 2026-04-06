@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "Tempo",
+    name: "Canopy",
     platforms: [
         .macOS(.v14)
     ],
@@ -12,17 +12,17 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Tempo",
+            name: "Canopy",
             dependencies: ["SwiftTerm"],
-            path: "Tempo",
-            exclude: ["App/Tempo.entitlements"],
+            path: "Canopy",
+            exclude: ["App/Canopy.entitlements"],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
             ]
         ),
         .testTarget(
-            name: "TempoTests",
-            dependencies: ["Tempo"],
+            name: "CanopyTests",
+            dependencies: ["Canopy"],
             path: "Tests"
         ),
     ]

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings sheet for configuring Tempo behavior.
+/// Settings sheet for configuring Canopy behavior.
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State private var confirmBeforeClosing: Bool
     @State private var idePath: String
 
-    init(settings: TempoSettings) {
+    init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
         self._claudeFlags = State(initialValue: settings.claudeFlags)
         self._confirmBeforeClosing = State(initialValue: settings.confirmBeforeClosing)

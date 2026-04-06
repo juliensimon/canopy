@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sheet for adding a new project (git repository) to Tempo.
+/// Sheet for adding a new project (git repository) to Canopy.
 /// The user picks a repo directory and configures which files
 /// to copy and symlink when creating worktrees.
 struct AddProjectSheet: View {

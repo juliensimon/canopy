@@ -52,6 +52,26 @@ struct GitService {
     // MARK: - Branch Operations
 
     /// Lists local branches, returning them sorted with current branch first.
+    /// Checks if a worktree has uncommitted changes or unmerged commits.
+    func worktreeHasChanges(worktreePath: String) async -> Bool {
+        // Check for uncommitted changes
+        let hasUncommitted = (try? await run(["status", "--porcelain"], in: worktreePath))
+            .map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        return hasUncommitted
+    }
+
+    /// Checks if a branch has commits not merged into the base branch.
+    func branchHasUnmergedCommits(repoPath: String, branch: String, baseBranch: String = "main") async -> Bool {
+        let count = (try? await run(["rev-list", "--count", "\(baseBranch)..\(branch)"], in: repoPath))
+            .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
+        return count > 0
+    }
+
+    /// Deletes a local branch.
+    func deleteBranch(repoPath: String, branch: String) async throws {
+        try await run(["branch", "-D", branch], in: repoPath)
+    }
+
     func listBranches(repoPath: String) async throws -> [BranchInfo] {
         let output = try await run(
             ["branch", "--format=%(refname:short)\t%(HEAD)\t%(upstream:short)"],
@@ -228,7 +248,8 @@ struct GitService {
                 if let path = currentPath {
                     worktrees.append(WorktreeInfo(path: path, branch: currentBranch, isBare: isBare))
                 }
-                currentPath = String(str.dropFirst("worktree ".count))
+                let rawPath = String(str.dropFirst("worktree ".count))
+                currentPath = (rawPath as NSString).expandingTildeInPath
                 currentBranch = nil
                 isBare = false
             } else if str.hasPrefix("branch ") {

@@ -1,6 +1,6 @@
-name: Tempo
+name: Canopy
 options:
-  bundleIdPrefix: com.tempo
+  bundleIdPrefix: com.canopy
   deploymentTarget:
     macOS: "14.0"
   xcodeVersion: "16.0"
@@ -12,40 +12,40 @@ packages:
     from: "1.2.0"
 
 targets:
-  Tempo:
+  Canopy:
     type: application
     platform: macOS
     sources:
-      - Tempo
+      - Canopy
     resources:
       - Resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tempo.app
-        PRODUCT_NAME: Tempo
+        PRODUCT_BUNDLE_IDENTIFIER: com.canopy.app
+        PRODUCT_NAME: Canopy
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.developer-tools"
-        INFOPLIST_KEY_CFBundleDisplayName: Tempo
+        INFOPLIST_KEY_CFBundleDisplayName: Canopy
         SWIFT_VERSION: "6.0"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         ENABLE_HARDENED_RUNTIME: true
-        CODE_SIGN_ENTITLEMENTS: Tempo/App/Tempo.entitlements
+        CODE_SIGN_ENTITLEMENTS: Canopy/App/Canopy.entitlements
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - package: SwiftTerm
     entitlements:
-      path: Tempo/App/Tempo.entitlements
+      path: Canopy/App/Canopy.entitlements
       properties:
         com.apple.security.app-sandbox: false
 
-  TempoTests:
+  CanopyTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - Tests
     dependencies:
-      - target: Tempo
+      - target: Canopy
     settings:
       base:
         SWIFT_VERSION: "6.0"

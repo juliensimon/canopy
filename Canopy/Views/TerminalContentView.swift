@@ -97,9 +97,16 @@ final class TerminalViewController: NSViewController {
             }
 
             // If focus is on something intentional (e.g. a text field in a sheet),
-            // don't steal events. Only steal when focus is on generic SwiftUI views.
+            // don't steal events.
             let responder = window.firstResponder
             if responder is NSTextView || responder is NSTextField {
+                return event
+            }
+
+            // Let Cmd+key shortcuts (copy, paste, quit, etc.) flow through
+            // the normal menu/responder chain instead of forwarding as raw keys.
+            if event.type == .keyDown && event.modifierFlags.contains(.command) {
+                window.makeFirstResponder(tv)
                 return event
             }
 

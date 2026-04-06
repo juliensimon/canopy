@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
 /// Edge case tests for GitService — covers untested paths and error conditions.
 @Suite("GitService Edge Cases")
@@ -9,7 +9,7 @@ struct GitServiceEdgeCaseTests {
     private let fm = FileManager.default
 
     private func withTempRepo(_ body: (String) async throws -> Void) async throws {
-        let repoPath = NSTemporaryDirectory() + "tempo-edge-\(UUID().uuidString)"
+        let repoPath = NSTemporaryDirectory() + "canopy-edge-\(UUID().uuidString)"
         try fm.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: repoPath) }
 
@@ -135,8 +135,8 @@ struct GitServiceEdgeCaseTests {
     // MARK: - File Operations Edge Cases
 
     @Test func copyFilesEmptyList() throws {
-        let src = NSTemporaryDirectory() + "tempo-empty-src-\(UUID().uuidString)"
-        let dst = NSTemporaryDirectory() + "tempo-empty-dst-\(UUID().uuidString)"
+        let src = NSTemporaryDirectory() + "canopy-empty-src-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-empty-dst-\(UUID().uuidString)"
         try fm.createDirectory(atPath: src, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: src); try? fm.removeItem(atPath: dst) }
@@ -146,8 +146,8 @@ struct GitServiceEdgeCaseTests {
     }
 
     @Test func symlinkReplacesExistingFile() throws {
-        let src = NSTemporaryDirectory() + "tempo-sym-replace-src-\(UUID().uuidString)"
-        let dst = NSTemporaryDirectory() + "tempo-sym-replace-dst-\(UUID().uuidString)"
+        let src = NSTemporaryDirectory() + "canopy-sym-replace-src-\(UUID().uuidString)"
+        let dst = NSTemporaryDirectory() + "canopy-sym-replace-dst-\(UUID().uuidString)"
         try fm.createDirectory(atPath: "\(src)/dir", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: "\(dst)/dir", withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: src); try? fm.removeItem(atPath: dst) }
@@ -163,7 +163,7 @@ struct GitServiceEdgeCaseTests {
     }
 
     @Test func setupCommandHasAccessToPath() async throws {
-        let dir = NSTemporaryDirectory() + "tempo-path-\(UUID().uuidString)"
+        let dir = NSTemporaryDirectory() + "canopy-path-\(UUID().uuidString)"
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: dir) }
 

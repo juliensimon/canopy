@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
 @Suite("AppState")
 struct AppStateTests {

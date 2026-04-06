@@ -16,10 +16,12 @@ final class AppState: ObservableObject {
     var terminalSessions: [UUID: TerminalSession] = [:]
 
     /// App settings (auto-start claude, flags, etc.)
-    @Published var settings = TempoSettings.load()
+    @Published var settings = CanopySettings.load()
 
     /// UI triggers for sheets
     @Published var showNewWorktreeSheet = false
+    /// When set, the worktree sheet preselects this project
+    @Published var worktreeSheetProjectId: UUID?
     @Published var showAddProjectSheet = false
     @Published var showSettings = false
     @Published var showCloseConfirmation = false
@@ -73,8 +75,12 @@ final class AppState: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.message = "Choose working directory for the new session"
         panel.prompt = "Open"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        createSession(directory: url.path)
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                self?.createSession(directory: url.path)
+            }
+        }
     }
 
     /// Creates a plain session in the given directory.
@@ -239,9 +245,9 @@ final class AppState: ObservableObject {
 
     // MARK: - Persistence
 
-    /// Projects are saved to ~/.config/tempo/projects.json
+    /// Projects are saved to ~/.config/canopy/projects.json
     private var projectsFilePath: String {
-        let configDir = (NSHomeDirectory() as NSString).appendingPathComponent(".config/tempo")
+        let configDir = (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         return (configDir as NSString).appendingPathComponent("projects.json")
     }
@@ -276,17 +282,23 @@ struct SessionInfo: Identifiable {
 
     var isWorktreeSession: Bool { worktreePath != nil }
 
+    /// Claude Code session ID to resume (UUID from ~/.claude/projects/).
+    /// When set, Claude is started with `--resume <id>`.
+    var claudeSessionId: String?
+
     init(
         name: String,
         workingDirectory: String,
         projectId: UUID? = nil,
         branchName: String? = nil,
-        worktreePath: String? = nil
+        worktreePath: String? = nil,
+        claudeSessionId: String? = nil
     ) {
         self.name = name
         self.workingDirectory = workingDirectory
         self.projectId = projectId
         self.branchName = branchName
         self.worktreePath = worktreePath
+        self.claudeSessionId = claudeSessionId
     }
 }

@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Tempo
+@testable import Canopy
 
 @Suite("Project Model")
 struct ProjectTests {
@@ -40,7 +40,7 @@ struct ProjectTests {
 
     @Test func resolvedWorktreeBaseDirDefault() {
         let project = Project(name: "myapp", repositoryPath: "/Users/dev/myapp")
-        #expect(project.resolvedWorktreeBaseDir == "/Users/dev/tempo-worktrees/myapp")
+        #expect(project.resolvedWorktreeBaseDir == "/Users/dev/canopy-worktrees/myapp")
     }
 
     @Test func resolvedWorktreeBaseDirCustom() {
@@ -52,7 +52,7 @@ struct ProjectTests {
     @Test func resolvedWorktreeBaseDirIgnoresEmpty() {
         var project = Project(name: "myapp", repositoryPath: "/Users/dev/myapp")
         project.worktreeBaseDir = ""
-        #expect(project.resolvedWorktreeBaseDir == "/Users/dev/tempo-worktrees/myapp")
+        #expect(project.resolvedWorktreeBaseDir == "/Users/dev/canopy-worktrees/myapp")
     }
 
     // MARK: - Codable
