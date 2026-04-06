@@ -17,7 +17,7 @@ struct Sidebar: View {
     @State private var projectToDelete: Project?
 
     private var plainSessions: [SessionInfo] {
-        appState.sessions.filter { $0.projectId == nil }
+        appState.orderedSessions.filter { $0.projectId == nil }
     }
 
     var body: some View {
@@ -31,6 +31,9 @@ struct Sidebar: View {
                         Section("Sessions") {
                             ForEach(plainSessions) { session in
                                 sessionRow(session)
+                            }
+                            .onMove { source, destination in
+                                appState.moveSession(from: source, to: destination)
                             }
                         }
                     }
@@ -179,7 +182,7 @@ struct Sidebar: View {
 
     @ViewBuilder
     private func projectSection(_ project: Project) -> some View {
-        let sessions = appState.sessions.filter { $0.projectId == project.id }
+        let sessions = appState.orderedSessions.filter { $0.projectId == project.id }
 
         Section(isExpanded: appState.projectExpandedBinding(for: project.id)) {
             if sessions.isEmpty {
