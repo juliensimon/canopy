@@ -1,0 +1,51 @@
+name: Tempo
+options:
+  bundleIdPrefix: com.tempo
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    from: "1.2.0"
+
+targets:
+  Tempo:
+    type: application
+    platform: macOS
+    sources:
+      - Tempo
+    resources:
+      - Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tempo.app
+        PRODUCT_NAME: Tempo
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.developer-tools"
+        INFOPLIST_KEY_CFBundleDisplayName: Tempo
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_ENTITLEMENTS: Tempo/App/Tempo.entitlements
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - package: SwiftTerm
+    entitlements:
+      path: Tempo/App/Tempo.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+
+  TempoTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    dependencies:
+      - target: Tempo
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
