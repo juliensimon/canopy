@@ -4,6 +4,8 @@
 
 Canopy is a native macOS app that lets you run multiple [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions in parallel, each in its own [git worktree](https://git-scm.com/docs/git-worktree). Work on a feature, a bug fix, and a refactor at the same time -- each with its own branch, its own directory, and its own Claude instance.
 
+How good is this? Good enough for me to use it hours every day on all my projects. I eat my own dog food! Quirks get fixed and features get added quickly.
+
 ## Why
 
 Claude Code is powerful, but it works in a single directory on a single branch. If you want to run two tasks in parallel, you need two checkouts. Managing those by hand (creating worktrees, copying `.env` files, symlinking `node_modules`, launching Claude in each one, cleaning up afterwards) gets tedious fast.
@@ -23,7 +25,6 @@ All from a single window with tabs, a sidebar, and right-click context menus.
 Canopy builds on two ideas:
 
 - **[Git worktrees](https://git-scm.com/docs/git-worktree)** let you check out multiple branches of the same repo simultaneously, each in its own directory. They share the same `.git` object store, so they're lightweight and fast to create. See the [Git documentation on parallel development](https://git-scm.com/docs/git-worktree#_description) for background.
-
 - **Claude Code sessions** are directory-scoped. Each worktree gets its own Claude instance. Canopy finds and resumes previous sessions automatically using `--resume`.
 
 ### Architecture
@@ -34,7 +35,7 @@ Canopy builds on two ideas:
 |           | [branch-a] [branch-b]  [+] |
 | Projects  +----------------------------+
 | & Sessions|                            |
-|           |   Terminal (SwiftTerm)      |
+|           |   Terminal (SwiftTerm)     |
 |           |   Running Claude Code      |
 |           |                            |
 |           +----------------------------+
@@ -70,14 +71,16 @@ Requires macOS 14+ and Swift 6.0.
 
 When adding a project, you can configure:
 
-| Setting | Example | Purpose |
-|---------|---------|---------|
-| Files to copy | `.env`, `.env.local` | Copied from main repo into each new worktree |
-| Symlink paths | `node_modules`, `.venv` | Symlinked (not copied) to save disk space |
-| Setup commands | `npm install`, `bundle install` | Run in the worktree after creation |
-| Worktree base dir | `~/worktrees/myproject` | Where worktrees are created (default: `../canopy-worktrees/<project>`) |
-| Auto-start Claude | on/off | Override the global setting per project |
-| Claude flags | `--permission-mode auto` | Override the global flags per project |
+
+| Setting           | Example                         | Purpose                                                                |
+| ----------------- | ------------------------------- | ---------------------------------------------------------------------- |
+| Files to copy     | `.env`, `.env.local`            | Copied from main repo into each new worktree                           |
+| Symlink paths     | `node_modules`, `.venv`         | Symlinked (not copied) to save disk space                              |
+| Setup commands    | `npm install`, `bundle install` | Run in the worktree after creation                                     |
+| Worktree base dir | `~/worktrees/myproject`         | Where worktrees are created (default: `../canopy-worktrees/<project>`) |
+| Auto-start Claude | on/off                          | Override the global setting per project                                |
+| Claude flags      | `--permission-mode auto`        | Override the global flags per project                                  |
+
 
 ## Features
 
@@ -92,14 +95,16 @@ When adding a project, you can configure:
 
 ## Keyboard shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+T` | New plain session (directory picker) |
-| `Cmd+Shift+T` | New worktree session |
-| `Cmd+Shift+P` | Add project |
-| `Cmd+Shift+S` | Cycle tab sort mode |
-| `Cmd+,` | Settings |
-| `Cmd+?` | Help |
+
+| Shortcut      | Action                               |
+| ------------- | ------------------------------------ |
+| `Cmd+T`       | New plain session (directory picker) |
+| `Cmd+Shift+T` | New worktree session                 |
+| `Cmd+Shift+P` | Add project                          |
+| `Cmd+Shift+S` | Cycle tab sort mode                  |
+| `Cmd+,`       | Settings                             |
+| `Cmd+?`       | Help                                 |
+
 
 ## Configuration
 
@@ -122,7 +127,7 @@ Found a bug or have a feature request? [Open an issue](https://github.com/julien
 
 ## Author
 
-**Julien Simon** -- julien@julien.org
+**Julien Simon** -- [julien@julien.org](mailto:julien@julien.org)
 
 ## License
 
@@ -130,6 +135,6 @@ Copyright 2026 Julien Simon.
 
 Canopy is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
 
-**Commercial licensing**: If you need to use Canopy under terms other than AGPL-3.0 (e.g., embedding in a proprietary product or redistributing without source disclosure), commercial licenses are available. Contact julien@julien.org.
+**Commercial licensing**: If you need to use Canopy under terms other than AGPL-3.0 (e.g., embedding in a proprietary product or redistributing without source disclosure), commercial licenses are available. Contact [julien@julien.org](mailto:julien@julien.org).
 
 **Contributing**: By submitting a pull request, you agree to the [Contributor License Agreement](CLA.md), which grants the project maintainer the right to relicense your contributions. This enables dual licensing while keeping the open source version free under AGPL.
