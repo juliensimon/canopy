@@ -136,11 +136,13 @@ final class AppState: ObservableObject {
         }
 
         let session = SessionInfo(name: finalName, workingDirectory: workDir)
-        if tabSortMode == .manual {
-            sessions.append(session)
-        } else {
-            sessions.append(session)
-            sessions = orderedSessions
+        withAnimation(.easeOut(duration: 0.25)) {
+            if tabSortMode == .manual {
+                sessions.append(session)
+            } else {
+                sessions.append(session)
+                sessions = orderedSessions
+            }
         }
         activeSessionId = session.id
 
@@ -236,13 +238,15 @@ final class AppState: ObservableObject {
                 branchName: branchName,
                 worktreePath: worktreePath
             )
-            if tabSortMode == .manual {
-                sessions.append(session)
-            } else {
-                sessions.append(session)
-                sessions = orderedSessions
+            withAnimation(.easeOut(duration: 0.25)) {
+                if tabSortMode == .manual {
+                    sessions.append(session)
+                } else {
+                    sessions.append(session)
+                    sessions = orderedSessions
+                }
+                activeSessionId = session.id
             }
-            activeSessionId = session.id
 
         } catch {
             worktreeSetupInProgress = false
@@ -267,9 +271,11 @@ final class AppState: ObservableObject {
     func performCloseSession(id: UUID) {
         terminalSessions[id]?.stop()
         terminalSessions.removeValue(forKey: id)
-        sessions.removeAll { $0.id == id }
-        if activeSessionId == id {
-            activeSessionId = sessions.last?.id
+        withAnimation(.easeOut(duration: 0.25)) {
+            sessions.removeAll { $0.id == id }
+            if activeSessionId == id {
+                activeSessionId = sessions.last?.id
+            }
         }
         pendingCloseSessionId = nil
     }
