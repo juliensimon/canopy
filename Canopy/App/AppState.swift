@@ -124,7 +124,12 @@ final class AppState: ObservableObject {
         let finalName = sessionName == NSHomeDirectory().split(separator: "/").last.map(String.init) ? "Session \(index)" : sessionName
 
         let session = SessionInfo(name: finalName, workingDirectory: workDir)
-        sessions.append(session)
+        if tabSortMode == .manual {
+            sessions.append(session)
+        } else {
+            sessions.append(session)
+            sessions = orderedSessions
+        }
         activeSessionId = session.id
     }
 
@@ -200,7 +205,12 @@ final class AppState: ObservableObject {
                 branchName: branchName,
                 worktreePath: worktreePath
             )
-            sessions.append(session)
+            if tabSortMode == .manual {
+                sessions.append(session)
+            } else {
+                sessions.append(session)
+                sessions = orderedSessions
+            }
             activeSessionId = session.id
 
         } catch {

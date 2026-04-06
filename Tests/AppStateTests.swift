@@ -246,6 +246,31 @@ struct AppStateTests {
         #expect(a.id != b.id)
     }
 
+    // MARK: - Sorted Insertion
+
+    @Test @MainActor func newSessionInsertedInSortedPosition() {
+        let state = AppState()
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Cherry", directory: "/tmp/c")
+        state.tabSortMode = .name
+
+        state.createSession(name: "Banana", directory: "/tmp/b")
+
+        // In name sort mode, the underlying array has Banana in sorted position
+        #expect(state.sessions.map(\.name) == ["Apple", "Banana", "Cherry"])
+    }
+
+    @Test @MainActor func newSessionAppendsInManualMode() {
+        let state = AppState()
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Cherry", directory: "/tmp/c")
+        state.tabSortMode = .manual
+
+        state.createSession(name: "Banana", directory: "/tmp/b")
+
+        #expect(state.sessions.map(\.name) == ["Apple", "Cherry", "Banana"])
+    }
+
     // MARK: - Tab Sorting
 
     @Test @MainActor func defaultSortModeIsManual() {
