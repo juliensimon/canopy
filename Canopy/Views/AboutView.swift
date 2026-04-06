@@ -1,20 +1,22 @@
 import SwiftUI
 
-/// About window showing version and build info.
+/// About window showing version, author, and build info.
 struct AboutView: View {
     @Environment(\.dismiss) var dismiss
 
+    private let githubURL = "https://github.com/juliensimon/canopy"
+
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bolt.horizontal.circle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.blue)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 64, height: 64)
 
             Text("Canopy")
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Native Claude Code session manager")
+            Text("Parallel Claude Code sessions with git worktrees")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -28,13 +30,38 @@ struct AboutView: View {
             }
             .textSelection(.enabled)
 
+            Divider()
+
+            VStack(spacing: 4) {
+                Text("Julien Simon")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text("julien@julien.org")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button(action: {
+                    if let url = URL(string: githubURL) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "link")
+                            .font(.system(size: 10))
+                        Text("GitHub")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.link)
+            }
+
             Spacer()
 
             Button("OK") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(24)
-        .frame(width: 380, height: 320)
+        .frame(width: 380, height: 400)
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {

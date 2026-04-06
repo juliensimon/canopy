@@ -46,6 +46,13 @@ final class AppState: ObservableObject {
 
     private let git = GitService()
 
+    /// Injected config directory for persistence. Defaults to ~/.config/canopy.
+    private let configDir: String
+
+    init(configDir: String? = nil) {
+        self.configDir = configDir ?? (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
+    }
+
     var activeSession: SessionInfo? {
         sessions.first { $0.id == activeSessionId }
     }
@@ -321,18 +328,23 @@ final class AppState: ObservableObject {
 
     // MARK: - Persistence
 
-    /// Projects are saved to ~/.config/canopy/projects.json
+    /// Projects are saved to <configDir>/projects.json
     private var projectsFilePath: String {
-        let configDir = (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         return (configDir as NSString).appendingPathComponent("projects.json")
     }
 
     func loadProjects() {
-        guard let data = FileManager.default.contents(atPath: projectsFilePath),
+        let path = projectsFilePath
+        guard let data = FileManager.default.contents(atPath: path),
               let decoded = try? JSONDecoder().decode([Project].self, from: data) else {
             return
         }
+        // Back up before loading so we can recover if something overwrites
+        let backupPath = (configDir as NSString).appendingPathComponent("projects.backup.json")
+        try? FileManager.default.removeItem(atPath: backupPath)
+        try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
+
         projects = decoded
         // Auto-expand all projects on load
         expandedProjects = Set(decoded.map(\.id))

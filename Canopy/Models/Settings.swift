@@ -15,15 +15,24 @@ struct CanopySettings: Codable {
     /// Defaults to Cursor.
     var idePath: String
 
+    /// Path to the terminal application used for "Open in Terminal".
+    /// Defaults to Terminal.app.
+    var terminalPath: String
+
     var ideName: String {
         ((idePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app") {
+    var terminalName: String {
+        ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
+    }
+
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app") {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
         self.idePath = idePath
+        self.terminalPath = terminalPath
     }
 
     init(from decoder: Decoder) throws {
@@ -32,6 +41,7 @@ struct CanopySettings: Codable {
         claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags) ?? "--permission-mode auto"
         confirmBeforeClosing = try container.decodeIfPresent(Bool.self, forKey: .confirmBeforeClosing) ?? true
         idePath = try container.decodeIfPresent(String.self, forKey: .idePath) ?? "/Applications/Cursor.app"
+        terminalPath = try container.decodeIfPresent(String.self, forKey: .terminalPath) ?? "/System/Applications/Utilities/Terminal.app"
     }
 
     /// The full command sent to the terminal when auto-starting.

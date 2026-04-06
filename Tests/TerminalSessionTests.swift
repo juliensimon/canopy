@@ -65,4 +65,60 @@ struct TerminalSessionTests {
         session.send(text: "hello")
         session.sendCommand("ls")
     }
+
+    // MARK: - ANSI Escape Stripping
+
+    @Test func stripPlainText() {
+        let input = "Hello, world!"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Hello, world!")
+    }
+
+    @Test func stripCSIColorCodes() {
+        let input = "\u{1b}[38;2;215;119;87mHello\u{1b}[0m world"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Hello world")
+    }
+
+    @Test func stripCSICursorMovement() {
+        let input = "\u{1b}[2AUp two\u{1b}[3BDown three"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Up twoDown three")
+    }
+
+    @Test func stripCSIEraseSequences() {
+        let input = "\u{1b}[2JCleared\u{1b}[K"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Cleared")
+    }
+
+    @Test func stripOSCTitleSequence() {
+        let input = "\u{1b}]2;Window Title\u{07}Visible text"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Visible text")
+    }
+
+    @Test func stripOSCWithSTTerminator() {
+        let input = "\u{1b}]0;Title\u{1b}\\Content"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Content")
+    }
+
+    @Test func stripMixedSequences() {
+        let input = "\u{1b}[1m\u{1b}[32m➜\u{1b}[0m \u{1b}[36mproject\u{1b}[0m git:(\u{1b}[31mmaster\u{1b}[0m)"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "➜ project git:(master)")
+    }
+
+    @Test func stripCarriageReturns() {
+        let input = "line1\r\nline2\r\n"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "line1\nline2\n")
+    }
+
+    @Test func stripDECPrivateMode() {
+        let input = "\u{1b}[?2004hText\u{1b}[?2004l"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "Text")
+    }
+
+    @Test func stripEmptyString() {
+        #expect(TerminalSession.stripAnsiEscapes("") == "")
+    }
+
+    @Test func stripOnlyEscapeCodes() {
+        let input = "\u{1b}[0m\u{1b}[1m\u{1b}[39m"
+        #expect(TerminalSession.stripAnsiEscapes(input) == "")
+    }
 }

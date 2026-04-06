@@ -174,9 +174,20 @@ struct ProjectDetailView: View {
 
             if !worktrees.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Worktrees")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Worktrees")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if !unopenedWorktrees.isEmpty {
+                            Button(action: openAllWorktrees) {
+                                Label("Open All", systemImage: "play.circle.fill")
+                                    .font(.system(size: 11))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
                     ForEach(worktrees) { wt in
                         worktreeRow(wt)
                     }
@@ -319,6 +330,18 @@ struct ProjectDetailView: View {
         )
     }
 
+    /// Worktrees that don't have an active session yet.
+    private var unopenedWorktrees: [WorktreeInfo] {
+        worktrees.filter { sessionForWorktree($0) == nil }
+    }
+
+    /// Opens sessions for all worktrees that aren't already running.
+    private func openAllWorktrees() {
+        for wt in unopenedWorktrees {
+            resumeWorktree(wt)
+        }
+    }
+
     /// Creates a session in an existing worktree directory (no git worktree add).
     private func resumeWorktree(_ wt: WorktreeInfo) {
         // Look up the most recent Claude session for this worktree
@@ -333,7 +356,6 @@ struct ProjectDetailView: View {
             claudeSessionId: sessionId
         )
         appState.sessions.append(session)
-        appState.selectSession(session.id)
     }
 
     // MARK: - Helpers

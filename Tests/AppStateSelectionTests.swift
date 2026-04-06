@@ -10,7 +10,9 @@ struct AppStateSelectionTests {
     // MARK: - Mutual Exclusion: selectSession / selectProject
 
     @Test @MainActor func selectSessionClearsProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let project = Project(name: "p", repositoryPath: "/tmp/p")
         state.addProject(project)
         state.selectProject(project.id)
@@ -26,7 +28,9 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func selectProjectClearsSession() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         state.createSession(name: "S", directory: "/tmp")
         let sessionId = state.sessions[0].id
         #expect(state.activeSessionId == sessionId)
@@ -40,7 +44,9 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func selectedProjectReturnsCorrectProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let p1 = Project(name: "alpha", repositoryPath: "/a")
         let p2 = Project(name: "beta", repositoryPath: "/b")
         state.addProject(p1)
@@ -58,7 +64,9 @@ struct AppStateSelectionTests {
     // MARK: - Project Deduplication
 
     @Test @MainActor func addProjectPreventsDuplicateRepoPath() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         state.addProject(Project(name: "first", repositoryPath: "/same/path"))
         state.addProject(Project(name: "second", repositoryPath: "/same/path"))
         #expect(state.projects.count == 1)
@@ -66,7 +74,9 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func addProjectAllowsDifferentPaths() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         state.addProject(Project(name: "a", repositoryPath: "/path/a"))
         state.addProject(Project(name: "b", repositoryPath: "/path/b"))
         #expect(state.projects.count == 2)

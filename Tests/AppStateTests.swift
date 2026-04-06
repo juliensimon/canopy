@@ -152,7 +152,9 @@ struct AppStateTests {
     // MARK: - Session Reordering
 
     @Test @MainActor func moveSessionsInProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let project = Project(name: "proj", repositoryPath: "/tmp/proj")
         state.addProject(project)
 
@@ -168,7 +170,9 @@ struct AppStateTests {
     }
 
     @Test @MainActor func moveSessionsPreservesOtherSessions() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let project = Project(name: "proj", repositoryPath: "/tmp/proj")
         state.addProject(project)
 
@@ -235,14 +239,18 @@ struct AppStateTests {
     // MARK: - Project Management
 
     @Test @MainActor func addProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         state.addProject(Project(name: "test", repositoryPath: "/tmp/test"))
         #expect(state.projects.count == 1)
         #expect(state.projects[0].name == "test")
     }
 
     @Test @MainActor func removeProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let project = Project(name: "test", repositoryPath: "/tmp/test")
         state.addProject(project)
         state.removeProject(id: project.id)
@@ -250,7 +258,9 @@ struct AppStateTests {
     }
 
     @Test @MainActor func updateProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         var project = Project(name: "old", repositoryPath: "/tmp")
         state.addProject(project)
 
@@ -260,7 +270,9 @@ struct AppStateTests {
     }
 
     @Test @MainActor func updateNonexistentDoesNothing() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let project = Project(name: "ghost", repositoryPath: "/tmp")
         state.updateProject(project)
         #expect(state.projects.isEmpty)
@@ -366,7 +378,9 @@ struct AppStateTests {
     }
 
     @Test @MainActor func orderedSessionsSortedByProject() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let projectA = Project(name: "Alpha", repositoryPath: "/tmp/alpha")
         let projectB = Project(name: "Beta", repositoryPath: "/tmp/beta")
         state.addProject(projectA)

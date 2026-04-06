@@ -11,7 +11,7 @@ import SwiftUI
 struct Sidebar: View {
     @EnvironmentObject var appState: AppState
     @State private var editingProject: Project?
-    @State private var renamingSessionId: UUID?
+    @State private var renameSession: SessionInfo?
     @State private var renameText = ""
     @State private var infoSession: SessionInfo?
     @State private var projectToDelete: Project?
@@ -83,6 +83,19 @@ struct Sidebar: View {
         } message: {
             Text("Remove \"\(projectToDelete?.name ?? "")\" from Canopy? This does not delete the repository or its worktrees from disk.")
         }
+        .alert("Rename Session", isPresented: Binding(
+            get: { renameSession != nil },
+            set: { if !$0 { renameSession = nil } }
+        )) {
+            TextField("Session name", text: $renameText)
+            Button("Rename") {
+                if let session = renameSession {
+                    appState.renameSession(id: session.id, to: renameText)
+                    renameSession = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { renameSession = nil }
+        }
         .sheet(item: $mergeSession) { session in
             if let project = appState.projects.first(where: { $0.id == session.projectId }),
                let branch = session.branchName,
@@ -103,20 +116,10 @@ struct Sidebar: View {
     @ViewBuilder
     private func sessionRow(_ session: SessionInfo) -> some View {
         HStack(spacing: 6) {
-            // Inline rename or display
-            if renamingSessionId == session.id {
-                RenameField(text: $renameText, onCommit: {
-                    appState.renameSession(id: session.id, to: renameText)
-                    renamingSessionId = nil
-                }, onCancel: {
-                    renamingSessionId = nil
-                })
+            if let ts = appState.terminalSessions[session.id] {
+                LiveSessionRow(session: session, terminalSession: ts)
             } else {
-                if let ts = appState.terminalSessions[session.id] {
-                    LiveSessionRow(session: session, terminalSession: ts)
-                } else {
-                    SidebarSessionRow(session: session)
-                }
+                SidebarSessionRow(session: session)
             }
 
             Spacer()
@@ -147,7 +150,7 @@ struct Sidebar: View {
 
         Button("Rename...") {
             renameText = session.name
-            renamingSessionId = session.id
+            renameSession = session
         }
 
         Button("Copy Session Output") {
@@ -176,12 +179,8 @@ struct Sidebar: View {
             )
         }
 
-        Button("Open in Terminal") {
-            NSWorkspace.shared.open(
-                [URL(fileURLWithPath: session.workingDirectory)],
-                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
-                configuration: NSWorkspace.OpenConfiguration()
-            )
+        Button("Open in \(appState.settings.terminalName)") {
+            openInTerminal(session.workingDirectory)
         }
 
         Button("Open in Finder") {
@@ -220,21 +219,26 @@ struct Sidebar: View {
                 }
             }
         } header: {
-            HStack(spacing: 5) {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.orange)
-                Text(project.name)
-                    .font(.system(size: 12, weight: .medium))
-                Spacer()
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                appState.activeSessionId = nil
-                appState.selectedProjectId = project.id
-            }
-            .contextMenu { projectContextMenu(project) }
+            projectHeaderView(project)
         }
+    }
+
+    @ViewBuilder
+    private func projectHeaderView(_ project: Project) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "folder.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(.orange)
+            Text(project.name)
+                .font(.system(size: 12, weight: .medium))
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            appState.activeSessionId = nil
+            appState.selectedProjectId = project.id
+        }
+        .contextMenu { projectContextMenu(project) }
     }
 
     @ViewBuilder
@@ -250,12 +254,12 @@ struct Sidebar: View {
             editingProject = project
         }
 
-        Button("Open in Terminal") {
-            NSWorkspace.shared.open(
-                [URL(fileURLWithPath: project.repositoryPath)],
-                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
-                configuration: NSWorkspace.OpenConfiguration()
-            )
+        Button("Open in \(appState.settings.terminalName)") {
+            openInTerminal(project.repositoryPath)
+        }
+
+        Button("Open in Finder") {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.repositoryPath)
         }
 
         Button("Copy Repository Path") {
@@ -271,6 +275,14 @@ struct Sidebar: View {
     }
 
     // MARK: - Helpers
+
+    private func openInTerminal(_ path: String) {
+        NSWorkspace.shared.open(
+            [URL(fileURLWithPath: path)],
+            withApplicationAt: URL(fileURLWithPath: appState.settings.terminalPath),
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
 
     private var emptyState: some View {
         VStack(spacing: 8) {
@@ -344,58 +356,3 @@ struct SidebarSessionRow: View {
     }
 }
 
-/// A text field that auto-focuses when it appears, commits on Enter, cancels on Escape.
-struct RenameField: NSViewRepresentable {
-    @Binding var text: String
-    let onCommit: () -> Void
-    let onCancel: () -> Void
-
-    func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField()
-        field.stringValue = text
-        field.font = .systemFont(ofSize: 12)
-        field.delegate = context.coordinator
-        field.isBordered = true
-        field.bezelStyle = .roundedBezel
-        // Auto-focus and select all text
-        DispatchQueue.main.async {
-            field.window?.makeFirstResponder(field)
-            field.selectText(nil)
-        }
-        return field
-    }
-
-    func updateNSView(_ nsView: NSTextField, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, NSTextFieldDelegate {
-        let parent: RenameField
-
-        init(_ parent: RenameField) {
-            self.parent = parent
-        }
-
-        func controlTextDidEndEditing(_ obj: Notification) {
-            guard let field = obj.object as? NSTextField else { return }
-            // Check if ended via Enter (return) or something else
-            let movementCode = obj.userInfo?["NSTextMovement"] as? Int
-            if movementCode == NSReturnTextMovement {
-                parent.text = field.stringValue
-                parent.onCommit()
-            } else {
-                parent.onCancel()
-            }
-        }
-
-        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-                parent.onCancel()
-                return true
-            }
-            return false
-        }
-    }
-}
