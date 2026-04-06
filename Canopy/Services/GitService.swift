@@ -136,8 +136,13 @@ struct GitService {
     }
 
     /// Merges source branch into target branch.
-    /// Checks out target, attempts merge. On conflict, aborts and returns conflicting files.
+    /// Checks out target in `repoPath`, attempts merge. On conflict, aborts and returns conflicting files.
+    /// Note: this performs a `git checkout` on `repoPath` — callers must ensure no active work exists there.
     func mergeInto(target: String, source: String, repoPath: String) async throws -> MergeResult {
+        // Record merge-base before merging (deterministic, unlike reflog)
+        let baseOutput = try await run(["merge-base", target, source], in: repoPath)
+        let mergeBase = baseOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+
         // Checkout target branch
         try await run(["checkout", target], in: repoPath)
 
@@ -160,9 +165,9 @@ struct GitService {
             throw error
         }
 
-        // Count commits that were merged
-        let output = try await run(["log", "--oneline", "\(target)@{1}..\(target)"], in: repoPath)
-        let count = output.split(separator: "\n").count
+        // Count commits that were merged using merge-base
+        let countOutput = try await run(["rev-list", "--count", "\(mergeBase)..\(target)"], in: repoPath)
+        let count = Int(countOutput.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         return .success(commitCount: count)
     }
 
