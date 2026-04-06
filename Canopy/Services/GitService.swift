@@ -329,7 +329,7 @@ struct GitService {
 
 // MARK: - Types
 
-struct WorktreeInfo: Identifiable {
+struct WorktreeInfo: Identifiable, Hashable {
     var id: String { path }
     let path: String
     let branch: String?
