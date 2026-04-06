@@ -184,6 +184,54 @@ struct AppStateTests {
         #expect(state.sessions[2].name == "A")
     }
 
+    @Test @MainActor func moveSession() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.createSession(name: "C", directory: "/tmp/c")
+
+        state.moveSession(from: IndexSet(integer: 2), to: 0)
+
+        #expect(state.sessions.map(\.name) == ["C", "A", "B"])
+    }
+
+    @Test @MainActor func moveSessionRevertsSortMode() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.tabSortMode = .name
+
+        state.moveSession(from: IndexSet(integer: 1), to: 0)
+
+        #expect(state.tabSortMode == .manual)
+    }
+
+    @Test @MainActor func swapSessions() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.createSession(name: "C", directory: "/tmp/c")
+        let idA = state.sessions[0].id
+        let idC = state.sessions[2].id
+
+        state.swapSessions(idA, idC)
+
+        #expect(state.sessions.map(\.name) == ["C", "B", "A"])
+    }
+
+    @Test @MainActor func swapSessionsRevertsSortMode() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.tabSortMode = .name
+        let idA = state.sessions[0].id
+        let idB = state.sessions[1].id
+
+        state.swapSessions(idA, idB)
+
+        #expect(state.tabSortMode == .manual)
+    }
+
     // MARK: - Project Management
 
     @Test @MainActor func addProject() {
