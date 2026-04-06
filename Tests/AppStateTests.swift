@@ -184,6 +184,54 @@ struct AppStateTests {
         #expect(state.sessions[2].name == "A")
     }
 
+    @Test @MainActor func moveSession() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.createSession(name: "C", directory: "/tmp/c")
+
+        state.moveSession(from: IndexSet(integer: 2), to: 0)
+
+        #expect(state.sessions.map(\.name) == ["C", "A", "B"])
+    }
+
+    @Test @MainActor func moveSessionRevertsSortMode() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.tabSortMode = .name
+
+        state.moveSession(from: IndexSet(integer: 1), to: 0)
+
+        #expect(state.tabSortMode == .manual)
+    }
+
+    @Test @MainActor func swapSessions() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.createSession(name: "C", directory: "/tmp/c")
+        let idA = state.sessions[0].id
+        let idC = state.sessions[2].id
+
+        state.swapSessions(idA, idC)
+
+        #expect(state.sessions.map(\.name) == ["C", "B", "A"])
+    }
+
+    @Test @MainActor func swapSessionsRevertsSortMode() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        state.tabSortMode = .name
+        let idA = state.sessions[0].id
+        let idB = state.sessions[1].id
+
+        state.swapSessions(idA, idB)
+
+        #expect(state.tabSortMode == .manual)
+    }
+
     // MARK: - Project Management
 
     @Test @MainActor func addProject() {
@@ -244,5 +292,125 @@ struct AppStateTests {
         let a = SessionInfo(name: "A", workingDirectory: "/a")
         let b = SessionInfo(name: "A", workingDirectory: "/a")
         #expect(a.id != b.id)
+    }
+
+    // MARK: - Sorted Insertion
+
+    @Test @MainActor func newSessionInsertedInSortedPosition() {
+        let state = AppState()
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Cherry", directory: "/tmp/c")
+        state.tabSortMode = .name
+
+        state.createSession(name: "Banana", directory: "/tmp/b")
+
+        // In name sort mode, the underlying array has Banana in sorted position
+        #expect(state.sessions.map(\.name) == ["Apple", "Banana", "Cherry"])
+    }
+
+    @Test @MainActor func newSessionAppendsInManualMode() {
+        let state = AppState()
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Cherry", directory: "/tmp/c")
+        state.tabSortMode = .manual
+
+        state.createSession(name: "Banana", directory: "/tmp/b")
+
+        #expect(state.sessions.map(\.name) == ["Apple", "Cherry", "Banana"])
+    }
+
+    // MARK: - Tab Sorting
+
+    @Test @MainActor func defaultSortModeIsManual() {
+        let state = AppState()
+        #expect(state.tabSortMode == .manual)
+    }
+
+    @Test @MainActor func orderedSessionsManualReturnsInsertionOrder() {
+        let state = AppState()
+        state.createSession(name: "Zebra", directory: "/tmp/z")
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Mango", directory: "/tmp/m")
+
+        #expect(state.orderedSessions.map(\.name) == ["Zebra", "Apple", "Mango"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByName() {
+        let state = AppState()
+        state.createSession(name: "Zebra", directory: "/tmp/z")
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Mango", directory: "/tmp/m")
+        state.tabSortMode = .name
+
+        #expect(state.orderedSessions.map(\.name) == ["Apple", "Mango", "Zebra"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByCreationDate() {
+        let state = AppState()
+        state.createSession(name: "First", directory: "/tmp/1")
+        state.createSession(name: "Second", directory: "/tmp/2")
+        state.createSession(name: "Third", directory: "/tmp/3")
+        state.tabSortMode = .creationDate
+
+        #expect(state.orderedSessions.map(\.name) == ["First", "Second", "Third"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByDirectory() {
+        let state = AppState()
+        state.createSession(name: "C", directory: "/tmp/zebra")
+        state.createSession(name: "A", directory: "/tmp/apple")
+        state.createSession(name: "B", directory: "/tmp/mango")
+        state.tabSortMode = .workingDirectory
+
+        #expect(state.orderedSessions.map(\.name) == ["A", "B", "C"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByProject() {
+        let state = AppState()
+        let projectA = Project(name: "Alpha", repositoryPath: "/tmp/alpha")
+        let projectB = Project(name: "Beta", repositoryPath: "/tmp/beta")
+        state.addProject(projectA)
+        state.addProject(projectB)
+
+        let s1 = SessionInfo(name: "B-session", workingDirectory: "/tmp/b", projectId: projectB.id)
+        let s2 = SessionInfo(name: "A-session", workingDirectory: "/tmp/a", projectId: projectA.id)
+        let s3 = SessionInfo(name: "Plain", workingDirectory: "/tmp/p")
+        state.sessions = [s1, s2, s3]
+
+        state.tabSortMode = .project
+
+        let names = state.orderedSessions.map(\.name)
+        #expect(names == ["A-session", "B-session", "Plain"])
+    }
+
+    @Test @MainActor func dragRevertsThenNewSessionAppends() {
+        let state = AppState()
+        state.createSession(name: "Banana", directory: "/tmp/b")
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.tabSortMode = .name
+
+        // orderedSessions is sorted
+        #expect(state.orderedSessions.map(\.name) == ["Apple", "Banana"])
+
+        // Swap reverts to manual
+        let idA = state.sessions[0].id
+        let idB = state.sessions[1].id
+        state.swapSessions(idA, idB)
+        #expect(state.tabSortMode == .manual)
+
+        // New session appends (manual mode)
+        state.createSession(name: "Cherry", directory: "/tmp/c")
+        #expect(state.sessions.last?.name == "Cherry")
+    }
+
+    @Test @MainActor func cycleSortModes() {
+        let state = AppState()
+        let allModes = TabSortMode.allCases
+        #expect(allModes.count == 5)
+        #expect(allModes[0] == .manual)
+        #expect(allModes[1] == .name)
+        #expect(allModes[2] == .project)
+        #expect(allModes[3] == .creationDate)
+        #expect(allModes[4] == .workingDirectory)
     }
 }
