@@ -30,3 +30,6 @@ xcuserdata/
 # Secrets
 .env
 .env.local
+
+# Superpowers brainstorming
+.superpowers/
