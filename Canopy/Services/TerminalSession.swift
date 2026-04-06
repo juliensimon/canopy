@@ -23,6 +23,7 @@ final class TerminalSession: ObservableObject {
     var hasCompletedSetup = false
     var onProcessExit: ((UUID) -> Void)?
     private var idleTimer: Task<Void, Never>?
+    private var justFinishedTimer: Task<Void, Never>?
 
     init(id: UUID, workingDirectory: String) {
         self.id = id
@@ -149,6 +150,18 @@ final class TerminalSession: ObservableObject {
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
             if self.activity == .working {
+                self.activity = .justFinished
+                self.startJustFinishedTimer()
+            }
+        }
+    }
+
+    private func startJustFinishedTimer() {
+        justFinishedTimer?.cancel()
+        justFinishedTimer = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            if self.activity == .justFinished {
                 self.activity = .idle
             }
         }
@@ -182,11 +195,13 @@ final class TerminalSession: ObservableObject {
 enum SessionActivity: String {
     case idle
     case working
+    case justFinished
 
     var label: String {
         switch self {
         case .idle: return "Idle"
         case .working: return "Working"
+        case .justFinished: return "Just Finished"
         }
     }
 }

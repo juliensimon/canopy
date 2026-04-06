@@ -17,6 +17,7 @@ struct AddProjectSheet: View {
     @State private var claudeFlags = ""
     @State private var isValidRepo = false
     @State private var validationMessage = ""
+    @State private var selectedColorIndex: Int = 0
 
     private let git = GitService()
 
@@ -60,6 +61,26 @@ struct AddProjectSheet: View {
                             .fontWeight(.medium)
                         TextField("my-project", text: $projectName)
                             .textFieldStyle(.roundedBorder)
+                    }
+
+                    // Project color
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Project Color")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        HStack(spacing: 8) {
+                            ForEach(0..<ProjectColor.allColors.count, id: \.self) { index in
+                                Circle()
+                                    .fill(ProjectColor.allColors[index])
+                                    .frame(width: 20, height: 20)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.primary, lineWidth: selectedColorIndex == index ? 2 : 0)
+                                            .padding(selectedColorIndex == index ? -2 : 0)
+                                    )
+                                    .onTapGesture { selectedColorIndex = index }
+                            }
+                        }
                     }
 
                     Divider()
@@ -176,6 +197,9 @@ struct AddProjectSheet: View {
                     if projectName.isEmpty {
                         projectName = (path as NSString).lastPathComponent
                     }
+                    selectedColorIndex = ProjectColor.nextIndex(
+                        existingIndices: appState.projects.compactMap(\.colorIndex)
+                    )
                 } else {
                     validationMessage = "Not a git repository"
                 }
@@ -184,7 +208,7 @@ struct AddProjectSheet: View {
     }
 
     private func addProject() {
-        let project = Project(
+        var project = Project(
             name: projectName,
             repositoryPath: repoPath,
             filesToCopy: parseCommaSeparated(filesToCopy),
@@ -193,6 +217,7 @@ struct AddProjectSheet: View {
             autoStartClaude: overrideClaude ? autoStartClaude : nil,
             claudeFlags: overrideClaude ? claudeFlags : nil
         )
+        project.colorIndex = selectedColorIndex
         appState.addProject(project)
         dismiss()
     }

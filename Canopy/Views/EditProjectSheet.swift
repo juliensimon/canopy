@@ -14,6 +14,7 @@ struct EditProjectSheet: View {
     @State private var overrideClaude: Bool
     @State private var autoStartClaude: Bool
     @State private var claudeFlags: String
+    @State private var selectedColorIndex: Int
 
     init(project: Project) {
         self.project = project
@@ -24,6 +25,7 @@ struct EditProjectSheet: View {
         self._overrideClaude = State(initialValue: project.autoStartClaude != nil || project.claudeFlags != nil)
         self._autoStartClaude = State(initialValue: project.autoStartClaude ?? false)
         self._claudeFlags = State(initialValue: project.claudeFlags ?? "")
+        self._selectedColorIndex = State(initialValue: project.colorIndex ?? 0)
     }
 
     var body: some View {
@@ -51,6 +53,26 @@ struct EditProjectSheet: View {
                             .fontWeight(.medium)
                         TextField("my-project", text: $projectName)
                             .textFieldStyle(.roundedBorder)
+                    }
+
+                    // Project color
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Project Color")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        HStack(spacing: 8) {
+                            ForEach(0..<ProjectColor.allColors.count, id: \.self) { index in
+                                Circle()
+                                    .fill(ProjectColor.allColors[index])
+                                    .frame(width: 20, height: 20)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.primary, lineWidth: selectedColorIndex == index ? 2 : 0)
+                                            .padding(selectedColorIndex == index ? -2 : 0)
+                                    )
+                                    .onTapGesture { selectedColorIndex = index }
+                            }
+                        }
                     }
 
                     Divider()
@@ -133,6 +155,7 @@ struct EditProjectSheet: View {
         updated.setupCommands = parseCSV(setupCommands)
         updated.autoStartClaude = overrideClaude ? autoStartClaude : nil
         updated.claudeFlags = overrideClaude ? claudeFlags : nil
+        updated.colorIndex = selectedColorIndex
         appState.updateProject(updated)
         dismiss()
     }

@@ -14,22 +14,21 @@ struct MainWindow: View {
                     Divider()
                 }
 
-                // Content: active session, project detail, or welcome
-                if let activeSession = appState.activeSession {
-                    SessionView(
-                        session: activeSession,
-                        terminalSession: appState.terminalSession(for: activeSession)
-                    )
-                    // Use .id to ensure SwiftUI binds the correct terminal view,
-                    // but the TerminalSession itself persists in AppState
-                    .id(activeSession.id)
-                } else if let projectId = appState.selectedProjectId,
-                          let project = appState.projects.first(where: { $0.id == projectId }) {
-                    ProjectDetailView(project: project)
-                        .id(project.id)
-                } else {
-                    WelcomeView()
+                // Content with crossfade
+                ZStack {
+                    if let activeSession = appState.activeSession {
+                        TerminalInsetView(session: activeSession, appState: appState)
+                            .id(activeSession.id)
+                            .transition(.opacity)
+                    } else if let projectId = appState.selectedProjectId,
+                              let project = appState.projects.first(where: { $0.id == projectId }) {
+                        ProjectDetailView(project: project)
+                            .id(project.id)
+                    } else {
+                        WelcomeView()
+                    }
                 }
+                .animation(.easeInOut(duration: 0.15), value: appState.activeSessionId)
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -89,6 +88,52 @@ struct SessionView: View {
     }
 }
 
+/// Wraps SessionView with a rounded inset container and branch name overlay.
+struct TerminalInsetView: View {
+    let session: SessionInfo
+    @ObservedObject var appState: AppState
+    @State private var showBranchLabel = true
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            SessionView(
+                session: session,
+                terminalSession: appState.terminalSession(for: session)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            )
+            .padding(4)
+
+            // Branch name overlay
+            if let branch = session.branchName, showBranchLabel {
+                Text(branch)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                    .padding(.top, 12)
+                    .padding(.trailing, 12)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            showBranchLabel = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                withAnimation(.easeOut(duration: 0.5)) {
+                    showBranchLabel = false
+                }
+            }
+        }
+    }
+}
+
 /// Shown when no session is active.
 struct WelcomeView: View {
     @EnvironmentObject var appState: AppState
@@ -96,7 +141,7 @@ struct WelcomeView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("🌳")
+            Text("\u{1F333}")
                 .font(.system(size: 56))
 
             Text("Canopy")
@@ -108,19 +153,25 @@ struct WelcomeView: View {
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 10) {
-                Button("Add Project ⌘⇧P") {
-                    appState.showAddProjectSheet = true
+                Button(action: { appState.showAddProjectSheet = true }) {
+                    HStack(spacing: 6) {
+                        Text("Add Project")
+                        keycap("\u{2318}\u{21E7}P")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
-                Button("New Session ⌘T") {
-                    appState.createSessionWithPicker()
+                Button(action: { appState.createSessionWithPicker() }) {
+                    HStack(spacing: 6) {
+                        Text("New Session")
+                        keycap("\u{2318}T")
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
 
-                Button("Getting Started ⌘?") {
+                Button("Getting Started \u{2318}?") {
                     showHelp = true
                 }
                 .buttonStyle(.plain)
@@ -133,5 +184,18 @@ struct WelcomeView: View {
         .sheet(isPresented: $showHelp) {
             HelpView()
         }
+    }
+
+    private func keycap(_ key: String) -> some View {
+        Text(key)
+            .font(.system(size: 9))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.gray.opacity(0.1))
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
+            )
     }
 }

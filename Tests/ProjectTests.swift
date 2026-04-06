@@ -90,4 +90,27 @@ struct ProjectTests {
         #expect(decoded[0].name == "a")
         #expect(decoded[1].filesToCopy == [".env"])
     }
+
+    // MARK: - Color Index
+
+    @Test func defaultColorIndexIsNil() {
+        let project = Project(name: "test", repositoryPath: "/test")
+        #expect(project.colorIndex == nil)
+    }
+
+    @Test func colorIndexCodableRoundTrip() throws {
+        var project = Project(name: "test", repositoryPath: "/test")
+        project.colorIndex = 3
+        let data = try JSONEncoder().encode(project)
+        let decoded = try JSONDecoder().decode(Project.self, from: data)
+        #expect(decoded.colorIndex == 3)
+    }
+
+    @Test func colorIndexMissingInJsonDecodesToNil() throws {
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","name":"old","repositoryPath":"/old","filesToCopy":[],"symlinkPaths":[],"setupCommands":[]}
+        """
+        let decoded = try JSONDecoder().decode(Project.self, from: json.data(using: .utf8)!)
+        #expect(decoded.colorIndex == nil)
+    }
 }
