@@ -141,7 +141,7 @@ struct WelcomeView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("🌳")
+            Text("\u{1F333}")
                 .font(.system(size: 56))
 
             Text("Canopy")
@@ -153,19 +153,25 @@ struct WelcomeView: View {
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 10) {
-                Button("Add Project ⌘⇧P") {
-                    appState.showAddProjectSheet = true
+                Button(action: { appState.showAddProjectSheet = true }) {
+                    HStack(spacing: 6) {
+                        Text("Add Project")
+                        keycap("\u{2318}\u{21E7}P")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
-                Button("New Session ⌘T") {
-                    appState.createSessionWithPicker()
+                Button(action: { appState.createSessionWithPicker() }) {
+                    HStack(spacing: 6) {
+                        Text("New Session")
+                        keycap("\u{2318}T")
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
 
-                Button("Getting Started ⌘?") {
+                Button("Getting Started \u{2318}?") {
                     showHelp = true
                 }
                 .buttonStyle(.plain)
@@ -178,5 +184,18 @@ struct WelcomeView: View {
         .sheet(isPresented: $showHelp) {
             HelpView()
         }
+    }
+
+    private func keycap(_ key: String) -> some View {
+        Text(key)
+            .font(.system(size: 9))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.gray.opacity(0.1))
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
+            )
     }
 }

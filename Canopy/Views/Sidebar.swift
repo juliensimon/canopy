@@ -320,20 +320,73 @@ struct Sidebar: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Spacer()
-            Image(systemName: "terminal")
-                .font(.system(size: 32))
-                .foregroundStyle(.tertiary)
-            Text("No sessions")
+
+            // Layered card illustration
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(ProjectColor.allColors[0].opacity(0.1))
+                    .stroke(ProjectColor.allColors[0].opacity(0.2), lineWidth: 1)
+                    .frame(width: 48, height: 36)
+                    .rotationEffect(.degrees(-8))
+
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(ProjectColor.allColors[4].opacity(0.1))
+                    .stroke(ProjectColor.allColors[4].opacity(0.2), lineWidth: 1)
+                    .frame(width: 48, height: 36)
+                    .rotationEffect(.degrees(4))
+                    .offset(x: 8, y: -4)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(ProjectColor.allColors[7].opacity(0.15))
+                        .stroke(ProjectColor.allColors[7].opacity(0.25), lineWidth: 1)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(ProjectColor.allColors[7].opacity(0.6))
+                }
+                .frame(width: 48, height: 36)
+                .offset(x: 16, y: -8)
+            }
+            .frame(width: 80, height: 60)
+
+            Text("No sessions yet")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Press ⌘T to start")
+
+            Text("Start your first parallel Claude session")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+
+            // Keycap badges
+            HStack(spacing: 12) {
+                keycapBadge(key: "\u{2318}T", label: "New Session")
+                keycapBadge(key: "\u{2318}\u{21E7}P", label: "Add Project")
+            }
+
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func keycapBadge(key: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(key)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.08))
+                        .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                )
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 
