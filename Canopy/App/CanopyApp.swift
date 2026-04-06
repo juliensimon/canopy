@@ -85,6 +85,25 @@ struct CanopyApp: App {
                 }
                 .keyboardShortcut(",", modifiers: [.command])
             }
+
+            CommandMenu("Tabs") {
+                Picker("Sort By", selection: $appState.tabSortMode) {
+                    ForEach(TabSortMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.inline)
+
+                Divider()
+
+                Button("Cycle Sort Mode") {
+                    let allCases = TabSortMode.allCases
+                    let currentIndex = allCases.firstIndex(of: appState.tabSortMode) ?? 0
+                    let nextIndex = (currentIndex + 1) % allCases.count
+                    appState.tabSortMode = allCases[nextIndex]
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+            }
         }
     }
 }
