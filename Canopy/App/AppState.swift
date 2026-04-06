@@ -319,8 +319,14 @@ final class AppState: ObservableObject {
     func addProject(_ project: Project) {
         // Prevent duplicates by repo path
         guard !projects.contains(where: { $0.repositoryPath == project.repositoryPath }) else { return }
-        projects.append(project)
-        expandedProjects.insert(project.id)
+        var newProject = project
+        if newProject.colorIndex == nil {
+            newProject.colorIndex = ProjectColor.nextIndex(
+                existingIndices: projects.compactMap(\.colorIndex)
+            )
+        }
+        projects.append(newProject)
+        expandedProjects.insert(newProject.id)
         saveProjects()
     }
 
