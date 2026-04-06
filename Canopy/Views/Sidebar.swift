@@ -115,16 +115,17 @@ struct Sidebar: View {
 
     @ViewBuilder
     private func sessionRow(_ session: SessionInfo) -> some View {
+        let color = projectColorFor(session)
+
         HStack(spacing: 6) {
             if let ts = appState.terminalSessions[session.id] {
-                LiveSessionRow(session: session, terminalSession: ts)
+                LiveSessionRow(session: session, terminalSession: ts, projectColor: color)
             } else {
-                SidebarSessionRow(session: session)
+                SidebarSessionRow(session: session, projectColor: color)
             }
 
             Spacer()
 
-            // Close button
             Button(action: { appState.closeSession(id: session.id) }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
@@ -225,13 +226,39 @@ struct Sidebar: View {
 
     @ViewBuilder
     private func projectHeaderView(_ project: Project) -> some View {
+        let color = ProjectColor.color(for: project.colorIndex)
+        let sessionCount = appState.orderedSessions.filter { $0.projectId == project.id }.count
+
         HStack(spacing: 5) {
             Image(systemName: "folder.fill")
                 .font(.system(size: 11))
-                .foregroundStyle(.orange)
+                .foregroundStyle(color)
             Text(project.name)
                 .font(.system(size: 12, weight: .medium))
+
+            if sessionCount > 0 {
+                Text("\(sessionCount)")
+                    .font(.system(size: 9, weight: .semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule().fill(color.opacity(0.2))
+                    )
+                    .foregroundStyle(color)
+            }
+
             Spacer()
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(color.opacity(0.05))
+        )
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(color.opacity(0.4))
+                .frame(width: 2)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -276,6 +303,14 @@ struct Sidebar: View {
 
     // MARK: - Helpers
 
+    private func projectColorFor(_ session: SessionInfo) -> Color {
+        guard let projectId = session.projectId,
+              let project = appState.projects.first(where: { $0.id == projectId }) else {
+            return .gray
+        }
+        return ProjectColor.color(for: project.colorIndex)
+    }
+
     private func openInTerminal(_ path: String) {
         NSWorkspace.shared.open(
             [URL(fileURLWithPath: path)],
@@ -308,11 +343,13 @@ struct Sidebar: View {
 struct LiveSessionRow: View {
     let session: SessionInfo
     @ObservedObject var terminalSession: TerminalSession
+    var projectColor: Color = .gray
 
     var body: some View {
         SidebarSessionRow(
             session: session,
-            activity: terminalSession.activity
+            activity: terminalSession.activity,
+            projectColor: projectColor
         )
     }
 }
@@ -322,10 +359,11 @@ struct LiveSessionRow: View {
 struct SidebarSessionRow: View {
     let session: SessionInfo
     var activity: SessionActivity = .idle
+    var projectColor: Color = .gray
 
     var body: some View {
         HStack(spacing: 8) {
-            ActivityDot(activity: activity)
+            ActivityDot(activity: activity, projectColor: projectColor)
                 .frame(width: 10)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -336,7 +374,7 @@ struct SidebarSessionRow: View {
                 }
                 Text(subtitle)
                     .font(.system(size: 10))
-                    .foregroundColor(session.isWorktreeSession ? .blue.opacity(0.7) : .gray)
+                    .foregroundColor(session.isWorktreeSession ? projectColor.opacity(0.7) : .gray)
                     .lineLimit(1)
             }
         }
