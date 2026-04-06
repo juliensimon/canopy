@@ -268,6 +268,21 @@ final class AppState: ObservableObject {
         sessions = result
     }
 
+    /// Moves sessions using IndexSet (for sidebar .onMove).
+    func moveSession(from source: IndexSet, to destination: Int) {
+        sessions.move(fromOffsets: source, toOffset: destination)
+        tabSortMode = .manual
+    }
+
+    /// Swaps two sessions by ID (for tab bar drag-and-drop).
+    func swapSessions(_ idA: UUID, _ idB: UUID) {
+        guard let indexA = sessions.firstIndex(where: { $0.id == idA }),
+              let indexB = sessions.firstIndex(where: { $0.id == idB }),
+              indexA != indexB else { return }
+        sessions.swapAt(indexA, indexB)
+        tabSortMode = .manual
+    }
+
     // MARK: - Project Management
 
     func addProject(_ project: Project) {
