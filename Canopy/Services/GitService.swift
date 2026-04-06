@@ -121,6 +121,56 @@ struct GitService {
         return bestBranch
     }
 
+    // MARK: - Merge Operations
+
+    /// Returns true if the working tree has uncommitted changes (staged or unstaged).
+    func hasUncommittedChanges(repoPath: String) async throws -> Bool {
+        let output = try await run(["status", "--porcelain"], in: repoPath)
+        return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Returns the number of commits in `from` that are not in `to`.
+    func commitCount(from source: String, to target: String, repoPath: String) async throws -> Int {
+        let output = try await run(["rev-list", "--count", "\(target)..\(source)"], in: repoPath)
+        return Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    /// Merges source branch into target branch.
+    /// Checks out target, attempts merge. On conflict, aborts and returns conflicting files.
+    func mergeInto(target: String, source: String, repoPath: String) async throws -> MergeResult {
+        // Checkout target branch
+        try await run(["checkout", target], in: repoPath)
+
+        // Attempt merge
+        do {
+            try await run(["merge", source], in: repoPath)
+        } catch {
+            // Check if it's a conflict
+            let conflictOutput = try await run(["diff", "--name-only", "--diff-filter=U"], in: repoPath)
+            let files = conflictOutput
+                .split(separator: "\n")
+                .map { String($0).trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+
+            if !files.isEmpty {
+                _ = try? await run(["merge", "--abort"], in: repoPath)
+                return .conflict(files: files)
+            }
+            // Not a conflict — re-throw
+            throw error
+        }
+
+        // Count commits that were merged
+        let output = try await run(["log", "--oneline", "\(target)@{1}..\(target)"], in: repoPath)
+        let count = output.split(separator: "\n").count
+        return .success(commitCount: count)
+    }
+
+    /// Deletes a local branch. Uses -d (safe delete) — only works if branch is fully merged.
+    func deleteBranch(name: String, repoPath: String) async throws {
+        try await run(["branch", "-d", name], in: repoPath)
+    }
+
     // MARK: - Status
 
     /// Returns true if the path is inside a git repository.
@@ -287,6 +337,11 @@ struct BranchInfo: Identifiable {
     let name: String
     let isCurrent: Bool
     let upstream: String?
+}
+
+enum MergeResult {
+    case success(commitCount: Int)
+    case conflict(files: [String])
 }
 
 enum GitError: LocalizedError {
