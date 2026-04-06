@@ -382,6 +382,15 @@ final class AppState: ObservableObject {
         try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
 
         projects = decoded
+        // Auto-assign colors to projects that predate the color system
+        var needsSave = false
+        for i in projects.indices where projects[i].colorIndex == nil {
+            projects[i].colorIndex = ProjectColor.nextIndex(
+                existingIndices: projects.compactMap(\.colorIndex)
+            )
+            needsSave = true
+        }
+        if needsSave { saveProjects() }
         // Auto-expand all projects on load
         expandedProjects = Set(decoded.map(\.id))
     }
