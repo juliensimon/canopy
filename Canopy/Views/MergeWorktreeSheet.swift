@@ -228,6 +228,18 @@ struct MergeWorktreeSheet: View {
                     return
                 }
 
+                // Check if branch is already merged (0 commits ahead of target)
+                let ahead = try await git.commitCount(
+                    from: branchName,
+                    to: targetBranch,
+                    repoPath: project.repositoryPath
+                )
+                if ahead == 0 {
+                    errorMessage = "Branch \"\(branchName)\" is already fully merged into \"\(targetBranch)\". Nothing to merge — you can delete the worktree directly."
+                    isMerging = false
+                    return
+                }
+
                 let result = try await git.mergeInto(
                     target: targetBranch,
                     source: branchName,

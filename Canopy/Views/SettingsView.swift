@@ -9,12 +9,14 @@ struct SettingsView: View {
     @State private var claudeFlags: String
     @State private var confirmBeforeClosing: Bool
     @State private var idePath: String
+    @State private var terminalPath: String
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
         self._claudeFlags = State(initialValue: settings.claudeFlags)
         self._confirmBeforeClosing = State(initialValue: settings.confirmBeforeClosing)
         self._idePath = State(initialValue: settings.idePath)
+        self._terminalPath = State(initialValue: settings.terminalPath)
     }
 
     var body: some View {
@@ -99,6 +101,33 @@ struct SettingsView: View {
                     } label: {
                         Label("IDE", systemImage: "hammer")
                     }
+
+                    // Terminal section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                TextField("/System/Applications/Utilities/Terminal.app", text: $terminalPath)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                                Button("Browse...") {
+                                    let panel = NSOpenPanel()
+                                    panel.canChooseFiles = true
+                                    panel.canChooseDirectories = false
+                                    panel.allowedContentTypes = [.application]
+                                    panel.directoryURL = URL(fileURLWithPath: "/Applications")
+                                    if panel.runModal() == .OK, let url = panel.url {
+                                        terminalPath = url.path
+                                    }
+                                }
+                            }
+                            Text("Used for \"Open in Terminal\" in context menus.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(4)
+                    } label: {
+                        Label("Terminal", systemImage: "terminal")
+                    }
                 }
             }
 
@@ -133,6 +162,7 @@ struct SettingsView: View {
         settings.claudeFlags = claudeFlags
         settings.confirmBeforeClosing = confirmBeforeClosing
         settings.idePath = idePath
+        settings.terminalPath = terminalPath
         settings.save()
         appState.settings = settings
         dismiss()

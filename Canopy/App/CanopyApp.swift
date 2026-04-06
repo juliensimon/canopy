@@ -29,6 +29,7 @@ struct CanopyApp: App {
         WindowGroup {
             MainWindow()
                 .environmentObject(appState)
+                .task { appState.loadProjects() }
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)
                         .environmentObject(appState)
@@ -77,6 +78,20 @@ struct CanopyApp: App {
                     showHelp = true
                 }
                 .keyboardShortcut("?", modifiers: [.command])
+
+                Divider()
+
+                Button("User Guide") {
+                    if let url = URL(string: "https://github.com/juliensimon/canopy/blob/main/docs/guide.md") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+
+                Button("Report an Issue...") {
+                    if let url = URL(string: "https://github.com/juliensimon/canopy/issues") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             }
 
             CommandGroup(after: .appSettings) {

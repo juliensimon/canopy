@@ -75,10 +75,44 @@ final class TerminalSession: ObservableObject {
         send(text: command + "\n")
     }
 
-    /// Returns the full session output as plain text.
+    /// Returns the full session output as plain text with ANSI escape codes stripped.
     func getFullText() -> String {
         guard let text = String(data: rawOutput, encoding: .utf8) else { return "" }
-        return text
+        return Self.stripAnsiEscapes(text)
+    }
+
+    /// Strips ANSI escape sequences, OSC sequences, and control characters from terminal output.
+    nonisolated static func stripAnsiEscapes(_ text: String) -> String {
+        let esc = "\u{1b}"
+        let bel = "\u{07}"
+        var result = text
+        // OSC sequences: ESC ] ... (ST | BEL)
+        result = result.replacingOccurrences(
+            of: "\(esc)\\][^\(bel)\(esc)]*(?:\(bel)|\(esc)\\\\)",
+            with: "",
+            options: .regularExpression
+        )
+        // CSI sequences: ESC [ ... (letter or @)
+        result = result.replacingOccurrences(
+            of: "\(esc)\\[[0-9;?]*[A-Za-z@]",
+            with: "",
+            options: .regularExpression
+        )
+        // Other ESC sequences: ESC ( ) > =
+        result = result.replacingOccurrences(
+            of: "\(esc)[()=>][^\(esc)]*",
+            with: "",
+            options: .regularExpression
+        )
+        // Remaining bare ESC + single char
+        result = result.replacingOccurrences(
+            of: "\(esc).",
+            with: "",
+            options: .regularExpression
+        )
+        // Carriage returns (terminal overwrites)
+        result = result.replacingOccurrences(of: "\r", with: "")
+        return result
     }
 
     /// Copies the full session output to the clipboard.

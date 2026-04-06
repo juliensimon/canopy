@@ -35,7 +35,9 @@ struct AppStatePersistenceTests {
     }
 
     @Test @MainActor func addProjectAutoExpands() {
-        let state = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
         let project = Project(name: "test", repositoryPath: "/tmp/test")
         state.addProject(project)
         #expect(state.expandedProjects.contains(project.id))
@@ -44,8 +46,10 @@ struct AppStatePersistenceTests {
     // MARK: - Persistence Round-Trip
 
     @Test @MainActor func saveAndLoadProjects() {
-        // Use a unique config dir to avoid interfering with real config
-        let state1 = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let state1 = AppState(configDir: tmpDir)
         let project = Project(
             name: "persist-test",
             repositoryPath: "/tmp/persist-test",
@@ -55,44 +59,39 @@ struct AppStatePersistenceTests {
         )
         state1.addProject(project)
 
-        // Load in a new AppState instance
-        let state2 = AppState()
+        // Load in a new AppState instance sharing the same config dir
+        let state2 = AppState(configDir: tmpDir)
         state2.loadProjects()
 
-        // Should find our project (if no other tests interfere)
         let found = state2.projects.first { $0.name == "persist-test" }
         #expect(found != nil)
         #expect(found?.filesToCopy == [".env"])
         #expect(found?.symlinkPaths == ["node_modules"])
         #expect(found?.setupCommands == ["npm install"])
-
-        // Cleanup
-        state2.removeProject(id: project.id)
     }
 
     @Test @MainActor func loadProjectsWithMissingFile() {
-        // Should not crash when config file doesn't exist
-        let state = AppState()
-        state.projects = [] // Clear
-        state.loadProjects() // Should silently succeed
-        // May have projects from other tests, but shouldn't crash
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        // Don't create the dir — test that missing file doesn't crash
+        let state = AppState(configDir: tmpDir)
+        state.projects = []
+        state.loadProjects()
     }
 
     @Test @MainActor func loadProjectsAutoExpandsAll() {
-        let state1 = AppState()
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let state1 = AppState(configDir: tmpDir)
         let p1 = Project(name: "expand-test-1", repositoryPath: "/tmp/e1")
         let p2 = Project(name: "expand-test-2", repositoryPath: "/tmp/e2")
         state1.addProject(p1)
         state1.addProject(p2)
 
-        let state2 = AppState()
+        let state2 = AppState(configDir: tmpDir)
         state2.loadProjects()
         #expect(state2.expandedProjects.contains(p1.id))
         #expect(state2.expandedProjects.contains(p2.id))
-
-        // Cleanup
-        state2.removeProject(id: p1.id)
-        state2.removeProject(id: p2.id)
     }
 
     // MARK: - Worktree Session Creation

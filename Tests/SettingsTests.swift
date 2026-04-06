@@ -13,6 +13,7 @@ struct SettingsTests {
         #expect(settings.claudeFlags == "--permission-mode auto")
         #expect(settings.confirmBeforeClosing == true)
         #expect(settings.idePath == "/Applications/Cursor.app")
+        #expect(settings.terminalPath == "/System/Applications/Utilities/Terminal.app")
     }
 
     // MARK: - Claude Command
@@ -67,6 +68,36 @@ struct SettingsTests {
         #expect(decoded.autoStartClaude == true)
         #expect(decoded.claudeFlags == "--permission-mode auto")
         #expect(decoded.confirmBeforeClosing == true)
+        #expect(decoded.terminalPath == "/System/Applications/Utilities/Terminal.app")
+    }
+
+    // MARK: - IDE / Terminal Names
+
+    @Test func ideNameExtracted() {
+        var settings = CanopySettings()
+        settings.idePath = "/Applications/Cursor.app"
+        #expect(settings.ideName == "Cursor")
+    }
+
+    @Test func terminalNameExtracted() {
+        var settings = CanopySettings()
+        settings.terminalPath = "/Applications/iTerm.app"
+        #expect(settings.terminalName == "iTerm")
+    }
+
+    @Test func terminalNameDefault() {
+        let settings = CanopySettings()
+        #expect(settings.terminalName == "Terminal")
+    }
+
+    @Test func terminalPathRoundTrip() throws {
+        var original = CanopySettings()
+        original.terminalPath = "/Applications/iTerm.app"
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+
+        #expect(decoded.terminalPath == "/Applications/iTerm.app")
     }
 
     // MARK: - Persistence
