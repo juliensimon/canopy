@@ -123,12 +123,17 @@ final class AppState: ObservableObject {
     }
 
     /// Creates a plain session in the given directory.
+    /// Auto-names tabs as "reponame-branchname" when inside a git repo.
     func createSession(name: String? = nil, directory: String? = nil) {
         let workDir = directory ?? FileManager.default.homeDirectoryForCurrentUser.path
-        let dirName = (workDir as NSString).lastPathComponent
-        let sessionName = name ?? dirName
         let index = sessions.count + 1
-        let finalName = sessionName == NSHomeDirectory().split(separator: "/").last.map(String.init) ? "Session \(index)" : sessionName
+
+        let finalName: String
+        if let name = name {
+            finalName = name
+        } else {
+            finalName = "Session \(index)"
+        }
 
         let session = SessionInfo(name: finalName, workingDirectory: workDir)
         if tabSortMode == .manual {
@@ -138,6 +143,24 @@ final class AppState: ObservableObject {
             sessions = orderedSessions
         }
         activeSessionId = session.id
+
+        // Auto-detect git repo name and branch for the tab name
+        if name == nil {
+            Task {
+                if let autoName = await Self.gitTabName(for: workDir, git: git) {
+                    renameSession(id: session.id, to: autoName)
+                }
+            }
+        }
+    }
+
+    /// Derives a "reponame-branchname" tab name from a directory, or nil if not a git repo.
+    private static func gitTabName(for directory: String, git: GitService) async -> String? {
+        guard await git.isGitRepo(path: directory) else { return nil }
+        guard let root = try? await git.repoRoot(path: directory) else { return nil }
+        guard let branch = try? await git.currentBranch(repoPath: directory) else { return nil }
+        let repoName = (root as NSString).lastPathComponent
+        return "\(repoName)-\(branch)"
     }
 
     /// Creates a session backed by a git worktree.
@@ -205,8 +228,9 @@ final class AppState: ObservableObject {
             worktreeSetupStatus = nil
             worktreeSetupInProgress = false
 
+            let repoName = (project.repositoryPath as NSString).lastPathComponent
             let session = SessionInfo(
-                name: branchName,
+                name: "\(repoName)-\(branchName)",
                 workingDirectory: worktreePath,
                 projectId: project.id,
                 branchName: branchName,
