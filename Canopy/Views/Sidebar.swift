@@ -191,6 +191,9 @@ struct Sidebar: View {
                 ForEach(sessions) { session in
                     sessionRow(session)
                 }
+                .onMove { source, destination in
+                    appState.moveSessionsInProject(project.id, from: source, to: destination)
+                }
             }
         } header: {
             HStack(spacing: 5) {

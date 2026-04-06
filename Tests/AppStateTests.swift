@@ -149,6 +149,41 @@ struct AppStateTests {
         #expect(state.sessions[0].name == "Original")
     }
 
+    // MARK: - Session Reordering
+
+    @Test @MainActor func moveSessionsInProject() {
+        let state = AppState()
+        let project = Project(name: "proj", repositoryPath: "/tmp/proj")
+        state.addProject(project)
+
+        let s1 = SessionInfo(name: "A", workingDirectory: "/a", projectId: project.id)
+        let s2 = SessionInfo(name: "B", workingDirectory: "/b", projectId: project.id)
+        let s3 = SessionInfo(name: "C", workingDirectory: "/c", projectId: project.id)
+        state.sessions = [s1, s2, s3]
+
+        state.moveSessionsInProject(project.id, from: IndexSet(integer: 0), to: 3)
+
+        let names = state.sessions.map(\.name)
+        #expect(names == ["B", "C", "A"])
+    }
+
+    @Test @MainActor func moveSessionsPreservesOtherSessions() {
+        let state = AppState()
+        let project = Project(name: "proj", repositoryPath: "/tmp/proj")
+        state.addProject(project)
+
+        let plain = SessionInfo(name: "Plain", workingDirectory: "/plain")
+        let s1 = SessionInfo(name: "A", workingDirectory: "/a", projectId: project.id)
+        let s2 = SessionInfo(name: "B", workingDirectory: "/b", projectId: project.id)
+        state.sessions = [plain, s1, s2]
+
+        state.moveSessionsInProject(project.id, from: IndexSet(integer: 0), to: 2)
+
+        #expect(state.sessions[0].name == "Plain")
+        #expect(state.sessions[1].name == "B")
+        #expect(state.sessions[2].name == "A")
+    }
+
     // MARK: - Project Management
 
     @Test @MainActor func addProject() {

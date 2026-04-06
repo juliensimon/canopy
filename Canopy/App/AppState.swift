@@ -207,6 +207,25 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Reorders sessions within a project by moving items at the given offsets to a new position.
+    /// `source` and `destination` are indices relative to the project's filtered session list.
+    func moveSessionsInProject(_ projectId: UUID, from source: IndexSet, to destination: Int) {
+        var projectSessions = sessions.filter { $0.projectId == projectId }
+        projectSessions.move(fromOffsets: source, toOffset: destination)
+
+        var result: [SessionInfo] = []
+        var projectIndex = 0
+        for session in sessions {
+            if session.projectId == projectId {
+                result.append(projectSessions[projectIndex])
+                projectIndex += 1
+            } else {
+                result.append(session)
+            }
+        }
+        sessions = result
+    }
+
     // MARK: - Project Management
 
     func addProject(_ project: Project) {
