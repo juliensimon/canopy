@@ -1,15 +1,11 @@
 import SwiftUI
 
-/// Bottom status bar showing current session info.
-/// Phase 1: just the working directory.
-/// Phase 3+: branch name, resource usage.
 struct StatusBar: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
         HStack(spacing: 12) {
             if let session = appState.activeSession {
-                // Session indicator
                 HStack(spacing: 4) {
                     Image(systemName: "terminal")
                         .font(.system(size: 10))
@@ -21,7 +17,6 @@ struct StatusBar: View {
                 Divider()
                     .frame(height: 12)
 
-                // Working directory
                 HStack(spacing: 4) {
                     Image(systemName: "folder")
                         .font(.system(size: 10))
@@ -34,13 +29,46 @@ struct StatusBar: View {
 
             Spacer()
 
-            // Session count
-            Text("\(appState.sessions.count) session\(appState.sessions.count == 1 ? "" : "s")")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+            // Activity summary with mini dots
+            activitySummary
         }
         .padding(.horizontal, 12)
         .frame(height: 24)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var activitySummary: some View {
+        let sessions = appState.sessions
+        let activities: [(UUID, SessionActivity)] = sessions.map { session in
+            let activity = appState.terminalSessions[session.id]?.activity ?? .idle
+            return (session.id, activity)
+        }
+        let workingCount = activities.filter { $0.1 == .working }.count
+        let totalCount = sessions.count
+
+        HStack(spacing: 4) {
+            ForEach(activities, id: \.0) { _, activity in
+                Circle()
+                    .fill(activity == .working ? Color.green : Color.gray.opacity(0.4))
+                    .frame(width: 5, height: 5)
+            }
+
+            if totalCount > 0 {
+                Text(summaryText(working: workingCount, total: totalCount))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func summaryText(working: Int, total: Int) -> String {
+        if working == 0 {
+            return "\(total) session\(total == 1 ? "" : "s")"
+        } else if working == total {
+            return "\(total) working"
+        } else {
+            return "\(working) working, \(total - working) idle"
+        }
     }
 }
