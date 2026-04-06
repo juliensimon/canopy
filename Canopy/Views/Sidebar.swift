@@ -152,6 +152,14 @@ struct Sidebar: View {
             )
         }
 
+        Button("Open in Terminal") {
+            NSWorkspace.shared.open(
+                [URL(fileURLWithPath: session.workingDirectory)],
+                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
+                configuration: NSWorkspace.OpenConfiguration()
+            )
+        }
+
         Button("Open in Finder") {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: session.workingDirectory)
         }
@@ -213,6 +221,14 @@ struct Sidebar: View {
 
         Button("Edit Project...") {
             editingProject = project
+        }
+
+        Button("Open in Terminal") {
+            NSWorkspace.shared.open(
+                [URL(fileURLWithPath: project.repositoryPath)],
+                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
+                configuration: NSWorkspace.OpenConfiguration()
+            )
         }
 
         Button("Copy Repository Path") {
