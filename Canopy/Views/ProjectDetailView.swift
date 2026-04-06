@@ -11,6 +11,7 @@ struct ProjectDetailView: View {
     @State private var isLoading = true
     @State private var worktreeToDelete: WorktreeInfo?
     @State private var deleteWarning: String = ""
+    @State private var worktreeToMerge: WorktreeInfo?
     @State private var deleteError: String?
     @State private var showNewWorktree = false
 
@@ -93,6 +94,16 @@ struct ProjectDetailView: View {
             Button("Cancel", role: .cancel) { worktreeToDelete = nil }
         } message: {
             Text("This will permanently remove the worktree at:\n\(worktreeToDelete?.path ?? "")\n\n\(deleteWarning)")
+        }
+        .sheet(item: $worktreeToMerge) { wt in
+            if let branch = wt.branch {
+                MergeWorktreeSheet(
+                    project: project,
+                    worktreePath: wt.path,
+                    branchName: branch
+                )
+                .environmentObject(appState)
+            }
         }
     }
 
@@ -276,6 +287,17 @@ struct ProjectDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+
+                // Merge button (not for main worktree)
+                if !isMain, let _ = wt.branch {
+                    Button(action: { worktreeToMerge = wt }) {
+                        Image(systemName: "arrow.merge")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Merge & Finish")
+                }
 
                 // Delete button (not for main worktree)
                 if !isMain {

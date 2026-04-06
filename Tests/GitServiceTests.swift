@@ -15,7 +15,7 @@ struct GitServiceTests {
         try fm.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: repoPath) }
 
-        try shell("git init && git config user.email 'test@test.com' && git config user.name 'Test'", in: repoPath)
+        try shell("git init -b main && git config user.email 'test@test.com' && git config user.name 'Test'", in: repoPath)
         try "hello".write(toFile: "\(repoPath)/file.txt", atomically: true, encoding: .utf8)
         try shell("git add -A && git commit -m 'initial'", in: repoPath)
 
@@ -228,6 +228,101 @@ struct GitServiceTests {
 
         await #expect(throws: GitError.self) {
             try await GitService.runSetupCommand("exit 1", in: dir)
+        }
+    }
+
+    // MARK: - Merge Operations
+
+    @Test func hasUncommittedChangesClean() async throws {
+        try await withTempRepo { repo in
+            let dirty = try await git.hasUncommittedChanges(repoPath: repo)
+            #expect(dirty == false)
+        }
+    }
+
+    @Test func hasUncommittedChangesDirty() async throws {
+        try await withTempRepo { repo in
+            try "modified".write(toFile: "\(repo)/file.txt", atomically: true, encoding: .utf8)
+            let dirty = try await git.hasUncommittedChanges(repoPath: repo)
+            #expect(dirty == true)
+        }
+    }
+
+    @Test func commitCount() async throws {
+        try await withTempRepo { repo in
+            try shell("git checkout -b feat/count", in: repo)
+            for i in 1...3 {
+                try "change \(i)".write(toFile: "\(repo)/file.txt", atomically: true, encoding: .utf8)
+                try shell("git add -A && git commit -m 'commit \(i)'", in: repo)
+            }
+            let count = try await git.commitCount(from: "feat/count", to: "main", repoPath: repo)
+            #expect(count == 3)
+        }
+    }
+
+    @Test func mergeIntoSuccess() async throws {
+        try await withTempRepo { repo in
+            try shell("git checkout -b feat/merge-ok", in: repo)
+            try "merged".write(toFile: "\(repo)/new.txt", atomically: true, encoding: .utf8)
+            try shell("git add -A && git commit -m 'feature work'", in: repo)
+            try shell("git checkout main 2>/dev/null || git checkout master", in: repo)
+
+            let result = try await git.mergeInto(
+                target: "main",
+                source: "feat/merge-ok",
+                repoPath: repo
+            )
+
+            switch result {
+            case .success(let count):
+                #expect(count == 1)
+                let content = try String(contentsOfFile: "\(repo)/new.txt", encoding: .utf8)
+                #expect(content == "merged")
+            case .conflict:
+                Issue.record("Expected success but got conflict")
+            }
+        }
+    }
+
+    @Test func mergeIntoConflict() async throws {
+        try await withTempRepo { repo in
+            try shell("git checkout -b feat/conflict", in: repo)
+            try "branch version".write(toFile: "\(repo)/file.txt", atomically: true, encoding: .utf8)
+            try shell("git add -A && git commit -m 'branch change'", in: repo)
+
+            try shell("git checkout main 2>/dev/null || git checkout master", in: repo)
+            try "main version".write(toFile: "\(repo)/file.txt", atomically: true, encoding: .utf8)
+            try shell("git add -A && git commit -m 'main change'", in: repo)
+
+            let result = try await git.mergeInto(
+                target: "main",
+                source: "feat/conflict",
+                repoPath: repo
+            )
+
+            switch result {
+            case .success:
+                Issue.record("Expected conflict but got success")
+            case .conflict(let files):
+                #expect(files.contains("file.txt"))
+            }
+        }
+    }
+
+    @Test func deleteBranch() async throws {
+        try await withTempRepo { repo in
+            try shell("git checkout -b feat/to-delete", in: repo)
+            try "x".write(toFile: "\(repo)/del.txt", atomically: true, encoding: .utf8)
+            try shell("git add -A && git commit -m 'branch work'", in: repo)
+            try shell("git checkout main 2>/dev/null || git checkout master", in: repo)
+
+            // Merge first so -d works (safe delete requires merged)
+            try shell("git merge feat/to-delete", in: repo)
+
+            try await git.deleteBranch(name: "feat/to-delete", repoPath: repo)
+
+            let branches = try await git.listBranches(repoPath: repo)
+            #expect(!branches.contains { $0.name == "feat/to-delete" })
         }
     }
 

@@ -15,6 +15,7 @@ struct Sidebar: View {
     @State private var renameText = ""
     @State private var infoSession: SessionInfo?
     @State private var projectToDelete: Project?
+    @State private var mergeSession: SessionInfo?
 
     private var plainSessions: [SessionInfo] {
         appState.orderedSessions.filter { $0.projectId == nil }
@@ -82,6 +83,19 @@ struct Sidebar: View {
         } message: {
             Text("Remove \"\(projectToDelete?.name ?? "")\" from Canopy? This does not delete the repository or its worktrees from disk.")
         }
+        .sheet(item: $mergeSession) { session in
+            if let project = appState.projects.first(where: { $0.id == session.projectId }),
+               let branch = session.branchName,
+               let wtPath = session.worktreePath {
+                MergeWorktreeSheet(
+                    project: project,
+                    worktreePath: wtPath,
+                    branchName: branch,
+                    sessionId: session.id
+                )
+                .environmentObject(appState)
+            }
+        }
     }
 
     // MARK: - Session Row
@@ -123,6 +137,13 @@ struct Sidebar: View {
 
     @ViewBuilder
     private func sessionContextMenu(_ session: SessionInfo) -> some View {
+        if session.isWorktreeSession {
+            Button("Merge & Finish...") {
+                mergeSession = session
+            }
+
+            Divider()
+        }
 
         Button("Rename...") {
             renameText = session.name
