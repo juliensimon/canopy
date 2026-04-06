@@ -1,6 +1,15 @@
 import SwiftUI
 import AppKit
 
+/// Controls how tabs are ordered in the tab bar and sidebar.
+enum TabSortMode: String, CaseIterable {
+    case manual = "Manual"
+    case name = "Name"
+    case project = "Project"
+    case creationDate = "Creation Date"
+    case workingDirectory = "Directory"
+}
+
 /// Global application state shared across views.
 ///
 /// Owns sessions, projects, and the active selection.
@@ -11,6 +20,7 @@ final class AppState: ObservableObject {
     @Published var activeSessionId: UUID?
     @Published var selectedProjectId: UUID?
     @Published var projects: [Project] = []
+    @Published var tabSortMode: TabSortMode = .manual
 
     /// Terminal sessions keyed by session ID. Kept alive across tab switches.
     var terminalSessions: [UUID: TerminalSession] = [:]
@@ -38,6 +48,28 @@ final class AppState: ObservableObject {
 
     var activeSession: SessionInfo? {
         sessions.first { $0.id == activeSessionId }
+    }
+
+    var orderedSessions: [SessionInfo] {
+        switch tabSortMode {
+        case .manual:
+            return sessions
+        case .name:
+            return sessions.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .creationDate:
+            return sessions.sorted { $0.createdAt < $1.createdAt }
+        case .workingDirectory:
+            return sessions.sorted { $0.workingDirectory.localizedCaseInsensitiveCompare($1.workingDirectory) == .orderedAscending }
+        case .project:
+            return sessions.sorted { a, b in
+                let aProject = projects.first { $0.id == a.projectId }
+                let bProject = projects.first { $0.id == b.projectId }
+                let aName = aProject?.name ?? "\u{FFFF}"
+                let bName = bProject?.name ?? "\u{FFFF}"
+                if aName != bName { return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending }
+                return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+        }
     }
 
     var selectedProject: Project? {

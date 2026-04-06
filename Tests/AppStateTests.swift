@@ -245,4 +245,68 @@ struct AppStateTests {
         let b = SessionInfo(name: "A", workingDirectory: "/a")
         #expect(a.id != b.id)
     }
+
+    // MARK: - Tab Sorting
+
+    @Test @MainActor func defaultSortModeIsManual() {
+        let state = AppState()
+        #expect(state.tabSortMode == .manual)
+    }
+
+    @Test @MainActor func orderedSessionsManualReturnsInsertionOrder() {
+        let state = AppState()
+        state.createSession(name: "Zebra", directory: "/tmp/z")
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Mango", directory: "/tmp/m")
+
+        #expect(state.orderedSessions.map(\.name) == ["Zebra", "Apple", "Mango"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByName() {
+        let state = AppState()
+        state.createSession(name: "Zebra", directory: "/tmp/z")
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.createSession(name: "Mango", directory: "/tmp/m")
+        state.tabSortMode = .name
+
+        #expect(state.orderedSessions.map(\.name) == ["Apple", "Mango", "Zebra"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByCreationDate() {
+        let state = AppState()
+        state.createSession(name: "First", directory: "/tmp/1")
+        state.createSession(name: "Second", directory: "/tmp/2")
+        state.createSession(name: "Third", directory: "/tmp/3")
+        state.tabSortMode = .creationDate
+
+        #expect(state.orderedSessions.map(\.name) == ["First", "Second", "Third"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByDirectory() {
+        let state = AppState()
+        state.createSession(name: "C", directory: "/tmp/zebra")
+        state.createSession(name: "A", directory: "/tmp/apple")
+        state.createSession(name: "B", directory: "/tmp/mango")
+        state.tabSortMode = .workingDirectory
+
+        #expect(state.orderedSessions.map(\.name) == ["A", "B", "C"])
+    }
+
+    @Test @MainActor func orderedSessionsSortedByProject() {
+        let state = AppState()
+        let projectA = Project(name: "Alpha", repositoryPath: "/tmp/alpha")
+        let projectB = Project(name: "Beta", repositoryPath: "/tmp/beta")
+        state.addProject(projectA)
+        state.addProject(projectB)
+
+        let s1 = SessionInfo(name: "B-session", workingDirectory: "/tmp/b", projectId: projectB.id)
+        let s2 = SessionInfo(name: "A-session", workingDirectory: "/tmp/a", projectId: projectA.id)
+        let s3 = SessionInfo(name: "Plain", workingDirectory: "/tmp/p")
+        state.sessions = [s1, s2, s3]
+
+        state.tabSortMode = .project
+
+        let names = state.orderedSessions.map(\.name)
+        #expect(names == ["A-session", "B-session", "Plain"])
+    }
 }
