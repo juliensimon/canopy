@@ -1,47 +1,79 @@
 import SwiftUI
 
-/// Animated activity indicator for session status.
+/// Animated activity indicator with project-colored ring and center status dot.
 struct ActivityDot: View {
     let activity: SessionActivity
+    var projectColor: Color = .gray
+
+    @State private var isSpinning = false
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-            let phase = phase(for: timeline.date)
+        ZStack {
+            // Outer ring
+            Circle()
+                .stroke(projectColor.opacity(ringBaseOpacity), lineWidth: 1.5)
+                .frame(width: 12, height: 12)
 
-            ZStack {
-                if activity == .working {
-                    Circle()
-                        .fill(Color.green.opacity(0.3 * phase))
-                        .frame(width: 14, height: 14)
-                        .blur(radius: 4)
-
-                    Circle()
-                        .fill(Color.green.opacity(0.5 * phase))
-                        .frame(width: 10, height: 10)
-                        .blur(radius: 2)
-                }
-
+            // Spinning arc (working state only)
+            if activity == .working {
                 Circle()
-                    .fill(color)
-                    .frame(width: 7, height: 7)
-                    .opacity(activity == .idle ? 0.35 : (0.7 + 0.3 * phase))
+                    .trim(from: 0, to: 0.25)
+                    .stroke(projectColor, lineWidth: 1.5)
+                    .frame(width: 12, height: 12)
+                    .rotationEffect(.degrees(isSpinning ? 360 : 0))
+                    .animation(
+                        .linear(duration: 1.0).repeatForever(autoreverses: false),
+                        value: isSpinning
+                    )
+                    .onAppear { isSpinning = true }
+                    .onDisappear { isSpinning = false }
             }
-            .frame(width: 14, height: 14)
-            .help(activity.label)
+
+            // Glow for justFinished
+            if activity == .justFinished {
+                Circle()
+                    .fill(Color.blue.opacity(0.3))
+                    .frame(width: 14, height: 14)
+                    .blur(radius: 4)
+            }
+
+            // Center dot or checkmark
+            if activity == .justFinished {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 6, weight: .bold))
+                    .foregroundStyle(.blue)
+            } else {
+                Circle()
+                    .fill(centerColor)
+                    .frame(width: 5, height: 5)
+                    .opacity(centerOpacity)
+            }
+        }
+        .frame(width: 14, height: 14)
+        .help(activity.label)
+    }
+
+    private var ringBaseOpacity: Double {
+        switch activity {
+        case .idle: return 0.15
+        case .working: return 0.3
+        case .justFinished: return 0.0
         }
     }
 
-    private var color: Color {
+    private var centerColor: Color {
         switch activity {
         case .idle: return .gray
         case .working: return .green
+        case .justFinished: return .blue
         }
     }
 
-    private func phase(for date: Date) -> Double {
+    private var centerOpacity: Double {
         switch activity {
-        case .idle: return 0
-        case .working: return 0.5 + 0.5 * sin(date.timeIntervalSinceReferenceDate * 2.0 * .pi / 1.5)
+        case .idle: return 0.4
+        case .working: return 1.0
+        case .justFinished: return 1.0
         }
     }
 }
