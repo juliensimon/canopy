@@ -382,4 +382,35 @@ struct AppStateTests {
         let names = state.orderedSessions.map(\.name)
         #expect(names == ["A-session", "B-session", "Plain"])
     }
+
+    @Test @MainActor func dragRevertsThenNewSessionAppends() {
+        let state = AppState()
+        state.createSession(name: "Banana", directory: "/tmp/b")
+        state.createSession(name: "Apple", directory: "/tmp/a")
+        state.tabSortMode = .name
+
+        // orderedSessions is sorted
+        #expect(state.orderedSessions.map(\.name) == ["Apple", "Banana"])
+
+        // Swap reverts to manual
+        let idA = state.sessions[0].id
+        let idB = state.sessions[1].id
+        state.swapSessions(idA, idB)
+        #expect(state.tabSortMode == .manual)
+
+        // New session appends (manual mode)
+        state.createSession(name: "Cherry", directory: "/tmp/c")
+        #expect(state.sessions.last?.name == "Cherry")
+    }
+
+    @Test @MainActor func cycleSortModes() {
+        let state = AppState()
+        let allModes = TabSortMode.allCases
+        #expect(allModes.count == 5)
+        #expect(allModes[0] == .manual)
+        #expect(allModes[1] == .name)
+        #expect(allModes[2] == .project)
+        #expect(allModes[3] == .creationDate)
+        #expect(allModes[4] == .workingDirectory)
+    }
 }
