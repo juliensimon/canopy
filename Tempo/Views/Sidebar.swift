@@ -14,6 +14,7 @@ struct Sidebar: View {
     @State private var renamingSessionId: UUID?
     @State private var renameText = ""
     @State private var infoSession: SessionInfo?
+    @State private var watchdogSessionId: UUID?
 
     private var plainSessions: [SessionInfo] {
         appState.sessions.filter { $0.projectId == nil }
@@ -62,6 +63,16 @@ struct Sidebar: View {
             SessionInfoSheet(session: session)
                 .environmentObject(appState)
         }
+        .sheet(isPresented: Binding(
+            get: { watchdogSessionId != nil },
+            set: { if !$0 { watchdogSessionId = nil } }
+        )) {
+            if let sessionId = watchdogSessionId {
+                let ts = appState.terminalSessions[sessionId]
+                WatchdogConfigView(sessionId: sessionId, config: ts?.watchdog.config)
+                    .environmentObject(appState)
+            }
+        }
     }
 
     // MARK: - Session Row
@@ -78,7 +89,10 @@ struct Sidebar: View {
                     renamingSessionId = nil
                 })
             } else {
-                SidebarSessionRow(session: session)
+                SidebarSessionRow(
+                    session: session,
+                    watchdogActive: appState.terminalSessions[session.id]?.watchdog.isActive ?? false
+                )
             }
 
             Spacer()
@@ -99,6 +113,12 @@ struct Sidebar: View {
 
     @ViewBuilder
     private func sessionContextMenu(_ session: SessionInfo) -> some View {
+        Button("Watchdog...") {
+            watchdogSessionId = session.id
+        }
+
+        Divider()
+
         Button("Rename...") {
             renameText = session.name
             renamingSessionId = session.id
@@ -224,6 +244,7 @@ struct Sidebar: View {
 
 struct SidebarSessionRow: View {
     let session: SessionInfo
+    var watchdogActive: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -231,9 +252,17 @@ struct SidebarSessionRow: View {
                 .font(.system(size: 12))
                 .foregroundStyle(session.isWorktreeSession ? .blue : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(session.name)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                    if watchdogActive {
+                        Image(systemName: "shield.checkered")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.green)
+                            .help("Watchdog active")
+                    }
+                }
                 Text(subtitle)
                     .font(.system(size: 10))
                     .foregroundColor(session.isWorktreeSession ? .blue.opacity(0.7) : .gray)

@@ -38,7 +38,7 @@ struct TempoApp: App {
             // File menu
             CommandGroup(after: .newItem) {
                 Button("New Session") {
-                    appState.createSession()
+                    appState.createSessionWithPicker()
                 }
                 .keyboardShortcut("t", modifiers: [.command])
 

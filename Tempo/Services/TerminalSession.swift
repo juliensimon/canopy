@@ -4,9 +4,10 @@ import SwiftTerm
 /// Manages one terminal session: a pseudo-terminal connected to a shell process.
 ///
 /// Each TerminalSession:
-/// 1. Creates a SwiftTerm LocalProcessTerminalView (which handles PTY internally)
+/// 1. Creates a WatchableTerminalView (subclass of LocalProcessTerminalView)
 /// 2. Starts a shell process (zsh/bash) in the specified working directory
-/// 3. Detects when the process exits via LocalProcessTerminalViewDelegate
+/// 3. Feeds output through TerminalOutputParser → WatchdogEngine for auto-responses
+/// 4. Detects process exit via LocalProcessTerminalViewDelegate
 @MainActor
 final class TerminalSession: ObservableObject {
     let id: UUID
@@ -20,16 +21,24 @@ final class TerminalSession: ObservableObject {
     @Published var processExited = false
     @Published var exitCode: Int32?
 
-    /// Whether the initial setup (process exit handler, auto-start) has run.
-    /// Tracked here (not in the view) because the view gets recreated on tab switch.
-    var hasCompletedSetup = false
+    /// Watchdog system: parser detects events, engine evaluates rules and responds.
+    let outputParser = TerminalOutputParser()
+    let watchdog = WatchdogEngine()
 
-    /// Called when the shell process terminates.
+    /// Recent watchdog actions for display
+    @Published var recentActions: [WatchdogAction] = []
+
+    var hasCompletedSetup = false
     var onProcessExit: ((UUID) -> Void)?
 
     init(id: UUID, workingDirectory: String) {
         self.id = id
         self.workingDirectory = workingDirectory
+
+        // Wire watchdog to send keystrokes to the terminal
+        watchdog.sendToTerminal = { [weak self] text in
+            self?.send(text: text)
+        }
     }
 
     func start(frame: CGRect) -> LocalProcessTerminalView {
@@ -37,13 +46,15 @@ final class TerminalSession: ObservableObject {
             return existing
         }
 
-        let view = LocalProcessTerminalView(frame: frame)
+        // Use our subclass that intercepts output for the watchdog
+        let view = WatchableTerminalView(frame: frame) { [weak self] data in
+            self?.handleOutputData(data)
+        }
 
         view.nativeBackgroundColor = .black
         view.nativeForegroundColor = NSColor(red: 0.9, green: 0.9, blue: 0.9, alpha: 1.0)
         view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
-        // Set up delegate to detect process exit and title changes
         let handler = TerminalDelegateHandler(session: self)
         view.processDelegate = handler
         self.delegateHandler = handler
@@ -78,7 +89,30 @@ final class TerminalSession: ObservableObject {
         isRunning = false
     }
 
+    /// Attach a watchdog configuration to this session.
+    func setWatchdogConfig(_ config: WatchdogConfig?) {
+        watchdog.config = config
+        watchdog.isActive = config?.isEnabled ?? false
+        watchdog.resetCounts()
+    }
+
     // MARK: - Private
+
+    /// Called by WatchableTerminalView when output data arrives.
+    /// This runs on the main queue since the terminal view dispatches there.
+    private func handleOutputData(_ data: Data) {
+        let events = outputParser.feed(data)
+        guard !events.isEmpty else { return }
+
+        let actions = watchdog.evaluate(events: events)
+        if !actions.isEmpty {
+            recentActions.append(contentsOf: actions)
+            // Keep only last 50 actions
+            if recentActions.count > 50 {
+                recentActions.removeFirst(recentActions.count - 50)
+            }
+        }
+    }
 
     private func buildEnvironment() -> [String] {
         var env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
@@ -103,9 +137,42 @@ final class TerminalSession: ObservableObject {
     }
 }
 
-/// Delegate handler that bridges SwiftTerm's process events back to TerminalSession.
-/// Separate class because LocalProcessTerminalViewDelegate requires a class type
-/// and we don't want TerminalSession to inherit from NSObject.
+// MARK: - WatchableTerminalView
+
+/// Subclass of LocalProcessTerminalView that taps the data stream.
+///
+/// LocalProcessTerminalView.dataReceived is the method that receives all
+/// output from the child process before feeding it to the terminal renderer.
+/// By overriding it, we can observe the raw output and pass it to the
+/// watchdog system without disrupting the terminal display.
+class WatchableTerminalView: LocalProcessTerminalView {
+    /// Called with raw output data before it's rendered.
+    private var onDataReceived: ((Data) -> Void)?
+
+    init(frame: CGRect, onDataReceived: @escaping (Data) -> Void) {
+        self.onDataReceived = onDataReceived
+        super.init(frame: frame)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) not implemented")
+    }
+
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        // Tap the data for the watchdog
+        let data = Data(slice)
+        Task { @MainActor [onDataReceived] in
+            onDataReceived?(data)
+        }
+
+        // Continue normal rendering
+        super.dataReceived(slice: slice)
+    }
+}
+
+// MARK: - Delegate Handler
+
 private class TerminalDelegateHandler: NSObject, LocalProcessTerminalViewDelegate, @unchecked Sendable {
     weak var session: TerminalSession?
 

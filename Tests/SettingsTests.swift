@@ -10,14 +10,16 @@ struct SettingsTests {
     @Test func defaultValues() {
         let settings = TempoSettings()
         #expect(settings.autoStartClaude == false)
-        #expect(settings.claudeFlags == "")
+        #expect(settings.claudeFlags == "--permission-mode auto")
+        #expect(settings.confirmBeforeClosing == true)
+        #expect(settings.idePath == "/Applications/Cursor.app")
     }
 
     // MARK: - Claude Command
 
     @Test func claudeCommandDefault() {
         let settings = TempoSettings()
-        #expect(settings.claudeCommand == "claude")
+        #expect(settings.claudeCommand == "claude --permission-mode auto")
     }
 
     @Test func claudeCommandWithFlags() {
@@ -59,12 +61,12 @@ struct SettingsTests {
     }
 
     @Test func decodesWithMissingFields() throws {
-        // Simulate an older settings file that doesn't have all fields
         let json = "{}"
         let data = json.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(TempoSettings.self, from: data)
         #expect(decoded.autoStartClaude == false)
-        #expect(decoded.claudeFlags == "")
+        #expect(decoded.claudeFlags == "--permission-mode auto")
+        #expect(decoded.confirmBeforeClosing == true)
     }
 
     // MARK: - Persistence

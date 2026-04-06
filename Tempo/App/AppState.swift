@@ -65,28 +65,27 @@ final class AppState: ObservableObject {
         return ts
     }
 
-    /// Creates a plain session in the given directory, or shows a picker if no directory is provided.
-    func createSession(name: String? = nil, directory: String? = nil) {
-        let workDir: String
-        if let dir = directory {
-            workDir = dir
-        } else {
-            // Show directory picker
-            let panel = NSOpenPanel()
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.allowsMultipleSelection = false
-            panel.message = "Choose working directory for the new session"
-            panel.prompt = "Open"
-            guard panel.runModal() == .OK, let url = panel.url else { return }
-            workDir = url.path
-        }
+    /// Shows a directory picker then creates a session in the chosen directory.
+    func createSessionWithPicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose working directory for the new session"
+        panel.prompt = "Open"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        createSession(directory: url.path)
+    }
 
-        let index = sessions.count + 1
+    /// Creates a plain session in the given directory.
+    func createSession(name: String? = nil, directory: String? = nil) {
+        let workDir = directory ?? FileManager.default.homeDirectoryForCurrentUser.path
         let dirName = (workDir as NSString).lastPathComponent
         let sessionName = name ?? dirName
+        let index = sessions.count + 1
+        let finalName = sessionName == NSHomeDirectory().split(separator: "/").last.map(String.init) ? "Session \(index)" : sessionName
 
-        let session = SessionInfo(name: sessionName, workingDirectory: workDir)
+        let session = SessionInfo(name: finalName, workingDirectory: workDir)
         sessions.append(session)
         activeSessionId = session.id
     }

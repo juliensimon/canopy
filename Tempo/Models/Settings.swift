@@ -29,7 +29,7 @@ struct TempoSettings: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         autoStartClaude = try container.decodeIfPresent(Bool.self, forKey: .autoStartClaude) ?? false
-        claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags) ?? "--dangerously-skip-permissions"
+        claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags) ?? "--permission-mode auto"
         confirmBeforeClosing = try container.decodeIfPresent(Bool.self, forKey: .confirmBeforeClosing) ?? true
         idePath = try container.decodeIfPresent(String.self, forKey: .idePath) ?? "/Applications/Cursor.app"
     }

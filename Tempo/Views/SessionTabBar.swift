@@ -25,7 +25,7 @@ struct SessionTabBar: View {
             Spacer()
 
             // New session button
-            Button(action: { appState.createSession() }) {
+            Button(action: { appState.createSessionWithPicker() }) {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)

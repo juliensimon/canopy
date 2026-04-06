@@ -104,7 +104,7 @@ struct WelcomeView: View {
                 .foregroundStyle(.secondary)
 
             Button("New Session ⌘T") {
-                appState.createSession()
+                appState.createSessionWithPicker()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
