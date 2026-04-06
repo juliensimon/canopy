@@ -91,6 +91,19 @@ final class TerminalViewController: NSViewController {
                 return event
             }
 
+            // Intercept Shift+Return before SwiftTerm sees it.
+            // SwiftTerm's doCommand(by: insertNewline) loses the Shift modifier,
+            // making Shift+Enter indistinguishable from Enter. We send the CSI u
+            // encoding directly so Claude Code can detect it.
+            if event.type == .keyDown
+                && event.keyCode == 0x24  // kVK_Return
+                && event.modifierFlags.contains(.shift) {
+                window.makeFirstResponder(tv)
+                // CSI u: ESC [ 1 3 ; 2 u  (13 = CR codepoint, 2 = 1+shift)
+                tv.send([0x1b, 0x5b, 0x31, 0x33, 0x3b, 0x32, 0x75])
+                return nil
+            }
+
             // If the terminal view is already first responder, let it handle normally
             if window.firstResponder === tv {
                 return event

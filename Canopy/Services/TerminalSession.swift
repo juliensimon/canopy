@@ -46,6 +46,10 @@ final class TerminalSession: ObservableObject {
         // Claude Code uses keyboard navigation, not mouse clicks, so this is safe.
         view.allowMouseReporting = false
 
+        // Let Option generate characters (e.g. brackets on non-US keyboards)
+        // instead of acting as Meta/ESC prefix.
+        view.optionAsMetaKey = false
+
         let handler = TerminalDelegateHandler(session: self)
         view.processDelegate = handler
         self.delegateHandler = handler
