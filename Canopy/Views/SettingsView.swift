@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var confirmBeforeClosing: Bool
     @State private var idePath: String
     @State private var terminalPath: String
+    @State private var notifyOnFinish: Bool
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -17,6 +18,7 @@ struct SettingsView: View {
         self._confirmBeforeClosing = State(initialValue: settings.confirmBeforeClosing)
         self._idePath = State(initialValue: settings.idePath)
         self._terminalPath = State(initialValue: settings.terminalPath)
+        self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
     }
 
     var body: some View {
@@ -73,6 +75,19 @@ struct SettingsView: View {
                         .padding(4)
                     } label: {
                         Label("Sessions", systemImage: "rectangle.stack")
+                    }
+
+                    // Notifications section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Notify when sessions finish", isOn: $notifyOnFinish)
+                            Text("Show a macOS notification when a session transitions from working to idle while Canopy is in the background.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(4)
+                    } label: {
+                        Label("Notifications", systemImage: "bell")
                     }
 
                     // IDE section
@@ -163,6 +178,7 @@ struct SettingsView: View {
         settings.confirmBeforeClosing = confirmBeforeClosing
         settings.idePath = idePath
         settings.terminalPath = terminalPath
+        settings.notifyOnFinish = notifyOnFinish
         settings.save()
         appState.settings = settings
         dismiss()

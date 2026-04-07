@@ -100,6 +100,28 @@ struct SettingsTests {
         #expect(decoded.terminalPath == "/Applications/iTerm.app")
     }
 
+    // MARK: - notifyOnFinish
+
+    @Test func notifyOnFinishDefaultTrue() {
+        let settings = CanopySettings()
+        #expect(settings.notifyOnFinish == true)
+    }
+
+    @Test func notifyOnFinishCodableRoundTrip() throws {
+        var settings = CanopySettings()
+        settings.notifyOnFinish = false
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.notifyOnFinish == false)
+    }
+
+    @Test func notifyOnFinishDecodesFromEmpty() throws {
+        let json = "{}"
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.notifyOnFinish == true)
+    }
+
     // MARK: - Persistence
 
     @Test func saveAndLoad() {
