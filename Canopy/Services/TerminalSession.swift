@@ -22,6 +22,7 @@ final class TerminalSession: ObservableObject {
 
     var hasCompletedSetup = false
     var onProcessExit: ((UUID) -> Void)?
+    var onSessionFinished: ((UUID, String) -> Void)?
     private var idleTimer: Task<Void, Never>?
     private var justFinishedTimer: Task<Void, Never>?
 
@@ -151,6 +152,7 @@ final class TerminalSession: ObservableObject {
             guard !Task.isCancelled else { return }
             if self.activity == .working {
                 self.activity = .justFinished
+                self.onSessionFinished?(self.id, self.title)
                 self.startJustFinishedTimer()
             }
         }
