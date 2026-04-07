@@ -153,9 +153,5 @@ final class TerminalViewController: NSViewController {
         }
     }
 
-    deinit {
-        if let monitor = keyEventMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-    }
+    // Monitor cleanup is handled in viewWillDisappear
 }

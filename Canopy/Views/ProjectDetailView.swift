@@ -28,7 +28,7 @@ struct ProjectDetailView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(ProjectColor.color(for: project.colorIndex))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(project.name)
                             .font(.title2)

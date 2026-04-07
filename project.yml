@@ -25,6 +25,7 @@ targets:
         PRODUCT_NAME: Canopy
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.developer-tools"
         INFOPLIST_KEY_CFBundleDisplayName: Canopy
         SWIFT_VERSION: "6.0"

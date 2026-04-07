@@ -255,11 +255,6 @@ struct Sidebar: View {
             RoundedRectangle(cornerRadius: 4)
                 .fill(color.opacity(0.05))
         )
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(color.opacity(0.4))
-                .frame(width: 2)
-        }
         .contentShape(Rectangle())
         .onTapGesture {
             appState.activeSessionId = nil
