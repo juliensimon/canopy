@@ -5,35 +5,50 @@ struct MainWindow: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        NavigationSplitView {
-            Sidebar()
-        } detail: {
-            VStack(spacing: 0) {
-                if !appState.sessions.isEmpty {
-                    SessionTabBar()
-                    Divider()
-                }
-
-                // Content with crossfade
-                ZStack {
-                    if let activeSession = appState.activeSession {
-                        TerminalInsetView(session: activeSession, appState: appState)
-                            .id(activeSession.id)
-                            .transition(.opacity)
-                    } else if let projectId = appState.selectedProjectId,
-                              let project = appState.projects.first(where: { $0.id == projectId }) {
-                        ProjectDetailView(project: project)
-                            .id(project.id)
-                    } else {
-                        WelcomeView()
+        ZStack {
+            NavigationSplitView {
+                Sidebar()
+            } detail: {
+                VStack(spacing: 0) {
+                    if !appState.sessions.isEmpty {
+                        SessionTabBar()
+                        Divider()
                     }
+
+                    // Content with crossfade
+                    ZStack {
+                        if let activeSession = appState.activeSession {
+                            TerminalInsetView(session: activeSession, appState: appState)
+                                .id(activeSession.id)
+                                .transition(.opacity)
+                        } else if let projectId = appState.selectedProjectId,
+                                  let project = appState.projects.first(where: { $0.id == projectId }) {
+                            ProjectDetailView(project: project)
+                                .id(project.id)
+                        } else {
+                            WelcomeView()
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.15), value: appState.activeSessionId)
+
+
                 }
-                .animation(.easeInOut(duration: 0.15), value: appState.activeSessionId)
+            }
+            .navigationSplitViewStyle(.balanced)
 
+            // Command palette overlay
+            if appState.showCommandPalette {
+                Color.black.opacity(0.2)
+                    .ignoresSafeArea()
+                    .onTapGesture { appState.showCommandPalette = false }
 
+                VStack {
+                    CommandPaletteView()
+                        .padding(.top, 80)
+                    Spacer()
+                }
             }
         }
-        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 800, minHeight: 500)
         .alert("Close Session?", isPresented: $appState.showCloseConfirmation) {
             Button("Close", role: .destructive) {
