@@ -427,4 +427,44 @@ struct AppStateTests {
         #expect(allModes[3] == .creationDate)
         #expect(allModes[4] == .workingDirectory)
     }
+
+    // MARK: - Split Terminal
+
+    @Test @MainActor func toggleSplitTerminalOpensAndCloses() {
+        let state = AppState()
+        state.createSession(name: "Test", directory: "/tmp")
+        let sessionId = state.sessions[0].id
+
+        #expect(!state.isSplitOpen(for: sessionId))
+
+        state.toggleSplitTerminal(for: sessionId)
+        #expect(state.isSplitOpen(for: sessionId))
+        #expect(state.splitTerminalSessions[sessionId] != nil)
+
+        state.toggleSplitTerminal(for: sessionId)
+        #expect(!state.isSplitOpen(for: sessionId))
+        #expect(state.splitTerminalSessions[sessionId] == nil)
+    }
+
+    @Test @MainActor func closingSessionClosesSplitTerminal() {
+        let state = AppState()
+        state.createSession(name: "Test", directory: "/tmp")
+        let sessionId = state.sessions[0].id
+
+        state.toggleSplitTerminal(for: sessionId)
+        #expect(state.isSplitOpen(for: sessionId))
+
+        state.performCloseSession(id: sessionId)
+        #expect(!state.isSplitOpen(for: sessionId))
+        #expect(state.splitTerminalSessions[sessionId] == nil)
+    }
+
+    @Test @MainActor func splitTerminalUsesSessionWorkingDirectory() {
+        let state = AppState()
+        state.createSession(name: "Test", directory: "/tmp/my-project")
+        let sessionId = state.sessions[0].id
+
+        state.toggleSplitTerminal(for: sessionId)
+        #expect(state.splitTerminalSessions[sessionId]?.workingDirectory == "/tmp/my-project")
+    }
 }
