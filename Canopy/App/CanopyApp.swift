@@ -115,6 +115,13 @@ struct CanopyApp: App {
             }
 
             CommandMenu("Session") {
+                Button("Command Palette") {
+                    appState.showCommandPalette.toggle()
+                }
+                .keyboardShortcut("k", modifiers: .command)
+
+                Divider()
+
                 Button("Toggle Split Terminal") {
                     if let id = appState.activeSessionId {
                         appState.toggleSplitTerminal(for: id)
