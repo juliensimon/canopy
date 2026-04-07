@@ -25,6 +25,12 @@ final class AppState: ObservableObject {
     /// Terminal sessions keyed by session ID. Kept alive across tab switches.
     var terminalSessions: [UUID: TerminalSession] = [:]
 
+    /// Split terminal sessions keyed by session ID. Ephemeral — not persisted.
+    var splitTerminalSessions: [UUID: TerminalSession] = [:]
+
+    /// Tracks which sessions currently have an open split terminal.
+    @Published var splitSessionIds: Set<UUID> = []
+
     /// App settings (auto-start claude, flags, etc.)
     @Published var settings = CanopySettings.load()
 
@@ -104,6 +110,29 @@ final class AppState: ObservableObject {
         let ts = TerminalSession(id: sessionInfo.id, workingDirectory: sessionInfo.workingDirectory)
         terminalSessions[sessionInfo.id] = ts
         return ts
+    }
+
+    // MARK: - Split Terminal
+
+    func isSplitOpen(for sessionId: UUID) -> Bool {
+        splitSessionIds.contains(sessionId)
+    }
+
+    func toggleSplitTerminal(for sessionId: UUID) {
+        if splitSessionIds.contains(sessionId) {
+            closeSplitTerminal(for: sessionId)
+        } else {
+            guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
+            let ts = TerminalSession(id: session.id, workingDirectory: session.workingDirectory)
+            splitTerminalSessions[session.id] = ts
+            splitSessionIds.insert(sessionId)
+        }
+    }
+
+    private func closeSplitTerminal(for sessionId: UUID) {
+        splitTerminalSessions[sessionId]?.stop()
+        splitTerminalSessions.removeValue(forKey: sessionId)
+        splitSessionIds.remove(sessionId)
     }
 
     /// Shows a directory picker then creates a session in the chosen directory.
@@ -271,6 +300,7 @@ final class AppState: ObservableObject {
     func performCloseSession(id: UUID) {
         terminalSessions[id]?.stop()
         terminalSessions.removeValue(forKey: id)
+        closeSplitTerminal(for: id)
         withAnimation(.easeOut(duration: 0.25)) {
             sessions.removeAll { $0.id == id }
             if activeSessionId == id {
