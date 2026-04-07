@@ -200,68 +200,233 @@ struct SplitTerminalView: View {
     }
 }
 
-/// Shown when no session is active.
+/// Shown when no session is active. Branches on whether projects exist.
 struct WelcomeView: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        Group {
+            if appState.projects.isEmpty {
+                FirstLaunchView()
+            } else {
+                ProjectQuickLaunchView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
+    }
+}
+
+private func keycap(_ key: String) -> some View {
+    Text(key)
+        .font(.system(size: 9))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .background(
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.gray.opacity(0.1))
+                .stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
+        )
+}
+
+/// Shown inside WelcomeView when no projects exist yet.
+private struct FirstLaunchView: View {
     @EnvironmentObject var appState: AppState
     @State private var showHelp = false
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("\u{1F333}")
-                .font(.system(size: 56))
+            Text("🌳")
+                .font(.system(size: 48))
 
-            Text("Canopy")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text("Parallel Claude Code sessions with git worktrees")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            VStack(spacing: 10) {
-                Button(action: { appState.showAddProjectSheet = true }) {
-                    HStack(spacing: 6) {
-                        Text("Add Project")
-                        keycap("\u{2318}\u{21E7}P")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-                Button(action: { appState.createSessionWithPicker() }) {
-                    HStack(spacing: 6) {
-                        Text("New Session")
-                        keycap("\u{2318}T")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-
-                Button("Getting Started \u{2318}?") {
-                    showHelp = true
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .controlSize(.regular)
+            VStack(spacing: 6) {
+                Text("Canopy")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                Text("Run multiple Claude Code sessions in parallel,\neach on its own git branch.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+
+            VStack(spacing: 6) {
+                workflowStep(icon: "🗂", title: "Add a project", detail: "Point to any git repo", dimmed: false)
+                workflowStep(icon: "🌿", title: "Create a worktree", detail: "Isolated branch, own directory", dimmed: true)
+                workflowStep(icon: "⚡", title: "Claude starts automatically", detail: "Run parallel tasks without conflicts", dimmed: true)
+            }
+            .padding(.vertical, 4)
+
+            Button(action: { appState.showAddProjectSheet = true }) {
+                HStack(spacing: 6) {
+                    Text("Add Project")
+                    keycap("⌘⇧P")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+
+            Button(action: { appState.createSessionWithPicker() }) {
+                Text("or  New Session ⌘T  to open a plain terminal")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tertiary)
+            .font(.footnote)
+
+            Button(action: { showHelp = true }) {
+                HStack(spacing: 4) {
+                    keycap("⌘?")
+                    Text("help")
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.quaternary)
+            .font(.system(size: 10))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .frame(maxWidth: 300)
         .sheet(isPresented: $showHelp) {
             HelpView()
         }
     }
 
-    private func keycap(_ key: String) -> some View {
-        Text(key)
-            .font(.system(size: 9))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.gray.opacity(0.1))
-                    .stroke(Color.gray.opacity(0.15), lineWidth: 0.5)
-            )
+    private func workflowStep(icon: String, title: String, detail: String, dimmed: Bool) -> some View {
+        HStack(spacing: 10) {
+            Text(icon)
+                .font(.system(size: 16))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .opacity(dimmed ? 0.4 : 1)
+    }
+}
+
+/// One row in ProjectQuickLaunchView — shows a project with Session and Worktree actions.
+private struct ProjectLaunchRow: View {
+    let project: Project
+    let onSession: () -> Void
+    let onWorktree: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(ProjectColor.color(for: project.colorIndex))
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(project.name)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(project.repositoryPath)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            Button(action: onWorktree) {
+                HStack(spacing: 4) {
+                    Text("Worktree")
+                    keycap("⌘⇧T")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button(action: onSession) {
+                HStack(spacing: 4) {
+                    Text("Session")
+                    keycap("⌘T")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.gray.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// Shown inside WelcomeView when at least one project exists.
+private struct ProjectQuickLaunchView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var showHelp = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("START A SESSION")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(1)
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                ForEach(appState.projects) { project in
+                    ProjectLaunchRow(
+                        project: project,
+                        onSession: {
+                            appState.createSession(directory: project.repositoryPath)
+                        },
+                        onWorktree: {
+                            appState.worktreeSheetProjectId = project.id
+                            appState.showNewWorktreeSheet = true
+                        }
+                    )
+                }
+
+                Button(action: { appState.showAddProjectSheet = true }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                        HStack(spacing: 6) {
+                            Text("Add another project")
+                            keycap("⌘⇧P")
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [4]))
+                )
+
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        keycap("⌘K")
+                        Text("command palette")
+                    }
+                    Text("·")
+                    HStack(spacing: 4) {
+                        keycap("⌘?")
+                        Button("help") { showHelp = true }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.quaternary)
+                    }
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(.quaternary)
+                .padding(.top, 4)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(20)
+        }
+        .frame(maxWidth: 360)
+        .sheet(isPresented: $showHelp) {
+            HelpView()
+        }
     }
 }
