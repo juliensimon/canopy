@@ -428,6 +428,77 @@ struct AppStateTests {
         #expect(allModes[4] == .workingDirectory)
     }
 
+    // MARK: - Session Persistence
+
+    @Test @MainActor func sessionInfoCodableRoundTrip() throws {
+        let session = SessionInfo(
+            name: "test-session",
+            workingDirectory: "/tmp/test",
+            projectId: UUID(),
+            branchName: "feat/test",
+            worktreePath: "/tmp/worktree"
+        )
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(SessionInfo.self, from: data)
+
+        #expect(decoded.id == session.id)
+        #expect(decoded.name == session.name)
+        #expect(decoded.workingDirectory == session.workingDirectory)
+        #expect(decoded.projectId == session.projectId)
+        #expect(decoded.branchName == session.branchName)
+        #expect(decoded.worktreePath == session.worktreePath)
+        #expect(decoded.createdAt == session.createdAt)
+    }
+
+    @Test @MainActor func saveAndLoadSessions() throws {
+        let configDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        let state = AppState(configDir: configDir)
+        state.createSession(name: "Alpha", directory: "/tmp/alpha")
+        state.createSession(name: "Beta", directory: "/tmp/beta")
+
+        state.saveSessions()
+
+        let state2 = AppState(configDir: configDir)
+        state2.loadSessions()
+
+        #expect(state2.sessions.count == 2)
+        #expect(state2.sessions[0].name == "Alpha")
+        #expect(state2.sessions[1].name == "Beta")
+        #expect(state2.sessions[0].workingDirectory == "/tmp/alpha")
+
+        // Cleanup
+        try? FileManager.default.removeItem(atPath: configDir)
+    }
+
+    @Test @MainActor func loadSessionsSetsActiveToFirst() throws {
+        let configDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        let state = AppState(configDir: configDir)
+        state.createSession(name: "First", directory: "/tmp/first")
+        state.saveSessions()
+
+        let state2 = AppState(configDir: configDir)
+        state2.loadSessions()
+
+        #expect(state2.activeSessionId == state2.sessions.first?.id)
+
+        try? FileManager.default.removeItem(atPath: configDir)
+    }
+
+    @Test @MainActor func loadSessionsRefreshesClaude() throws {
+        let configDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        let state = AppState(configDir: configDir)
+        state.createSession(name: "Test", directory: "/tmp/nonexistent-path")
+        state.saveSessions()
+
+        let state2 = AppState(configDir: configDir)
+        state2.loadSessions()
+
+        #expect(state2.sessions.count == 1)
+        #expect(state2.sessions[0].claudeSessionId == nil)
+
+        try? FileManager.default.removeItem(atPath: configDir)
+    }
+
     // MARK: - Split Terminal
 
     @Test @MainActor func toggleSplitTerminalOpensAndCloses() {

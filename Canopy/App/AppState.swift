@@ -177,6 +177,7 @@ final class AppState: ObservableObject {
             }
         }
         activeSessionId = session.id
+        saveSessions()
 
         // Auto-detect git repo name and branch for the tab name
         if name == nil {
@@ -279,6 +280,7 @@ final class AppState: ObservableObject {
                 }
                 activeSessionId = session.id
             }
+            saveSessions()
 
         } catch {
             worktreeSetupInProgress = false
@@ -311,12 +313,14 @@ final class AppState: ObservableObject {
             }
         }
         pendingCloseSessionId = nil
+        saveSessions()
     }
 
     func renameSession(id: UUID, to newName: String) {
         if let index = sessions.firstIndex(where: { $0.id == id }) {
             sessions[index].name = newName
         }
+        saveSessions()
     }
 
     /// Reorders sessions within a project by moving items at the given offsets to a new position.
@@ -403,6 +407,32 @@ final class AppState: ObservableObject {
         return (configDir as NSString).appendingPathComponent("projects.json")
     }
 
+    private var sessionsFilePath: String {
+        try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+        return (configDir as NSString).appendingPathComponent("sessions.json")
+    }
+
+    func saveSessions() {
+        guard let data = try? JSONEncoder().encode(sessions) else { return }
+        FileManager.default.createFile(atPath: sessionsFilePath, contents: data)
+    }
+
+    func loadSessions() {
+        let path = sessionsFilePath
+        guard let data = FileManager.default.contents(atPath: path),
+              var decoded = try? JSONDecoder().decode([SessionInfo].self, from: data) else {
+            return
+        }
+        // Refresh Claude session IDs from disk
+        for i in decoded.indices {
+            decoded[i].claudeSessionId = ClaudeSessionFinder.findLatestSessionId(
+                for: decoded[i].workingDirectory
+            )
+        }
+        sessions = decoded
+        activeSessionId = sessions.first?.id
+    }
+
     func loadProjects() {
         let path = projectsFilePath
         guard let data = FileManager.default.contents(atPath: path),
@@ -435,11 +465,11 @@ final class AppState: ObservableObject {
 }
 
 /// Info about a session. Optionally linked to a project and worktree.
-struct SessionInfo: Identifiable {
-    let id = UUID()
+struct SessionInfo: Identifiable, Codable {
+    let id: UUID
     var name: String
     let workingDirectory: String
-    let createdAt = Date()
+    let createdAt: Date
 
     // Phase 2: worktree-backed session info
     var projectId: UUID?
@@ -453,18 +483,22 @@ struct SessionInfo: Identifiable {
     var claudeSessionId: String?
 
     init(
+        id: UUID = UUID(),
         name: String,
         workingDirectory: String,
         projectId: UUID? = nil,
         branchName: String? = nil,
         worktreePath: String? = nil,
-        claudeSessionId: String? = nil
+        claudeSessionId: String? = nil,
+        createdAt: Date = Date()
     ) {
+        self.id = id
         self.name = name
         self.workingDirectory = workingDirectory
         self.projectId = projectId
         self.branchName = branchName
         self.worktreePath = worktreePath
         self.claudeSessionId = claudeSessionId
+        self.createdAt = createdAt
     }
 }

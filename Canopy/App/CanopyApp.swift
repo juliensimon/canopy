@@ -29,7 +29,10 @@ struct CanopyApp: App {
         WindowGroup {
             MainWindow()
                 .environmentObject(appState)
-                .task { appState.loadProjects() }
+                .task {
+                    appState.loadProjects()
+                    appState.loadSessions()
+                }
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)
                         .environmentObject(appState)
