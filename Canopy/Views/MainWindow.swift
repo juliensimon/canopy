@@ -89,23 +89,26 @@ struct SessionView: View {
 }
 
 /// Wraps SessionView with a rounded inset container and branch name overlay.
+/// Optionally shows a split terminal pane below the main terminal.
 struct TerminalInsetView: View {
     let session: SessionInfo
     @ObservedObject var appState: AppState
     @State private var showBranchLabel = true
 
+    private var isSplitOpen: Bool {
+        appState.isSplitOpen(for: session.id)
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            SessionView(
-                session: session,
-                terminalSession: appState.terminalSession(for: session)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-            )
-            .padding(4)
+            if isSplitOpen {
+                VSplitView {
+                    mainTerminal
+                    splitTerminal
+                }
+            } else {
+                mainTerminal
+            }
 
             // Branch name overlay
             if let branch = session.branchName, showBranchLabel {
@@ -131,6 +134,42 @@ struct TerminalInsetView: View {
                 }
             }
         }
+    }
+
+    private var mainTerminal: some View {
+        SessionView(
+            session: session,
+            terminalSession: appState.terminalSession(for: session)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+        )
+        .padding(4)
+    }
+
+    @ViewBuilder
+    private var splitTerminal: some View {
+        if let splitSession = appState.splitTerminalSessions[session.id] {
+            SplitTerminalView(terminalSession: splitSession)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                )
+                .padding(4)
+                .frame(minHeight: 100)
+        }
+    }
+}
+
+/// A plain shell terminal for the split pane. No Claude auto-start, no process exit handling.
+struct SplitTerminalView: View {
+    @ObservedObject var terminalSession: TerminalSession
+
+    var body: some View {
+        TerminalContentView(session: terminalSession)
     }
 }
 
