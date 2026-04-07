@@ -14,6 +14,7 @@ struct ProjectDetailView: View {
     @State private var worktreeToMerge: WorktreeInfo?
     @State private var deleteError: String?
     @State private var showNewWorktree = false
+    @State private var projectUsage: TokenUsage?
 
     private let git = GitService()
 
@@ -37,6 +38,16 @@ struct ProjectDetailView: View {
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
+                    }
+                }
+
+                if let usage = projectUsage, usage.totalTokens > 0 {
+                    HStack(spacing: 16) {
+                        costBadge("Tokens", usage.formattedTokens)
+                        costBadge("Cost", usage.formattedCost)
+                        if !usage.model.isEmpty {
+                            costBadge("Model", usage.model)
+                        }
                     }
                 }
 
@@ -77,6 +88,11 @@ struct ProjectDetailView: View {
         .background(.background)
         .task {
             await loadGitInfo()
+        }
+        .task {
+            projectUsage = await Task.detached {
+                SessionCostService.loadUsage(for: project.repositoryPath)
+            }.value
         }
         .sheet(isPresented: $showNewWorktree) {
             WorktreeSheet(preselectedProjectId: project.id)
@@ -386,6 +402,19 @@ struct ProjectDetailView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(.primary)
         }
+    }
+
+    private func costBadge(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
     }
 
     private func abbreviatePath(_ path: String) -> String {
