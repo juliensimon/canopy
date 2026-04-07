@@ -3,6 +3,9 @@ import SwiftUI
 /// The primary window layout: sidebar + tab bar + terminal content.
 struct MainWindow: View {
     @EnvironmentObject var appState: AppState
+    @State private var showSplash = true
+    @State private var splashOpacity: Double = 0
+    @State private var textOpacity: Double = 0
 
     var body: some View {
         ZStack {
@@ -47,6 +50,68 @@ struct MainWindow: View {
                         .padding(.top, 80)
                     Spacer()
                 }
+            }
+
+            // Splash screen — sessions load underneath
+            if showSplash {
+                Color(nsColor: .windowBackgroundColor)
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 16) {
+                            Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
+                                .resizable()
+                                .interpolation(.high)
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 768, height: 768)
+                                .mask(
+                                    RadialGradient(
+                                        gradient: Gradient(stops: [
+                                            .init(color: .white, location: 0),
+                                            .init(color: .white, location: 0.55),
+                                            .init(color: .clear, location: 0.85)
+                                        ]),
+                                        center: .center,
+                                        startRadius: 0,
+                                        endRadius: 384
+                                    )
+                                )
+                            Text("Canopy")
+                                .font(.custom("Optima Bold", size: 52))
+                                .tracking(10)
+                                .foregroundStyle(
+                                    RadialGradient(
+                                        colors: [
+                                            Color(red: 0.4, green: 0.85, blue: 0.55),
+                                            Color(red: 0.25, green: 0.65, blue: 0.35),
+                                            Color(red: 0.15, green: 0.45, blue: 0.25)
+                                        ],
+                                        center: .center,
+                                        startRadius: 0,
+                                        endRadius: 180
+                                    )
+                                )
+                                .shadow(color: Color(red: 0.3, green: 0.7, blue: 0.4).opacity(0.6), radius: 20)
+                                .opacity(textOpacity)
+                        }
+                        .opacity(splashOpacity)
+                    }
+                    .onAppear {
+                        Task { @MainActor in
+                            withAnimation(.easeIn(duration: 1.0)) {
+                                splashOpacity = 1
+                            }
+                            try? await Task.sleep(for: .seconds(0.8))
+                            withAnimation(.easeIn(duration: 1.0)) {
+                                textOpacity = 1
+                            }
+                            try? await Task.sleep(for: .seconds(3.0))
+                            withAnimation(.easeOut(duration: 1.0)) {
+                                splashOpacity = 0
+                            }
+                            try? await Task.sleep(for: .seconds(1.0))
+                            showSplash = false
+                        }
+                    }
             }
         }
         .frame(minWidth: 800, minHeight: 500)
