@@ -105,7 +105,9 @@ jobs:
       - name: Sign DMG
         run: |
           VERSION=$(cat VERSION)
-          codesign --sign "Developer ID Application" "build/Canopy-${VERSION}.dmg"
+          codesign --sign "Developer ID Application" \
+            --keychain "$RUNNER_TEMP/build.keychain" \
+            "build/Canopy-${VERSION}.dmg"
 
       # Submit to Apple for notarization — blocks until Apple responds (2–10 min)
       - name: Notarize
@@ -154,3 +156,9 @@ jobs:
             --title "Canopy v${VERSION}" \
             --notes-file RELEASE_NOTES.md \
             "build/Canopy-${VERSION}.dmg"
+
+      # Clean up the temporary keychain
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain" || true
