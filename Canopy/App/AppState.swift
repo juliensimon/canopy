@@ -40,6 +40,7 @@ final class AppState: ObservableObject {
     @Published var worktreeSheetProjectId: UUID?
     @Published var showAddProjectSheet = false
     @Published var showSettings = false
+    @Published var showCommandPalette = false
     @Published var showCloseConfirmation = false
     @Published var pendingCloseSessionId: UUID?
 
