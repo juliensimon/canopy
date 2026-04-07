@@ -1,7 +1,5 @@
 import SwiftUI
 import AppKit
-import UserNotifications
-
 /// Custom NSApplicationDelegate that ensures the app is properly activated
 /// as a foreground application. Without this, SPM-built executables appear
 /// as background processes — windows show up but don't receive keyboard events.
@@ -12,8 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Suppress SwiftTerm's "Unhandled DEC Private Mode" log noise
         freopen("/dev/null", "w", stderr)
-
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -27,6 +23,7 @@ struct CanopyApp: App {
     @StateObject private var appState = AppState()
     @State private var showAbout = false
     @State private var showHelp = false
+    @State private var showShortcuts = false
 
     var body: some Scene {
         WindowGroup {
@@ -45,6 +42,12 @@ struct CanopyApp: App {
                 }
                 .sheet(isPresented: $showHelp) {
                     HelpView()
+                }
+                .sheet(isPresented: $showShortcuts) {
+                    ShortcutsView()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    appState.saveSessionsBeforeTermination()
                 }
         }
         .windowStyle(.titleBar)
@@ -85,6 +88,10 @@ struct CanopyApp: App {
                 }
                 .keyboardShortcut("?", modifiers: [.command])
 
+                Button("Keyboard Shortcuts") {
+                    showShortcuts = true
+                }
+
                 Divider()
 
                 Button("User Guide") {
@@ -107,6 +114,17 @@ struct CanopyApp: App {
                 .keyboardShortcut(",", modifiers: [.command])
             }
 
+            CommandMenu("Session") {
+                Button("Toggle Split Terminal") {
+                    if let id = appState.activeSessionId {
+                        appState.toggleSplitTerminal(for: id)
+                    }
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                Divider()
+            }
+
             CommandMenu("Tabs") {
                 Picker("Sort By", selection: $appState.tabSortMode) {
                     ForEach(TabSortMode.allCases, id: \.self) { mode in
@@ -124,6 +142,18 @@ struct CanopyApp: App {
                     appState.tabSortMode = allCases[nextIndex]
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
+
+                Divider()
+
+                ForEach(1...9, id: \.self) { index in
+                    Button("Tab \(index)") {
+                        let sessions = appState.orderedSessions
+                        if index <= sessions.count {
+                            appState.selectSession(sessions[index - 1].id)
+                        }
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
+                }
             }
         }
     }

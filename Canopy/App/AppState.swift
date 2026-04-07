@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import UserNotifications
 
 /// Controls how tabs are ordered in the tab bar and sidebar.
 enum TabSortMode: String, CaseIterable {
@@ -50,6 +49,9 @@ final class AppState: ObservableObject {
     /// Tracks worktree setup progress for UI feedback
     @Published var worktreeSetupInProgress = false
     @Published var worktreeSetupStatus: String?
+
+    /// When true, session mutations skip saving (app is terminating).
+    var isTerminating = false
 
     private let git = GitService()
 
@@ -120,17 +122,14 @@ final class AppState: ObservableObject {
         guard settings.notifyOnFinish, !NSApp.isActive else { return }
         guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
 
-        let content = UNMutableNotificationContent()
-        content.title = session.name
-        content.body = "Session finished"
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: sessionId.uuidString,
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
+        let projectName = projects.first(where: { $0.id == session.projectId })?.name
+        let title = (projectName ?? "Canopy").replacingOccurrences(of: "\"", with: "\\\"")
+        let subtitle = session.name.replacingOccurrences(of: "\"", with: "\\\"")
+        let script = "display notification \"Session finished\" with title \"\(title)\" subtitle \"\(subtitle)\" sound name \"Glass\""
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        try? process.run()
     }
 
     // MARK: - Split Terminal
@@ -434,8 +433,16 @@ final class AppState: ObservableObject {
     }
 
     func saveSessions() {
+        guard !isTerminating else { return }
         guard let data = try? JSONEncoder().encode(sessions) else { return }
         FileManager.default.createFile(atPath: sessionsFilePath, contents: data)
+    }
+
+    /// Save sessions and mark as terminating so cleanup doesn't overwrite the file.
+    func saveSessionsBeforeTermination() {
+        guard let data = try? JSONEncoder().encode(sessions) else { return }
+        FileManager.default.createFile(atPath: sessionsFilePath, contents: data)
+        isTerminating = true
     }
 
     func loadSessions() {
