@@ -122,6 +122,13 @@ struct CanopyApp: App {
 
                 Divider()
 
+                Button("Find in Terminal") {
+                    appState.showTerminalSearch.toggle()
+                }
+                .keyboardShortcut("f", modifiers: .command)
+
+                Divider()
+
                 Button("Toggle Split Terminal") {
                     if let id = appState.activeSessionId {
                         appState.toggleSplitTerminal(for: id)

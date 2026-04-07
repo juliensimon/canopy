@@ -140,6 +140,16 @@ struct TerminalInsetView: View {
                     .transition(.opacity)
                     .allowsHitTesting(false)
             }
+
+            if appState.showTerminalSearch {
+                VStack {
+                    TerminalSearchBar(
+                        terminalSession: appState.terminalSession(for: session),
+                        isVisible: $appState.showTerminalSearch
+                    )
+                    Spacer()
+                }
+            }
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {

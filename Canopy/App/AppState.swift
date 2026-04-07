@@ -41,6 +41,7 @@ final class AppState: ObservableObject {
     @Published var showAddProjectSheet = false
     @Published var showSettings = false
     @Published var showCommandPalette = false
+    @Published var showTerminalSearch = false
     @Published var showCloseConfirmation = false
     @Published var pendingCloseSessionId: UUID?
 
