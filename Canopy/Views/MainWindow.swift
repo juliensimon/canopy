@@ -29,6 +29,16 @@ struct MainWindow: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.15), value: appState.activeSessionId)
+
+                // Hidden button for Cmd+Shift+D keyboard shortcut
+                Button("") {
+                    if let id = appState.activeSessionId {
+                        appState.toggleSplitTerminal(for: id)
+                    }
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .frame(width: 0, height: 0)
+                .opacity(0)
             }
         }
         .navigationSplitViewStyle(.balanced)
