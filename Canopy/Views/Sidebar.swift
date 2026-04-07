@@ -66,8 +66,11 @@ struct Sidebar: View {
             EditProjectSheet(project: project)
         }
         .sheet(item: $infoSession) { session in
-            SessionInfoSheet(session: session)
-                .environmentObject(appState)
+            SessionInfoSheet(
+                session: session,
+                openedAt: appState.terminalSessions[session.id]?.openedAt
+            )
+            .environmentObject(appState)
         }
         .alert("Delete Project?", isPresented: Binding(
             get: { projectToDelete != nil },

@@ -4,53 +4,31 @@ import Foundation
 struct TokenUsage {
     var inputTokens: Int = 0
     var outputTokens: Int = 0
-    var cacheCreationTokens: Int = 0
-    var cacheReadTokens: Int = 0
-    var model: String = ""
+    var models: Set<String> = []
 
-    var totalTokens: Int {
-        inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens
-    }
+    var totalTokens: Int { inputTokens + outputTokens }
 
-    var estimatedCost: Double {
-        let pricing = ModelPricing.for(model)
-        let inputCost = Double(inputTokens) * pricing.input / 1_000_000
-        let outputCost = Double(outputTokens) * pricing.output / 1_000_000
-        let cacheWriteCost = Double(cacheCreationTokens) * pricing.cacheWrite / 1_000_000
-        let cacheReadCost = Double(cacheReadTokens) * pricing.cacheRead / 1_000_000
-        return inputCost + outputCost + cacheWriteCost + cacheReadCost
-    }
+    var formattedInput: String { formatCount(inputTokens) }
+    var formattedOutput: String { formatCount(outputTokens) }
 
-    var formattedCost: String {
-        String(format: "$%.2f", estimatedCost)
-    }
-
-    var formattedTokens: String {
+    private func formatCount(_ count: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: totalTokens)) ?? "\(totalTokens)"
+        return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
     }
 }
 
-private struct ModelPricing {
-    let input: Double
-    let output: Double
-    let cacheWrite: Double
-    let cacheRead: Double
-
-    static func `for`(_ model: String) -> ModelPricing {
-        if model.contains("opus") {
-            return ModelPricing(input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50)
-        } else if model.contains("haiku") {
-            return ModelPricing(input: 0.80, output: 4, cacheWrite: 1.0, cacheRead: 0.08)
-        } else {
-            return ModelPricing(input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30)
-        }
-    }
-}
-
+/// Parses Claude Code JSONL session files for token usage data.
 enum SessionCostService {
-    static func parseTokenUsage(from jsonlContent: String) -> TokenUsage {
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    /// Parse token usage from JSONL content string, only counting entries after `since`.
+    static func parseTokenUsage(from jsonlContent: String, since: Date? = nil) -> TokenUsage {
         var usage = TokenUsage()
         for line in jsonlContent.split(separator: "\n") {
             guard let data = line.data(using: .utf8),
@@ -60,17 +38,25 @@ enum SessionCostService {
                   let usageDict = message["usage"] as? [String: Any] else {
                 continue
             }
+            // Skip entries before the cutoff date
+            if let since,
+               let timestamp = obj["timestamp"] as? String,
+               let entryDate = iso8601.date(from: timestamp),
+               entryDate < since {
+                continue
+            }
             usage.inputTokens += usageDict["input_tokens"] as? Int ?? 0
+            usage.inputTokens += usageDict["cache_creation_input_tokens"] as? Int ?? 0
+            usage.inputTokens += usageDict["cache_read_input_tokens"] as? Int ?? 0
             usage.outputTokens += usageDict["output_tokens"] as? Int ?? 0
-            usage.cacheCreationTokens += usageDict["cache_creation_input_tokens"] as? Int ?? 0
-            usage.cacheReadTokens += usageDict["cache_read_input_tokens"] as? Int ?? 0
-            if usage.model.isEmpty, let model = message["model"] as? String {
-                usage.model = model
+            if let model = message["model"] as? String {
+                usage.models.insert(model)
             }
         }
         return usage
     }
 
+    /// Returns the Claude project directory for a given working directory.
     static func claudeProjectDir(for directory: String) -> String {
         let expanded = (directory as NSString).expandingTildeInPath
         let resolved = (expanded as NSString).resolvingSymlinksInPath
@@ -81,29 +67,14 @@ enum SessionCostService {
         return "\(home)/.claude/projects/\(encoded)"
     }
 
-    static func loadUsage(for workingDirectory: String) -> TokenUsage {
+    /// Load token usage for a specific Claude session, only counting entries after `since`.
+    static func loadUsage(for workingDirectory: String, sessionId: String?, since: Date? = nil) -> TokenUsage {
+        guard let sessionId, !sessionId.isEmpty else { return TokenUsage() }
         let projectDir = claudeProjectDir(for: workingDirectory)
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: projectDir) else { return TokenUsage() }
-
-        do {
-            let files = try fm.contentsOfDirectory(atPath: projectDir)
-            let jsonlFiles = files.filter { $0.hasSuffix(".jsonl") }
-
-            var total = TokenUsage()
-            for file in jsonlFiles {
-                let path = (projectDir as NSString).appendingPathComponent(file)
-                guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
-                let fileUsage = parseTokenUsage(from: content)
-                total.inputTokens += fileUsage.inputTokens
-                total.outputTokens += fileUsage.outputTokens
-                total.cacheCreationTokens += fileUsage.cacheCreationTokens
-                total.cacheReadTokens += fileUsage.cacheReadTokens
-                if total.model.isEmpty { total.model = fileUsage.model }
-            }
-            return total
-        } catch {
+        let path = (projectDir as NSString).appendingPathComponent("\(sessionId).jsonl")
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             return TokenUsage()
         }
+        return parseTokenUsage(from: content, since: since)
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 /// Sheet showing detailed info about a session.
 struct SessionInfoSheet: View {
     let session: SessionInfo
+    let openedAt: Date?
     @Environment(\.dismiss) var dismiss
     @State private var usage: TokenUsage?
 
@@ -27,11 +28,12 @@ struct SessionInfoSheet: View {
                 if let claudeId = session.claudeSessionId {
                     copiableRow("Claude Session", claudeId)
                 }
-                if let usage, usage.totalTokens > 0 {
+                if let usage {
                     Divider()
-                    infoRow("Tokens", usage.formattedTokens)
-                    infoRow("Estimated Cost", usage.formattedCost)
-                    infoRow("Model", usage.model.isEmpty ? "Unknown" : usage.model)
+                    infoRow("Tokens (this session)", "In: \(usage.formattedInput)  Out: \(usage.formattedOutput)")
+                    if !usage.models.isEmpty {
+                        infoRow("Model\(usage.models.count > 1 ? "s" : "")", usage.models.sorted().joined(separator: ", "))
+                    }
                 }
             }
 
@@ -49,7 +51,7 @@ struct SessionInfoSheet: View {
         .textSelection(.enabled)
         .task {
             usage = await Task.detached {
-                SessionCostService.loadUsage(for: session.workingDirectory)
+                SessionCostService.loadUsage(for: session.workingDirectory, sessionId: session.claudeSessionId, since: openedAt)
             }.value
         }
     }
