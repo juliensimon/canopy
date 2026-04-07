@@ -67,17 +67,6 @@ struct HelpView: View {
                     )
                 }
 
-                // Keyboard shortcuts
-                section("Keyboard Shortcuts") {
-                    shortcutGroup([
-                        ("⌘T", "New plain session (with directory picker)"),
-                        ("⌘⇧T", "New worktree session"),
-                        ("⌘⇧P", "Add a project"),
-                        ("⌘,", "Settings"),
-                        ("⌘W", "Close window"),
-                    ])
-                }
-
                 // Tips
                 section("Tips") {
                     concept("Text selection",
@@ -157,24 +146,6 @@ struct HelpView: View {
             }
         }
         .padding(.bottom, 4)
-    }
-
-    private func shortcutGroup(_ shortcuts: [(String, String)]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(shortcuts, id: \.0) { key, desc in
-                HStack(spacing: 8) {
-                    Text(key)
-                        .font(.system(size: 11, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.12))
-                        .cornerRadius(4)
-                        .frame(width: 60, alignment: .trailing)
-                    Text(desc)
-                        .font(.system(size: 12))
-                }
-            }
-        }
     }
 
     private func concept(_ title: String, _ description: String) -> some View {
