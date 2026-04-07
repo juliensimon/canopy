@@ -26,6 +26,9 @@ final class TerminalSession: ObservableObject {
     private var idleTimer: Task<Void, Never>?
     private var justFinishedTimer: Task<Void, Never>?
 
+    /// When this terminal session was opened in Canopy (for token counting).
+    let openedAt = Date()
+
     init(id: UUID, workingDirectory: String) {
         self.id = id
         self.workingDirectory = workingDirectory
