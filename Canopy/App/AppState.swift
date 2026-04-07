@@ -124,6 +124,9 @@ final class AppState: ObservableObject {
         } else {
             guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
             let ts = TerminalSession(id: session.id, workingDirectory: session.workingDirectory)
+            ts.onProcessExit = { [weak self] id in
+                self?.closeSplitTerminal(for: id)
+            }
             splitTerminalSessions[session.id] = ts
             splitSessionIds.insert(sessionId)
         }
