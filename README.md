@@ -92,6 +92,10 @@ When adding a project, you can configure:
 - **Context menus**: Open in Terminal, Finder, or IDE; copy paths and branch names; rename sessions
 - **Merge & Finish**: merge your branch, then clean up the worktree and branch in one step
 - **Config backup**: `projects.backup.json` is created on every launch
+- **Split terminal**: open a secondary shell pane below the main terminal (`Cmd+Shift+D`) for quick checks without interrupting Claude
+- **Session persistence**: sessions are saved across app restarts with automatic Claude resume
+- **Tab switching**: `Cmd+1-9` to jump to any tab instantly
+- **Finish notifications**: macOS notification when a session finishes while Canopy is in the background (configurable in Settings)
 
 ## Keyboard shortcuts
 
@@ -104,6 +108,8 @@ When adding a project, you can configure:
 | `Cmd+Shift+S` | Cycle tab sort mode                  |
 | `Cmd+,`       | Settings                             |
 | `Cmd+?`       | Help                                 |
+| `Cmd+1-9`     | Switch to tab 1–9                    |
+| `Cmd+Shift+D` | Toggle split terminal                |
 
 
 ## Configuration
@@ -113,6 +119,7 @@ Settings and project data are stored in `~/.config/canopy/`:
 - `settings.json` -- global preferences (auto-start, Claude flags, IDE path, etc.)
 - `projects.json` -- your project list and per-project config
 - `projects.backup.json` -- automatic backup created on launch
+- `sessions.json` -- persisted sessions restored on app restart
 
 ## Learn more
 
