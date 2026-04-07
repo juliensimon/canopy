@@ -5,6 +5,14 @@ on:
     tags:
       - 'v*.*.*'
 
+# Prevent concurrent releases
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # required for gh release create
+
 jobs:
   release:
     runs-on: macos-15
@@ -23,7 +31,9 @@ jobs:
           fi
           echo "Version: $FILE_VERSION"
 
-      # Import Developer ID certificate into a temporary keychain
+      # Import Developer ID certificate into a temporary keychain.
+      # Appends to the existing keychain search list (not replaces) so system
+      # roots and the login keychain remain available to codesign and xcodebuild.
       - name: Import signing certificate
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -32,7 +42,7 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
           CERTIFICATE_PATH="$RUNNER_TEMP/cert.p12"
 
-          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
 
           security create-keychain -p "" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -41,7 +51,10 @@ jobs:
             -P "$APPLE_CERTIFICATE_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          # Append build keychain to search list, preserving existing keychains
+          security list-keychains -d user -s \
+            "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | sed -e 's/ *"//g')
 
       # Run tests before building the release artifact
       - name: Run tests
@@ -63,14 +76,14 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
 
-      # Export signed .app from the archive
+      # Export signed .app from the archive.
+      # PlistBuddy injects teamID cleanly without fragile sed substitution.
       - name: Export .app
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Inject team ID into ExportOptions.plist
-          sed "s|</dict>|<key>teamID</key><string>${APPLE_TEAM_ID}</string></dict>|" \
-            ExportOptions.plist > /tmp/ExportOptions.plist
+          cp ExportOptions.plist /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string ${APPLE_TEAM_ID}" /tmp/ExportOptions.plist
           xcodebuild -exportArchive \
             -archivePath "build/Canopy.xcarchive" \
             -exportOptionsPlist /tmp/ExportOptions.plist \
@@ -129,13 +142,21 @@ jobs:
           VERSION=$(cat VERSION)
           xcrun stapler staple "build/Canopy-${VERSION}.dmg"
 
-      # Upload notarized DMG as artifact — recovery point if later steps fail
+      # Upload notarized DMG as artifact — recovery point if later steps fail,
+      # and source of truth for SHA256 (homebrew.yml reads from artifact, not CDN)
       - name: Upload notarized DMG as artifact
         uses: actions/upload-artifact@v4
         with:
           name: Canopy-notarized
           path: build/Canopy-*.dmg
           retention-days: 30
+
+      # Generate checksums from the artifact (not CDN) — used by homebrew.yml
+      - name: Generate checksums
+        run: |
+          VERSION=$(cat VERSION)
+          shasum -a 256 "build/Canopy-${VERSION}.dmg" > checksums-sha256.txt
+          cat checksums-sha256.txt
 
       # Extract release notes from CHANGELOG.md for this version
       - name: Extract release notes
@@ -146,7 +167,7 @@ jobs:
           echo "--- Release notes ---"
           cat RELEASE_NOTES.md
 
-      # Create the GitHub Release and attach the DMG
+      # Create the GitHub Release and attach the DMG and checksums
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -155,9 +176,10 @@ jobs:
           gh release create "v${VERSION}" \
             --title "Canopy v${VERSION}" \
             --notes-file RELEASE_NOTES.md \
-            "build/Canopy-${VERSION}.dmg"
+            "build/Canopy-${VERSION}.dmg" \
+            "checksums-sha256.txt"
 
-      # Clean up the temporary keychain
+      # Clean up the temporary keychain (always runs, even on failure)
       - name: Clean up keychain
         if: always()
         run: |

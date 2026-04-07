@@ -4,25 +4,31 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   update-tap:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Compute version and DMG URL
+      - name: Compute version and checksums URL
         id: info
         run: |
           TAG="${{ github.event.release.tag_name }}"
           VERSION="${TAG#v}"
-          DMG_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/Canopy-${VERSION}.dmg"
+          CHECKSUMS_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums-sha256.txt"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "dmg_url=$DMG_URL" >> "$GITHUB_OUTPUT"
+          echo "checksums_url=$CHECKSUMS_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Download DMG and compute SHA256
+      # Download the checksums file (tiny, fast) rather than the full DMG.
+      # This avoids CDN propagation delays that would hash an incomplete download.
+      - name: Download checksums and extract SHA256
         id: sha
         run: |
-          curl -L -o canopy.dmg "${{ steps.info.outputs.dmg_url }}"
-          SHA256=$(sha256sum canopy.dmg | awk '{print $1}')
+          curl -L --fail --retry 5 --retry-delay 10 \
+            -o checksums.txt "${{ steps.info.outputs.checksums_url }}"
+          SHA256=$(awk '{print $1}' checksums.txt)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Checkout tap repo
