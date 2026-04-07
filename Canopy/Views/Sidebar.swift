@@ -172,6 +172,15 @@ struct Sidebar: View {
 
         Divider()
 
+        Button(appState.isSplitOpen(for: session.id) ? "Close Split Terminal" : "Open Split Terminal") {
+            appState.toggleSplitTerminal(for: session.id)
+            if appState.activeSessionId != session.id {
+                appState.selectSession(session.id)
+            }
+        }
+
+        Divider()
+
         Button("Open in IDE") {
             NSWorkspace.shared.open(
                 [URL(fileURLWithPath: session.workingDirectory)],
