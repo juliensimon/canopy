@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Gate: tag must match VERSION file
+      - name: Validate tag matches VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          FILE_VERSION=$(cat VERSION)
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "ERROR: tag $GITHUB_REF_NAME does not match VERSION file ($FILE_VERSION)"
+            exit 1
+          fi
+          echo "Version: $FILE_VERSION"
+
+      # Import Developer ID certificate into a temporary keychain
+      - name: Import signing certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          CERTIFICATE_PATH="$RUNNER_TEMP/cert.p12"
+
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+      # Run tests before building the release artifact
+      - name: Run tests
+        run: swift test
+
+      # Build and archive using xcodebuild (handles icons, assets, entitlements)
+      - name: Build archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          VERSION=$(cat VERSION)
+          xcodebuild archive \
+            -project Canopy.xcodeproj \
+            -scheme Canopy \
+            -configuration Release \
+            -archivePath "build/Canopy.xcarchive" \
+            MARKETING_VERSION="$VERSION" \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+
+      # Export signed .app from the archive
+      - name: Export .app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Inject team ID into ExportOptions.plist
+          sed "s|</dict>|<key>teamID</key><string>${APPLE_TEAM_ID}</string></dict>|" \
+            ExportOptions.plist > /tmp/ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath "build/Canopy.xcarchive" \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            -exportPath "build/export"
+
+      # Verify signature before spending time on notarization
+      - name: Verify signature
+        run: |
+          codesign --verify --deep --strict "build/export/Canopy.app"
+          spctl --assess --type execute "build/export/Canopy.app"
+          echo "Signature OK"
+
+      # Create a professional DMG with background and Applications shortcut
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create DMG
+        run: |
+          VERSION=$(cat VERSION)
+          create-dmg \
+            --volname "Canopy" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Canopy.app" 175 190 \
+            --hide-extension "Canopy.app" \
+            --app-drop-link 425 190 \
+            "build/Canopy-${VERSION}.dmg" \
+            "build/export/"
+
+      # Sign the DMG itself (required for notarization)
+      - name: Sign DMG
+        run: |
+          VERSION=$(cat VERSION)
+          codesign --sign "Developer ID Application" "build/Canopy-${VERSION}.dmg"
+
+      # Submit to Apple for notarization — blocks until Apple responds (2–10 min)
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          VERSION=$(cat VERSION)
+          xcrun notarytool submit "build/Canopy-${VERSION}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+      # Attach the notarization ticket to the DMG so it passes Gatekeeper offline
+      - name: Staple notarization ticket
+        run: |
+          VERSION=$(cat VERSION)
+          xcrun stapler staple "build/Canopy-${VERSION}.dmg"
+
+      # Upload notarized DMG as artifact — recovery point if later steps fail
+      - name: Upload notarized DMG as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canopy-notarized
+          path: build/Canopy-*.dmg
+          retention-days: 30
+
+      # Extract release notes from CHANGELOG.md for this version
+      - name: Extract release notes
+        run: |
+          VERSION=$(cat VERSION)
+          awk "/^## \[${VERSION}\]/{found=1; next} /^## \[/{if(found) exit} found{print}" \
+            CHANGELOG.md > RELEASE_NOTES.md
+          echo "--- Release notes ---"
+          cat RELEASE_NOTES.md
+
+      # Create the GitHub Release and attach the DMG
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(cat VERSION)
+          gh release create "v${VERSION}" \
+            --title "Canopy v${VERSION}" \
+            --notes-file RELEASE_NOTES.md \
+            "build/Canopy-${VERSION}.dmg"
