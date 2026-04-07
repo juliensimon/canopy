@@ -33,6 +33,14 @@ struct SessionTabBar: View {
                             onClose: { appState.closeSession(id: session.id) },
                             projectColor: projectColor
                         )
+                        .contextMenu {
+                            Button(appState.isSplitOpen(for: session.id) ? "Close Split Terminal" : "Open Split Terminal") {
+                                appState.toggleSplitTerminal(for: session.id)
+                                if appState.activeSessionId != session.id {
+                                    appState.selectSession(session.id)
+                                }
+                            }
+                        }
                         .opacity(draggingSessionId == session.id ? 0.5 : 1.0)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
