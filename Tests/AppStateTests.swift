@@ -538,4 +538,85 @@ struct AppStateTests {
         state.toggleSplitTerminal(for: sessionId)
         #expect(state.splitTerminalSessions[sessionId]?.workingDirectory == "/tmp/my-project")
     }
+
+    @Test @MainActor func toggleSplitTerminalIgnoresInvalidSession() {
+        let state = AppState()
+        let fakeId = UUID()
+
+        state.toggleSplitTerminal(for: fakeId)
+        #expect(!state.isSplitOpen(for: fakeId))
+        #expect(state.splitTerminalSessions[fakeId] == nil)
+    }
+
+    @Test @MainActor func splitTerminalSurvivesTabSwitch() {
+        let state = AppState()
+        state.createSession(name: "A", directory: "/tmp/a")
+        state.createSession(name: "B", directory: "/tmp/b")
+        let idA = state.sessions[0].id
+
+        state.toggleSplitTerminal(for: idA)
+        state.selectSession(state.sessions[1].id)
+        state.selectSession(idA)
+
+        #expect(state.isSplitOpen(for: idA))
+        #expect(state.splitTerminalSessions[idA] != nil)
+    }
+
+    // MARK: - Session Persistence Termination Guard
+
+    @Test @MainActor func saveSessionsBeforeTerminationSetsFlag() throws {
+        let configDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        let state = AppState(configDir: configDir)
+        state.createSession(name: "Test", directory: "/tmp")
+
+        #expect(!state.isTerminating)
+        state.saveSessionsBeforeTermination()
+        #expect(state.isTerminating)
+
+        try? FileManager.default.removeItem(atPath: configDir)
+    }
+
+    @Test @MainActor func saveSessionsSkipsWhenTerminating() throws {
+        let configDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        let state = AppState(configDir: configDir)
+        state.createSession(name: "Before", directory: "/tmp/before")
+        state.saveSessionsBeforeTermination()
+
+        // Now close the session — saveSessions() should be a no-op
+        state.performCloseSession(id: state.sessions[0].id)
+
+        // Reload — should still have the session from before termination
+        let state2 = AppState(configDir: configDir)
+        state2.loadSessions()
+        #expect(state2.sessions.count == 1)
+        #expect(state2.sessions[0].name == "Before")
+
+        try? FileManager.default.removeItem(atPath: configDir)
+    }
+
+    // MARK: - SessionInfo Codable Edge Cases
+
+    @Test @MainActor func sessionInfoCodableWithNilOptionals() throws {
+        let session = SessionInfo(name: "plain", workingDirectory: "/tmp")
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(SessionInfo.self, from: data)
+
+        #expect(decoded.projectId == nil)
+        #expect(decoded.branchName == nil)
+        #expect(decoded.worktreePath == nil)
+        #expect(decoded.claudeSessionId == nil)
+        #expect(!decoded.isWorktreeSession)
+    }
+
+    @Test @MainActor func sessionInfoPreservesIdentityOnRoundTrip() throws {
+        let session = SessionInfo(name: "test", workingDirectory: "/tmp")
+        let originalId = session.id
+        let originalDate = session.createdAt
+
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(SessionInfo.self, from: data)
+
+        #expect(decoded.id == originalId)
+        #expect(decoded.createdAt == originalDate)
+    }
 }
