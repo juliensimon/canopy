@@ -4,6 +4,7 @@ import SwiftUI
 struct SessionInfoSheet: View {
     let session: SessionInfo
     @Environment(\.dismiss) var dismiss
+    @State private var usage: TokenUsage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -26,6 +27,12 @@ struct SessionInfoSheet: View {
                 if let claudeId = session.claudeSessionId {
                     copiableRow("Claude Session", claudeId)
                 }
+                if let usage, usage.totalTokens > 0 {
+                    Divider()
+                    infoRow("Tokens", usage.formattedTokens)
+                    infoRow("Estimated Cost", usage.formattedCost)
+                    infoRow("Model", usage.model.isEmpty ? "Unknown" : usage.model)
+                }
             }
 
             Spacer()
@@ -40,6 +47,11 @@ struct SessionInfoSheet: View {
         .frame(width: 500)
         .frame(minHeight: 260)
         .textSelection(.enabled)
+        .task {
+            usage = await Task.detached {
+                SessionCostService.loadUsage(for: session.workingDirectory)
+            }.value
+        }
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
