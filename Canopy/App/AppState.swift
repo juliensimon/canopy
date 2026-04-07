@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 /// Controls how tabs are ordered in the tab bar and sidebar.
 enum TabSortMode: String, CaseIterable {
@@ -108,8 +109,28 @@ final class AppState: ObservableObject {
             return existing
         }
         let ts = TerminalSession(id: sessionInfo.id, workingDirectory: sessionInfo.workingDirectory)
+        ts.onSessionFinished = { [weak self] sessionId, _ in
+            self?.postFinishNotification(for: sessionId)
+        }
         terminalSessions[sessionInfo.id] = ts
         return ts
+    }
+
+    private func postFinishNotification(for sessionId: UUID) {
+        guard settings.notifyOnFinish, !NSApp.isActive else { return }
+        guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = session.name
+        content.body = "Session finished"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: sessionId.uuidString,
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
     }
 
     // MARK: - Split Terminal
