@@ -103,8 +103,15 @@ final class TerminalViewController: NSViewController {
                 return nil
             }
 
-            // If the terminal view is already first responder, let it handle normally
+            // If the terminal view is already first responder, let it handle normally.
             if window.firstResponder === tv {
+                return event
+            }
+
+            // If ANY other terminal view has focus, leave it alone.
+            // Without this check, multiple TerminalContentView instances each install
+            // a monitor and steal focus from each other (e.g. split terminal pane).
+            if window.firstResponder is LocalProcessTerminalView {
                 return event
             }
 
@@ -120,6 +127,25 @@ final class TerminalViewController: NSViewController {
             if event.type == .keyDown && event.modifierFlags.contains(.command) {
                 window.makeFirstResponder(tv)
                 return event
+            }
+
+            // Option+key on non-US keyboards (e.g. French AZERTY) produces characters
+            // like ~, @, #, € that require the Option modifier. SwiftTerm's default
+            // optionAsMetaKey=true would intercept these and send ESC+key instead.
+            // Detect this case: Option is held, the resulting character differs from
+            // the base character, and it's printable — send it directly.
+            if event.type == .keyDown,
+               event.modifierFlags.contains(.option),
+               !event.modifierFlags.contains(.command),
+               let chars = event.characters,
+               let base = event.charactersIgnoringModifiers,
+               !chars.isEmpty,
+               chars != base,
+               let scalar = chars.unicodeScalars.first,
+               scalar.value >= 32 && scalar.value != 127 {
+                window.makeFirstResponder(tv)
+                tv.send(txt: chars)
+                return nil
             }
 
             // Force focus back to the terminal and forward this event
