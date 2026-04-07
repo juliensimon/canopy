@@ -39,6 +39,19 @@ struct MainWindow: View {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
                 .frame(width: 0, height: 0)
                 .opacity(0)
+
+                // Hidden buttons for Cmd+1-9 tab switching
+                ForEach(1...9, id: \.self) { index in
+                    Button("") {
+                        let sessions = appState.orderedSessions
+                        if index <= sessions.count {
+                            appState.selectSession(sessions[index - 1].id)
+                        }
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                }
             }
         }
         .navigationSplitViewStyle(.balanced)
