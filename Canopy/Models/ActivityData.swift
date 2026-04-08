@@ -11,11 +11,6 @@ struct DailyBucket: Codable {
     var totalTokens: Int { inputTokens + outputTokens }
 }
 
-/// Time granularity for period calculations.
-enum Granularity {
-    case week
-}
-
 /// Persistent cache for scanned JSONL data.
 struct ActivityCache: Codable {
     static let currentVersion = 3

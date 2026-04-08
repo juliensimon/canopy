@@ -25,7 +25,7 @@ enum ActivityDataService {
 
     /// Load activity data, using cache for incremental updates.
     /// Call from a background thread.
-    static func loadData(granularity: Granularity) -> (summary: ActivitySummary, buckets: [String: DailyBucket]) {
+    static func loadData() -> (summary: ActivitySummary, buckets: [String: DailyBucket]) {
         var cache = loadCache() ?? ActivityCache()
         if cache.version != ActivityCache.currentVersion {
             cache = ActivityCache()
@@ -70,14 +70,14 @@ enum ActivityDataService {
             saveCache(cache)
         }
 
-        let periodStart = periodStartDate(for: granularity)
+        let periodStart = periodStartDate()
         let summary = computeSummary(allBuckets: aggregated, periodStart: periodStart)
         return (summary, aggregated)
     }
 
     // MARK: - JSONL Parsing (line-by-line from disk)
 
-    /// Parse a JSONL file line-by-line without loading the entire file into memory.
+    /// Parse a JSONL file into daily buckets.
     static func parseJsonlFile(atPath path: String, formatters: Formatters) -> [String: DailyBucket] {
         guard let fileHandle = FileHandle(forReadingAtPath: path) else { return [:] }
         defer { fileHandle.closeFile() }
@@ -281,11 +281,10 @@ enum ActivityDataService {
 
     // MARK: - Period Calculation
 
-    /// Returns the "yyyy-MM-dd" start date for the given granularity, in local time.
-    static func periodStartDate(for granularity: Granularity) -> String {
+    /// Returns the "yyyy-MM-dd" date 12 weeks ago, in local time.
+    static func periodStartDate() -> String {
         let calendar = Calendar.current
-        let now = Date()
-        let startDate = calendar.date(byAdding: .weekOfYear, value: -12, to: now)!
+        let startDate = calendar.date(byAdding: .weekOfYear, value: -12, to: Date())!
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.timeZone = .current

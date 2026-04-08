@@ -148,11 +148,13 @@ struct ActivityView: View {
 
         isLoading = true
         Task.detached(priority: .userInitiated) {
-            let result = ActivityDataService.loadData(granularity: .week)
+            let result = ActivityDataService.loadData()
             await MainActor.run {
                 self.summary = result.summary
                 self.buckets = result.buckets
                 self.isLoading = false
+                self.appState.cachedActivityBuckets = result.buckets
+                self.appState.cachedActivitySummary = result.summary
             }
         }
     }

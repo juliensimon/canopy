@@ -514,7 +514,7 @@ final class AppState: ObservableObject {
     func preloadActivityData() {
         activityIndexing = true
         Task.detached(priority: .utility) {
-            let result = ActivityDataService.loadData(granularity: .week)
+            let result = ActivityDataService.loadData()
             await MainActor.run {
                 self.cachedActivityBuckets = result.buckets
                 self.cachedActivitySummary = result.summary
