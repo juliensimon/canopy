@@ -27,6 +27,25 @@ struct Sidebar: View {
                 emptyState
             } else {
                 List(selection: $appState.activeSessionId) {
+                    // Activity dashboard
+                    Button(action: { appState.selectActivity() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.purple)
+                            Text("Activity")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(appState.showActivity ? Color.purple.opacity(0.15) : Color.clear)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     // Plain sessions
                     if !plainSessions.isEmpty {
                         Section("Sessions") {
@@ -48,6 +67,7 @@ struct Sidebar: View {
                 .onChange(of: appState.activeSessionId) { _, newValue in
                     if newValue != nil {
                         appState.selectedProjectId = nil
+                        appState.showActivity = false
                     }
                 }
             }

@@ -32,6 +32,7 @@ struct CanopyApp: App {
                 .task {
                     appState.loadProjects()
                     appState.loadSessions()
+                    appState.preloadActivityData()
                 }
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)
@@ -137,6 +138,11 @@ struct CanopyApp: App {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
 
                 Divider()
+
+                Button("Activity Dashboard") {
+                    appState.selectActivity()
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
             }
 
             CommandMenu("Tabs") {

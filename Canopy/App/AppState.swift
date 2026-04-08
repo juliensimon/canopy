@@ -41,6 +41,8 @@ final class AppState: ObservableObject {
     @Published var showAddProjectSheet = false
     @Published var showSettings = false
     @Published var showCommandPalette = false
+    /// Whether the Activity dashboard is currently shown.
+    @Published var showActivity = false
     @Published var showTerminalSearch = false
     @Published var showCloseConfirmation = false
     @Published var pendingCloseSessionId: UUID?
@@ -51,6 +53,10 @@ final class AppState: ObservableObject {
     /// Tracks worktree setup progress for UI feedback
     @Published var worktreeSetupInProgress = false
     @Published var worktreeSetupStatus: String?
+
+    /// Pre-loaded activity data, populated at startup so the dashboard opens instantly.
+    @Published var cachedActivityResult: ActivityDataService.ActivityResult?
+    @Published var activityIndexing = false
 
     /// When true, session mutations skip saving (app is terminating).
     var isTerminating = false
@@ -98,11 +104,19 @@ final class AppState: ObservableObject {
     func selectSession(_ id: UUID) {
         activeSessionId = id
         selectedProjectId = nil
+        showActivity = false
     }
 
     func selectProject(_ id: UUID) {
         activeSessionId = nil
         selectedProjectId = id
+        showActivity = false
+    }
+
+    func selectActivity() {
+        activeSessionId = nil
+        selectedProjectId = nil
+        showActivity = true
     }
 
     // MARK: - Session Management
@@ -491,6 +505,20 @@ final class AppState: ObservableObject {
     private func saveProjects() {
         guard let data = try? JSONEncoder().encode(projects) else { return }
         FileManager.default.createFile(atPath: projectsFilePath, contents: data)
+    }
+
+    // MARK: - Activity Data Pre-loading
+
+    /// Indexes all Claude Code JSONL files in the background at startup.
+    func preloadActivityData() {
+        activityIndexing = true
+        Task.detached(priority: .utility) {
+            let result = ActivityDataService.loadData()
+            await MainActor.run {
+                self.cachedActivityResult = result
+                self.activityIndexing = false
+            }
+        }
     }
 }
 

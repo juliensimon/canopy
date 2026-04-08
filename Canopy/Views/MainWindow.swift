@@ -24,6 +24,8 @@ struct MainWindow: View {
                             TerminalInsetView(session: activeSession, appState: appState)
                                 .id(activeSession.id)
                                 .transition(.opacity)
+                        } else if appState.showActivity {
+                            ActivityView()
                         } else if let projectId = appState.selectedProjectId,
                                   let project = appState.projects.first(where: { $0.id == projectId }) {
                             ProjectDetailView(project: project)
@@ -57,7 +59,7 @@ struct MainWindow: View {
                 Color(nsColor: .windowBackgroundColor)
                     .ignoresSafeArea()
                     .overlay {
-                        VStack(spacing: 16) {
+                        ZStack {
                             Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                                 .resizable()
                                 .interpolation(.high)
@@ -75,23 +77,16 @@ struct MainWindow: View {
                                         endRadius: 384
                                     )
                                 )
-                            Text("Canopy")
-                                .font(.custom("Optima Bold", size: 52))
-                                .tracking(10)
-                                .foregroundStyle(
-                                    RadialGradient(
-                                        colors: [
-                                            Color(red: 0.4, green: 0.85, blue: 0.55),
-                                            Color(red: 0.25, green: 0.65, blue: 0.35),
-                                            Color(red: 0.15, green: 0.45, blue: 0.25)
-                                        ],
-                                        center: .center,
-                                        startRadius: 0,
-                                        endRadius: 180
-                                    )
-                                )
-                                .shadow(color: Color(red: 0.3, green: 0.7, blue: 0.4).opacity(0.6), radius: 20)
-                                .opacity(textOpacity)
+
+                            if let logoImage = Self.loadLogo() {
+                                Image(nsImage: logoImage)
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 300)
+                                    .opacity(textOpacity)
+                                    .offset(y: -192)
+                            }
                         }
                         .opacity(splashOpacity)
                     }
@@ -130,6 +125,20 @@ struct MainWindow: View {
         .onAppear {
             appState.loadProjects()
         }
+    }
+
+    /// Load the logo PNG from the app bundle or Resources directory.
+    private static func loadLogo() -> NSImage? {
+        // Xcode build: bundle resource
+        if let path = Bundle.main.path(forResource: "CanopyLogo", ofType: "png") {
+            return NSImage(contentsOfFile: path)
+        }
+        // SPM/bundle.sh: relative to executable
+        if let exec = Bundle.main.executablePath {
+            let resourcesDir = ((exec as NSString).deletingLastPathComponent as NSString).appendingPathComponent("../Resources/CanopyLogo.png")
+            return NSImage(contentsOfFile: resourcesDir)
+        }
+        return nil
     }
 }
 
@@ -381,44 +390,45 @@ private struct ProjectLaunchRow: View {
     let onWorktree: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Circle()
                 .fill(ProjectColor.color(for: project.colorIndex))
                 .frame(width: 8, height: 8)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(project.name)
                     .font(.system(size: 13, weight: .semibold))
-                Text(project.repositoryPath)
+                Text(shortenedPath(project.repositoryPath))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button(action: onWorktree) {
-                HStack(spacing: 4) {
-                    Text("Worktree")
-                    keycap("⌘⇧T")
-                }
+                Text("Worktree")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
 
             Button(action: onSession) {
-                HStack(spacing: 4) {
-                    Text("Session")
-                    keycap("⌘T")
-                }
+                Text("Session")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(Color.gray.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func shortenedPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 }
 
@@ -489,7 +499,7 @@ private struct ProjectQuickLaunchView: View {
             }
             .padding(20)
         }
-        .frame(maxWidth: 360)
+        .frame(maxWidth: 480)
         .sheet(isPresented: $showHelp) {
             HelpView()
         }
