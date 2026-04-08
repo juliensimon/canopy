@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// About window showing version, author, and build info.
 struct AboutView: View {
@@ -12,9 +13,17 @@ struct AboutView: View {
                 .resizable()
                 .frame(width: 64, height: 64)
 
-            Text("Canopy")
-                .font(.title)
-                .fontWeight(.bold)
+            if let logo = Self.loadLogo() {
+                Image(nsImage: logo)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 160)
+            } else {
+                Text("Canopy")
+                    .font(.title)
+                    .fontWeight(.bold)
+            }
 
             Text("Parallel Claude Code sessions with git worktrees")
                 .font(.subheadline)
@@ -62,6 +71,18 @@ struct AboutView: View {
         }
         .padding(24)
         .frame(width: 380, height: 400)
+    }
+
+    private static func loadLogo() -> NSImage? {
+        if let path = Bundle.main.path(forResource: "CanopyLogo", ofType: "png") {
+            return NSImage(contentsOfFile: path)
+        }
+        if let exec = Bundle.main.executablePath {
+            let path = ((exec as NSString).deletingLastPathComponent as NSString)
+                .appendingPathComponent("../Resources/CanopyLogo.png")
+            return NSImage(contentsOfFile: path)
+        }
+        return nil
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
