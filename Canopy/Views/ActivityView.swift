@@ -42,10 +42,17 @@ struct ActivityView: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
-            if isLoading {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(0.8)
+            if isLoading || appState.activityIndexing {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(0.8)
+                    if appState.activityIndexing {
+                        Text("Indexing sessions...")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .onAppear { loadData(useCache: true) }
