@@ -13,7 +13,8 @@ struct ActivityHeatmap: View {
     ]
 
     struct GridLayout {
-        var columns: [[Int]]      // columns[col][row] = value
+        var columns: [[Int]]       // columns[col][row] = token count
+        var cellLabels: [[String]] // columns[col][row] = hover tooltip text
         var columnLabels: [String]
         var rowLabels: [String]
     }
@@ -93,8 +94,11 @@ struct ActivityHeatmap: View {
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "MMM d, yyyy"
 
         var columns: [[Int]] = []
+        var labels: [[String]] = []
         var colLabels: [String] = []
         let monthFormatter = DateFormatter()
         monthFormatter.dateFormat = "MMM"
@@ -102,22 +106,26 @@ struct ActivityHeatmap: View {
         for week in 0..<12 {
             let weekStart = calendar.date(byAdding: .weekOfYear, value: week, to: startMonday) ?? startMonday
             var col: [Int] = []
+            var colCellLabels: [String] = []
             var labelForWeek = ""
 
             for day in 0..<7 {
                 let date = calendar.date(byAdding: .day, value: day, to: weekStart) ?? weekStart
                 let key = dateFormatter.string(from: date)
-                col.append(buckets[key]?.totalTokens ?? 0)
+                let tokens = buckets[key]?.totalTokens ?? 0
+                col.append(tokens)
+                colCellLabels.append("\(displayFormatter.string(from: date))\n\(abbreviatedTokenCount(tokens)) tokens")
 
                 if calendar.component(.day, from: date) == 1 {
                     labelForWeek = monthFormatter.string(from: date)
                 }
             }
             columns.append(col)
+            labels.append(colCellLabels)
             colLabels.append(labelForWeek)
         }
 
-        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: ["Mon", "", "Wed", "", "Fri", "", "Sun"])
+        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["Mon", "", "Wed", "", "Fri", "", "Sun"])
     }
 
     private func buildDayGrid() -> GridLayout {
@@ -127,32 +135,39 @@ struct ActivityHeatmap: View {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let dayOfWeekFormatter = DateFormatter()
         dayOfWeekFormatter.dateFormat = "EEE"
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "MMM d"
 
         var columns: [[Int]] = []
+        var labels: [[String]] = []
         var colLabels: [String] = []
 
-        // 16 waking hours (8-23) per day, distributed from daily total
         let wakingHours = 16
 
         for dayOffset in stride(from: -6, through: 0, by: 1) {
             let date = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
             let key = dateFormatter.string(from: date)
             let dailyTotal = buckets[key]?.totalTokens ?? 0
+            let dayLabel = displayFormatter.string(from: date)
 
-            // Distribute only across waking hours (8:00-23:59)
             let perHour = dailyTotal / wakingHours
             let remainder = dailyTotal % wakingHours
             var col: [Int] = []
+            var colCellLabels: [String] = []
             for hour in 0..<24 {
                 if hour < 8 {
                     col.append(0)
+                    colCellLabels.append("\(dayLabel), \(hour):00")
                 } else {
                     let wakingIndex = hour - 8
-                    col.append(wakingIndex < remainder ? perHour + 1 : perHour)
+                    let val = wakingIndex < remainder ? perHour + 1 : perHour
+                    col.append(val)
+                    colCellLabels.append("\(dayLabel), \(hour):00\n\(abbreviatedTokenCount(dailyTotal)) tokens (day total)")
                 }
             }
 
             columns.append(col)
+            labels.append(colCellLabels)
             colLabels.append(dayOfWeekFormatter.string(from: date))
         }
 
@@ -166,7 +181,7 @@ struct ActivityHeatmap: View {
             }
         }
 
-        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: rowLabels)
+        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: rowLabels)
     }
 
     private func buildMonthGrid() -> GridLayout {
@@ -176,6 +191,8 @@ struct ActivityHeatmap: View {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let monthFormatter = DateFormatter()
         monthFormatter.dateFormat = "MMM"
+        let monthYearFormatter = DateFormatter()
+        monthYearFormatter.dateFormat = "MMM yyyy"
 
         var startComps = calendar.dateComponents([.year, .month], from: today)
         startComps.day = 1
@@ -183,10 +200,12 @@ struct ActivityHeatmap: View {
         let startMonth = calendar.date(byAdding: .month, value: -11, to: thisMonthStart) ?? thisMonthStart
 
         var columns: [[Int]] = []
+        var labels: [[String]] = []
         var colLabels: [String] = []
 
         for monthOffset in 0..<12 {
             let monthStart = calendar.date(byAdding: .month, value: monthOffset, to: startMonth) ?? startMonth
+            let monthLabel = monthYearFormatter.string(from: monthStart)
             colLabels.append(monthFormatter.string(from: monthStart))
 
             var weekTotals = [Int](repeating: 0, count: 5)
@@ -203,10 +222,16 @@ struct ActivityHeatmap: View {
                 weekTotals[weekIndex] += value
             }
 
+            var weekLabels: [String] = []
+            for w in 0..<5 {
+                weekLabels.append("\(monthLabel), Week \(w + 1)\n\(abbreviatedTokenCount(weekTotals[w])) tokens")
+            }
+
             columns.append(weekTotals)
+            labels.append(weekLabels)
         }
 
-        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: ["W1", "", "W3", "", "W5"])
+        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["W1", "", "W3", "", "W5"])
     }
 
     // MARK: - Color mapping
@@ -240,19 +265,22 @@ struct ActivityHeatmap: View {
                 Text(label)
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             }
         }
     }
 
     private func gridContentView(_ layout: GridLayout, maxValue: Int) -> some View {
         HStack(spacing: 4) {
-            ForEach(Array(layout.columns.enumerated()), id: \.offset) { _, col in
+            ForEach(Array(layout.columns.enumerated()), id: \.offset) { colIdx, col in
                 VStack(spacing: 4) {
-                    ForEach(Array(col.enumerated()), id: \.offset) { _, value in
+                    ForEach(Array(col.enumerated()), id: \.offset) { rowIdx, value in
+                        let tooltip = colIdx < layout.cellLabels.count && rowIdx < layout.cellLabels[colIdx].count
+                            ? layout.cellLabels[colIdx][rowIdx] : ""
                         RoundedRectangle(cornerRadius: 3)
                             .fill(colorForValue(value, maxValue: maxValue))
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .help(tooltip)
                     }
                 }
                 .frame(maxWidth: .infinity)

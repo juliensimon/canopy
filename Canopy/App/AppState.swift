@@ -57,6 +57,7 @@ final class AppState: ObservableObject {
     /// Pre-loaded activity data, populated at startup so the dashboard opens instantly.
     @Published var cachedActivityBuckets: [String: DailyBucket]?
     @Published var cachedActivitySummary: ActivitySummary?
+    @Published var activityIndexing = false
 
     /// When true, session mutations skip saving (app is terminating).
     var isTerminating = false
@@ -511,11 +512,13 @@ final class AppState: ObservableObject {
 
     /// Indexes all Claude Code JSONL files in the background at startup.
     func preloadActivityData() {
+        activityIndexing = true
         Task.detached(priority: .utility) {
             let result = ActivityDataService.loadData(granularity: .week)
             await MainActor.run {
                 self.cachedActivityBuckets = result.buckets
                 self.cachedActivitySummary = result.summary
+                self.activityIndexing = false
             }
         }
     }
