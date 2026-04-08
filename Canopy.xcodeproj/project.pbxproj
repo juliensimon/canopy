@@ -60,6 +60,7 @@
 		DB80B8E728010520D7F8985C /* ActivityDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA1DA260840960CD2F841F5 /* ActivityDataService.swift */; };
 		69F0342C0CBAFADD334EEB5A /* ActivityHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835751656BBB239C13FEAB31 /* ActivityHeatmap.swift */; };
 		8C553D679DE6EEE97C722BA1 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22F1979F08E86E4B9BE122A /* ActivityView.swift */; };
+		E403E5445BF739F5FBFBCA52 /* CanopyLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = 898B2EFDDB4DBBE567CF7900 /* CanopyLogo.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,6 +129,7 @@
 		4DA1DA260840960CD2F841F5 /* ActivityDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDataService.swift; sourceTree = "<group>"; };
 		835751656BBB239C13FEAB31 /* ActivityHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityHeatmap.swift; sourceTree = "<group>"; };
 		E22F1979F08E86E4B9BE122A /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
+		898B2EFDDB4DBBE567CF7900 /* CanopyLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = CanopyLogo.png; path = Resources/CanopyLogo.png; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -223,6 +225,7 @@
 		D499232754A1734EF8BC8591 /* Canopy */ = {
 			isa = PBXGroup;
 			children = (
+				898B2EFDDB4DBBE567CF7900 /* CanopyLogo.png */,
 				9994AD92CE8F459E8997DCFF /* Assets.xcassets */,
 				C24C033F5B667B132A7537FD /* App */,
 				73D176B495E4FAE4259E14DF /* Models */,
@@ -347,6 +350,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E403E5445BF739F5FBFBCA52 /* CanopyLogo.png in Resources */,
 				0037DE79842045E79C0B13A2 /* Assets.xcassets in Resources */,
 				56EC12B4E8F87D40411C840B /* CLAUDE.md in Resources */,
 			);

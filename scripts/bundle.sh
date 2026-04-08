@@ -40,8 +40,9 @@ mkdir -p "${APP_DIR}/Contents/Resources"
 # Copy the binary
 cp "${BUILD_DIR}/${APP_NAME}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
 
-# Copy the icon
+# Copy resources
 cp "Resources/Canopy.icns" "${APP_DIR}/Contents/Resources/Canopy.icns" 2>/dev/null || true
+cp "Resources/CanopyLogo.png" "${APP_DIR}/Contents/Resources/CanopyLogo.png" 2>/dev/null || true
 
 # Create Info.plist — this tells macOS this is a real GUI app
 cat > "${APP_DIR}/Contents/Info.plist" << PLIST
