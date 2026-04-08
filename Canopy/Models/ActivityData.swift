@@ -11,25 +11,9 @@ struct DailyBucket: Codable {
     var totalTokens: Int { inputTokens + outputTokens }
 }
 
-/// Time granularity for the activity heatmap.
-enum Granularity: String, CaseIterable {
-    case day, week, month
-
-    var label: String {
-        switch self {
-        case .day: "Day"
-        case .week: "Week"
-        case .month: "Month"
-        }
-    }
-
-    var periodLabel: String {
-        switch self {
-        case .day: "Last 7 Days"
-        case .week: "Last 12 Weeks"
-        case .month: "Last 12 Months"
-        }
-    }
+/// Time granularity for period calculations.
+enum Granularity {
+    case week
 }
 
 /// Persistent cache for scanned JSONL data.

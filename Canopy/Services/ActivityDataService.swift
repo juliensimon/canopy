@@ -285,15 +285,7 @@ enum ActivityDataService {
     static func periodStartDate(for granularity: Granularity) -> String {
         let calendar = Calendar.current
         let now = Date()
-        let startDate: Date
-        switch granularity {
-        case .day:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
-        case .week:
-            startDate = calendar.date(byAdding: .weekOfYear, value: -12, to: now)!
-        case .month:
-            startDate = calendar.date(byAdding: .month, value: -12, to: now)!
-        }
+        let startDate = calendar.date(byAdding: .weekOfYear, value: -12, to: now)!
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.timeZone = .current

@@ -3,11 +3,9 @@ import SwiftUI
 /// Main activity dashboard: stats cards + heatmap.
 struct ActivityView: View {
     @EnvironmentObject var appState: AppState
-    @State private var granularity: Granularity = .week
     @State private var isLoading = false
     @State private var summary = ActivitySummary()
     @State private var buckets: [String: DailyBucket] = [:]
-    @State private var loadTask: Task<Void, Never>?
 
     private let cardBackground = Color(red: 0.102, green: 0.090, blue: 0.188)
     private let cardBorder    = Color(red: 0.165, green: 0.145, blue: 0.271)
@@ -15,13 +13,12 @@ struct ActivityView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Header row
+            // Header
             HStack {
                 Text("Activity")
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()
-                granularityPicker
             }
 
             // Stats cards row
@@ -34,9 +31,8 @@ struct ActivityView: View {
             }
             .frame(height: 90)
 
-            // Heatmap fills remaining space — id forces full recreation on granularity change
-            ActivityHeatmap(buckets: buckets, granularity: granularity)
-                .id(granularity)
+            // Heatmap fills remaining space
+            ActivityHeatmap(buckets: buckets)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(16)
@@ -55,32 +51,7 @@ struct ActivityView: View {
                 }
             }
         }
-        .onAppear { loadData(useCache: true) }
-        .onChange(of: granularity) { loadData(useCache: false) }
-    }
-
-    // MARK: - Granularity Picker
-
-    private var granularityPicker: some View {
-        HStack(spacing: 0) {
-            ForEach(Granularity.allCases, id: \.self) { g in
-                Button(action: { granularity = g }) {
-                    Text(g.label)
-                        .font(.system(size: 12))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(granularity == g ? accentPurple : Color.clear)
-                        .foregroundStyle(granularity == g ? .white : .secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(cardBorder, lineWidth: 1)
-        )
+        .onAppear { loadData() }
     }
 
     // MARK: - Stat Cards
@@ -102,7 +73,7 @@ struct ActivityView: View {
 
     private var periodCard: some View {
         StatCard(
-            title: granularity.periodLabel.uppercased(),
+            title: "LAST 12 WEEKS",
             cardBackground: cardBackground,
             cardBorder: cardBorder
         ) {
@@ -122,7 +93,7 @@ struct ActivityView: View {
         ) {
             Text("\(summary.periodSessionCount)")
                 .font(.system(size: 18, weight: .bold))
-            Text(granularity.periodLabel)
+            Text("Last 12 Weeks")
                 .font(.system(size: 9))
                 .foregroundStyle(.tertiary)
         }
@@ -167,24 +138,18 @@ struct ActivityView: View {
 
     // MARK: - Data Loading
 
-    private func loadData(useCache: Bool) {
-        // On first open with default granularity, use pre-loaded data if available
-        if useCache && granularity == .week,
-           let cached = appState.cachedActivityBuckets,
+    private func loadData() {
+        if let cached = appState.cachedActivityBuckets,
            let cachedSummary = appState.cachedActivitySummary {
             buckets = cached
             summary = cachedSummary
             return
         }
 
-        loadTask?.cancel()
         isLoading = true
-        let g = granularity
-        loadTask = Task.detached(priority: .userInitiated) {
-            let result = ActivityDataService.loadData(granularity: g)
-            guard !Task.isCancelled else { return }
+        Task.detached(priority: .userInitiated) {
+            let result = ActivityDataService.loadData(granularity: .week)
             await MainActor.run {
-                guard self.granularity == g else { return }
                 self.summary = result.summary
                 self.buckets = result.buckets
                 self.isLoading = false
@@ -248,8 +213,6 @@ private struct StatCard<Content: View>: View {
         )
     }
 }
-
-// MARK: - Preview
 
 #Preview {
     ActivityView()

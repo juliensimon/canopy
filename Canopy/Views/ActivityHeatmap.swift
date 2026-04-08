@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// GitHub-style contribution heatmap that fills available space.
+/// GitHub-style contribution heatmap showing the last 12 weeks.
 struct ActivityHeatmap: View {
     let buckets: [String: DailyBucket]
-    let granularity: Granularity
 
     private static let colors: [Color] = [
-        Color(red: 0.118, green: 0.118, blue: 0.227),  // #1e1e3a — empty
+        Color(red: 0.118, green: 0.118, blue: 0.227),  // empty
         Color(red: 0.145, green: 0.110, blue: 0.310),  // level 1
         Color(red: 0.176, green: 0.106, blue: 0.412),  // level 2
         Color(red: 0.240, green: 0.110, blue: 0.540),  // level 3
@@ -15,21 +14,21 @@ struct ActivityHeatmap: View {
         Color(red: 0.486, green: 0.227, blue: 0.929),  // level 6 — max
     ]
 
-    struct GridLayout {
-        var columns: [[Int]]       // columns[col][row] = token count
-        var cellLabels: [[String]] // columns[col][row] = hover tooltip text
+    private struct GridLayout {
+        var columns: [[Int]]
+        var cellLabels: [[String]]
         var columnLabels: [String]
         var rowLabels: [String]
     }
 
     var body: some View {
-        let layout = buildGrid()
+        let layout = buildWeekGrid()
         let allValues = layout.columns.flatMap { $0 }
         let maxValue = allValues.max() ?? 0
 
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(granularity.periodLabel)
+                Text("Last 12 Weeks")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -78,14 +77,6 @@ struct ActivityHeatmap: View {
 
     // MARK: - Grid building
 
-    private func buildGrid() -> GridLayout {
-        switch granularity {
-        case .week:   return buildWeekGrid()
-        case .day:    return buildDayGrid()
-        case .month:  return buildMonthGrid()
-        }
-    }
-
     private func buildWeekGrid() -> GridLayout {
         let calendar = Calendar.current
         let today = Date()
@@ -128,110 +119,12 @@ struct ActivityHeatmap: View {
             colLabels.append(labelForWeek)
         }
 
-        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
-    }
-
-    private func buildDayGrid() -> GridLayout {
-        let calendar = Calendar.current
-        let today = Date()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let dayOfWeekFormatter = DateFormatter()
-        dayOfWeekFormatter.dateFormat = "EEE"
-        let displayFormatter = DateFormatter()
-        displayFormatter.dateFormat = "MMM d"
-
-        var columns: [[Int]] = []
-        var labels: [[String]] = []
-        var colLabels: [String] = []
-
-        let wakingHours = 16
-
-        for dayOffset in stride(from: -6, through: 0, by: 1) {
-            let date = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
-            let key = dateFormatter.string(from: date)
-            let dailyTotal = buckets[key]?.totalTokens ?? 0
-            let dayLabel = displayFormatter.string(from: date)
-
-            let perHour = dailyTotal / wakingHours
-            let remainder = dailyTotal % wakingHours
-            var col: [Int] = []
-            var colCellLabels: [String] = []
-            for hour in 0..<24 {
-                if hour < 8 {
-                    col.append(0)
-                    colCellLabels.append("\(dayLabel), \(hour):00")
-                } else {
-                    let wakingIndex = hour - 8
-                    let val = wakingIndex < remainder ? perHour + 1 : perHour
-                    col.append(val)
-                    colCellLabels.append("\(dayLabel), \(hour):00\n\(abbreviatedTokenCount(dailyTotal)) tokens (day total)")
-                }
-            }
-
-            columns.append(col)
-            labels.append(colCellLabels)
-            colLabels.append(dayOfWeekFormatter.string(from: date))
-        }
-
-        let rowLabels: [String] = (0..<24).map { hour in
-            if hour == 0 { return "12a" }
-            if hour < 12 { return "\(hour)a" }
-            if hour == 12 { return "12p" }
-            return "\(hour - 12)p"
-        }
-
-        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: rowLabels)
-    }
-
-    private func buildMonthGrid() -> GridLayout {
-        let calendar = Calendar.current
-        let today = Date()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let monthFormatter = DateFormatter()
-        monthFormatter.dateFormat = "MMM"
-        let monthYearFormatter = DateFormatter()
-        monthYearFormatter.dateFormat = "MMM yyyy"
-
-        var startComps = calendar.dateComponents([.year, .month], from: today)
-        startComps.day = 1
-        let thisMonthStart = calendar.date(from: startComps) ?? today
-        let startMonth = calendar.date(byAdding: .month, value: -11, to: thisMonthStart) ?? thisMonthStart
-
-        var columns: [[Int]] = []
-        var labels: [[String]] = []
-        var colLabels: [String] = []
-
-        for monthOffset in 0..<12 {
-            let monthStart = calendar.date(byAdding: .month, value: monthOffset, to: startMonth) ?? startMonth
-            let monthLabel = monthYearFormatter.string(from: monthStart)
-            colLabels.append(monthFormatter.string(from: monthStart))
-
-            var weekTotals = [Int](repeating: 0, count: 5)
-            let range = calendar.range(of: .day, in: .month, for: monthStart) ?? 1..<32
-            for dayOfMonth in range {
-                var comps = calendar.dateComponents([.year, .month], from: monthStart)
-                comps.day = dayOfMonth
-                guard let date = calendar.date(from: comps) else { continue }
-
-                let key = dateFormatter.string(from: date)
-                let value = buckets[key]?.totalTokens ?? 0
-                let weekOfMonth = calendar.component(.weekOfMonth, from: date)
-                let weekIndex = max(0, min(weekOfMonth - 1, 4))
-                weekTotals[weekIndex] += value
-            }
-
-            var weekLabels: [String] = []
-            for w in 0..<5 {
-                weekLabels.append("\(monthLabel), Week \(w + 1)\n\(abbreviatedTokenCount(weekTotals[w])) tokens")
-            }
-
-            columns.append(weekTotals)
-            labels.append(weekLabels)
-        }
-
-        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["W1", "W2", "W3", "W4", "W5"])
+        return GridLayout(
+            columns: columns,
+            cellLabels: labels,
+            columnLabels: colLabels,
+            rowLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        )
     }
 
     // MARK: - Color mapping
@@ -239,12 +132,11 @@ struct ActivityHeatmap: View {
     private func colorForValue(_ value: Int, maxValue: Int) -> Color {
         guard value > 0, maxValue > 0 else { return Self.colors[0] }
         let ratio = Double(value) / Double(maxValue)
-        // 6 levels mapped to even percentile bands
         let level = min(Int(ratio * 6) + 1, 6)
         return Self.colors[level]
     }
 
-    // MARK: - Sub-views (take layout as parameter — computed once)
+    // MARK: - Sub-views
 
     private func columnLabelsView(_ layout: GridLayout) -> some View {
         HStack(spacing: 4) {
@@ -288,8 +180,6 @@ struct ActivityHeatmap: View {
     }
 }
 
-// MARK: - Preview
-
 #Preview {
     let sampleBuckets: [String: DailyBucket] = {
         var result: [String: DailyBucket] = [:]
@@ -308,11 +198,8 @@ struct ActivityHeatmap: View {
         return result
     }()
 
-    VStack(spacing: 16) {
-        ActivityHeatmap(buckets: sampleBuckets, granularity: .week)
-        ActivityHeatmap(buckets: sampleBuckets, granularity: .day)
-        ActivityHeatmap(buckets: sampleBuckets, granularity: .month)
-    }
-    .padding()
-    .background(Color(red: 0.08, green: 0.07, blue: 0.15))
+    ActivityHeatmap(buckets: sampleBuckets)
+        .padding()
+        .frame(height: 300)
+        .background(Color(red: 0.08, green: 0.07, blue: 0.15))
 }
