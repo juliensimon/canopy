@@ -12,13 +12,17 @@ struct ActivityHeatmap: View {
         Color(red: 0.486, green: 0.227, blue: 0.929),  // #7c3aed
     ]
 
-    private struct GridLayout {
+    struct GridLayout {
         var columns: [[Int]]      // columns[col][row] = value
         var columnLabels: [String]
         var rowLabels: [String]
     }
 
     var body: some View {
+        let layout = buildGrid()
+        let allValues = layout.columns.flatMap { $0 }
+        let maxValue = allValues.max() ?? 0
+
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(granularity.periodLabel)
@@ -29,14 +33,14 @@ struct ActivityHeatmap: View {
             }
             .padding(.bottom, 8)
 
-            columnLabels
+            columnLabelsView(layout)
                 .padding(.leading, 30)
                 .padding(.bottom, 4)
 
             HStack(alignment: .top, spacing: 0) {
-                rowLabels
+                rowLabelsView(layout)
                     .frame(width: 26)
-                gridContent
+                gridContentView(layout, maxValue: maxValue)
             }
         }
         .padding(16)
@@ -68,9 +72,9 @@ struct ActivityHeatmap: View {
         }
     }
 
-    // MARK: - Grid data
+    // MARK: - Grid building
 
-    private var gridData: GridLayout {
+    private func buildGrid() -> GridLayout {
         switch granularity {
         case .week:   return buildWeekGrid()
         case .day:    return buildDayGrid()
@@ -78,17 +82,13 @@ struct ActivityHeatmap: View {
         }
     }
 
-    /// Week view: 12 columns (weeks), 7 rows (Mon–Sun).
     private func buildWeekGrid() -> GridLayout {
         let calendar = Calendar.current
         let today = Date()
 
-        // Find the most recent Monday
         var comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
         comps.weekday = 2 // Monday
         let thisMonday = calendar.date(from: comps) ?? today
-
-        // Start from Monday 11 weeks ago
         let startMonday = calendar.date(byAdding: .weekOfYear, value: -11, to: thisMonday) ?? thisMonday
 
         let dateFormatter = DateFormatter()
@@ -107,12 +107,9 @@ struct ActivityHeatmap: View {
             for day in 0..<7 {
                 let date = calendar.date(byAdding: .day, value: day, to: weekStart) ?? weekStart
                 let key = dateFormatter.string(from: date)
-                let value = buckets[key]?.totalTokens ?? 0
-                col.append(value)
+                col.append(buckets[key]?.totalTokens ?? 0)
 
-                // Show month label when this day is the 1st of a month
-                let dayOfMonth = calendar.component(.day, from: date)
-                if dayOfMonth == 1 {
+                if calendar.component(.day, from: date) == 1 {
                     labelForWeek = monthFormatter.string(from: date)
                 }
             }
@@ -120,11 +117,9 @@ struct ActivityHeatmap: View {
             colLabels.append(labelForWeek)
         }
 
-        let rowLabels = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
-        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: rowLabels)
+        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: ["Mon", "", "Wed", "", "Fri", "", "Sun"])
     }
 
-    /// Day view: 7 columns (last 7 days), 24 rows (hours, approximated from daily).
     private func buildDayGrid() -> GridLayout {
         let calendar = Calendar.current
         let today = Date()
@@ -136,20 +131,25 @@ struct ActivityHeatmap: View {
         var columns: [[Int]] = []
         var colLabels: [String] = []
 
+        // 16 waking hours (8-23) per day, distributed from daily total
+        let wakingHours = 16
+
         for dayOffset in stride(from: -6, through: 0, by: 1) {
             let date = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
             let key = dateFormatter.string(from: date)
             let dailyTotal = buckets[key]?.totalTokens ?? 0
 
-            // Distribute evenly across 24 hours as approximation
-            let hourly = dailyTotal / 24
-            let remainder = dailyTotal % 24
-            var col: [Int] = (0..<24).map { hour in
-                hour < remainder ? hourly + 1 : hourly
-            }
-            // Bias activity toward waking hours (8–22) by zeroing out 0–7
-            for hour in 0..<8 {
-                col[hour] = 0
+            // Distribute only across waking hours (8:00-23:59)
+            let perHour = dailyTotal / wakingHours
+            let remainder = dailyTotal % wakingHours
+            var col: [Int] = []
+            for hour in 0..<24 {
+                if hour < 8 {
+                    col.append(0)
+                } else {
+                    let wakingIndex = hour - 8
+                    col.append(wakingIndex < remainder ? perHour + 1 : perHour)
+                }
             }
 
             columns.append(col)
@@ -169,7 +169,6 @@ struct ActivityHeatmap: View {
         return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: rowLabels)
     }
 
-    /// Month view: 12 columns (months), ~5 rows (weeks in month).
     private func buildMonthGrid() -> GridLayout {
         let calendar = Calendar.current
         let today = Date()
@@ -178,7 +177,6 @@ struct ActivityHeatmap: View {
         let monthFormatter = DateFormatter()
         monthFormatter.dateFormat = "MMM"
 
-        // Start from the beginning of the month 11 months ago
         var startComps = calendar.dateComponents([.year, .month], from: today)
         startComps.day = 1
         let thisMonthStart = calendar.date(from: startComps) ?? today
@@ -191,9 +189,7 @@ struct ActivityHeatmap: View {
             let monthStart = calendar.date(byAdding: .month, value: monthOffset, to: startMonth) ?? startMonth
             colLabels.append(monthFormatter.string(from: monthStart))
 
-            // Get all days in this month and sum by week-of-month (up to 5 weeks)
             var weekTotals = [Int](repeating: 0, count: 5)
-
             let range = calendar.range(of: .day, in: .month, for: monthStart) ?? 1..<32
             for dayOfMonth in range {
                 var comps = calendar.dateComponents([.year, .month], from: monthStart)
@@ -202,8 +198,6 @@ struct ActivityHeatmap: View {
 
                 let key = dateFormatter.string(from: date)
                 let value = buckets[key]?.totalTokens ?? 0
-
-                // Week index within month (0-based)
                 let weekOfMonth = calendar.component(.weekOfMonth, from: date)
                 let weekIndex = min(weekOfMonth - 1, 4)
                 weekTotals[weekIndex] += value
@@ -212,8 +206,7 @@ struct ActivityHeatmap: View {
             columns.append(weekTotals)
         }
 
-        let rowLabels = ["W1", "", "W3", "", "W5"]
-        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: rowLabels)
+        return GridLayout(columns: columns, columnLabels: colLabels, rowLabels: ["W1", "", "W3", "", "W5"])
     }
 
     // MARK: - Color mapping
@@ -228,11 +221,10 @@ struct ActivityHeatmap: View {
         }
     }
 
-    // MARK: - Sub-views
+    // MARK: - Sub-views (take layout as parameter — computed once)
 
-    private var columnLabels: some View {
-        let layout = gridData
-        return HStack(spacing: 4) {
+    private func columnLabelsView(_ layout: GridLayout) -> some View {
+        HStack(spacing: 4) {
             ForEach(Array(layout.columnLabels.enumerated()), id: \.offset) { _, label in
                 Text(label)
                     .font(.system(size: 9))
@@ -242,8 +234,7 @@ struct ActivityHeatmap: View {
         }
     }
 
-    private var rowLabels: some View {
-        let layout = gridData
+    private func rowLabelsView(_ layout: GridLayout) -> some View {
         let rowCount = layout.columns.first?.count ?? 0
         return VStack(spacing: 4) {
             ForEach(0..<rowCount, id: \.self) { row in
@@ -256,12 +247,8 @@ struct ActivityHeatmap: View {
         }
     }
 
-    private var gridContent: some View {
-        let layout = gridData
-        let allValues = layout.columns.flatMap { $0 }
-        let maxValue = allValues.max() ?? 0
-
-        return HStack(spacing: 4) {
+    private func gridContentView(_ layout: GridLayout, maxValue: Int) -> some View {
+        HStack(spacing: 4) {
             ForEach(Array(layout.columns.enumerated()), id: \.offset) { _, col in
                 VStack(spacing: 4) {
                     ForEach(Array(col.enumerated()), id: \.offset) { _, value in

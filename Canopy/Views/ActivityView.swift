@@ -6,6 +6,7 @@ struct ActivityView: View {
     @State private var isLoading = false
     @State private var summary = ActivitySummary()
     @State private var buckets: [String: DailyBucket] = [:]
+    @State private var loadTask: Task<Void, Never>?
 
     private let cardBackground = Color(red: 0.102, green: 0.090, blue: 0.188)
     private let cardBorder    = Color(red: 0.165, green: 0.145, blue: 0.271)
@@ -158,11 +159,14 @@ struct ActivityView: View {
     // MARK: - Data Loading
 
     private func loadData() {
+        loadTask?.cancel()
         isLoading = true
         let g = granularity
-        Task.detached(priority: .userInitiated) {
+        loadTask = Task.detached(priority: .userInitiated) {
             let result = ActivityDataService.loadData(granularity: g)
+            guard !Task.isCancelled else { return }
             await MainActor.run {
+                guard self.granularity == g else { return } // stale result
                 self.summary = result.summary
                 self.buckets = result.buckets
                 self.isLoading = false

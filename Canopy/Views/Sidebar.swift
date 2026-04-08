@@ -67,6 +67,7 @@ struct Sidebar: View {
                 .onChange(of: appState.activeSessionId) { _, newValue in
                     if newValue != nil {
                         appState.selectedProjectId = nil
+                        appState.showActivity = false
                     }
                 }
             }

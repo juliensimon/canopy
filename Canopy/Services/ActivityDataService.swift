@@ -3,35 +3,31 @@ import Foundation
 /// Scans Claude Code JSONL session files and manages a cached activity index.
 enum ActivityDataService {
 
-    private nonisolated(unsafe) static let iso8601: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    private nonisolated(unsafe) static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = TimeZone(identifier: "UTC")!
-        return f
-    }()
-
     // MARK: - Public API
 
+    /// Load activity data, using cache for incremental updates.
+    /// Call from a background thread.
     static func loadData(granularity: Granularity) -> (summary: ActivitySummary, buckets: [String: DailyBucket]) {
         var cache = loadCache() ?? ActivityCache()
         if cache.version != ActivityCache.currentVersion {
             cache = ActivityCache()
         }
 
-        let allJsonlFiles = findAllJsonlFiles()
-        let toScan = filesToScan(allFiles: allJsonlFiles, cache: cache)
+        let allJsonlFiles = Set(findAllJsonlFiles())
+        let toScan = filesToScan(allFiles: Array(allJsonlFiles), cache: cache)
 
-        var newBuckets: [String: DailyBucket] = [:]
+        // Remove deleted files from cache
+        let staleFiles = cache.scannedFiles.keys.filter { !allJsonlFiles.contains($0) }
+        for stale in staleFiles {
+            cache.scannedFiles.removeValue(forKey: stale)
+            cache.fileBuckets.removeValue(forKey: stale)
+        }
+
+        // Scan new/changed files — REPLACE per-file buckets (no additive merge)
         for filePath in toScan {
             guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else { continue }
             let fileBuckets = parseJsonlIntoBuckets(content)
-            mergeBuckets(into: &newBuckets, from: fileBuckets)
+            cache.fileBuckets[filePath] = fileBuckets
 
             let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
             cache.scannedFiles[filePath] = ScannedFileInfo(
@@ -40,18 +36,32 @@ enum ActivityDataService {
             )
         }
 
-        mergeBuckets(into: &cache.dailyBuckets, from: newBuckets)
         cache.lastScanTimestamp = Date()
         saveCache(cache)
 
+        // Aggregate all per-file buckets into a single daily bucket dictionary
+        let aggregated = aggregateBuckets(cache.fileBuckets)
+
         let periodStart = periodStartDate(for: granularity)
-        let summary = computeSummary(allBuckets: cache.dailyBuckets, periodStart: periodStart)
-        return (summary, cache.dailyBuckets)
+        let summary = computeSummary(allBuckets: aggregated, periodStart: periodStart)
+        return (summary, aggregated)
     }
 
     // MARK: - JSONL Parsing
 
+    /// Parse a single JSONL file into daily buckets.
+    /// Creates formatters locally per call to avoid thread-safety issues.
     static func parseJsonlIntoBuckets(_ content: String) -> [String: DailyBucket] {
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let iso8601NoFrac = ISO8601DateFormatter()
+        iso8601NoFrac.formatOptions = [.withInternetDateTime]
+
+        let dayFmt = DateFormatter()
+        dayFmt.dateFormat = "yyyy-MM-dd"
+        dayFmt.timeZone = .current
+
         var buckets: [String: DailyBucket] = [:]
         var hasAssistantEntry = false
 
@@ -65,8 +75,11 @@ enum ActivityDataService {
                 continue
             }
 
-            guard let date = iso8601.date(from: timestamp) else { continue }
-            let dayKey = dayFormatter.string(from: date)
+            // Try fractional seconds first, then without
+            guard let date = iso8601.date(from: timestamp) ?? iso8601NoFrac.date(from: timestamp) else {
+                continue
+            }
+            let dayKey = dayFmt.string(from: date)
 
             let inputTokens = (usageDict["input_tokens"] as? Int ?? 0)
                 + (usageDict["cache_creation_input_tokens"] as? Int ?? 0)
@@ -84,6 +97,7 @@ enum ActivityDataService {
             hasAssistantEntry = true
         }
 
+        // Count one session per file, attributed to the earliest day
         if hasAssistantEntry, let firstDay = buckets.keys.sorted().first {
             buckets[firstDay]?.sessionCount += 1
         }
@@ -91,8 +105,18 @@ enum ActivityDataService {
         return buckets
     }
 
-    // MARK: - Bucket Merging
+    // MARK: - Bucket Aggregation
 
+    /// Aggregate per-file buckets into a single daily bucket dictionary.
+    static func aggregateBuckets(_ fileBuckets: [String: [String: DailyBucket]]) -> [String: DailyBucket] {
+        var result: [String: DailyBucket] = [:]
+        for (_, dailyBuckets) in fileBuckets {
+            mergeBuckets(into: &result, from: dailyBuckets)
+        }
+        return result
+    }
+
+    /// Merge new buckets into existing, summing all fields.
     static func mergeBuckets(into existing: inout [String: DailyBucket], from new: [String: DailyBucket]) {
         for (dayKey, newBucket) in new {
             var merged = existing[dayKey] ?? DailyBucket()
@@ -108,6 +132,7 @@ enum ActivityDataService {
 
     // MARK: - Summary Computation
 
+    /// Compute summary stats from daily buckets.
     static func computeSummary(allBuckets: [String: DailyBucket], periodStart: String) -> ActivitySummary {
         var summary = ActivitySummary()
         var allTimeModels: [String: Int] = [:]
@@ -143,6 +168,7 @@ enum ActivityDataService {
 
     // MARK: - File Discovery
 
+    /// Find all JSONL files in ~/.claude/projects/*/*.jsonl
     static func findAllJsonlFiles() -> [String] {
         let home = NSHomeDirectory()
         let projectsDir = (home as NSString).appendingPathComponent(".claude/projects")
@@ -185,6 +211,7 @@ enum ActivityDataService {
         FileManager.default.createFile(atPath: cacheFilePath, contents: data)
     }
 
+    /// Determine which files need (re)scanning based on modification time and size.
     static func filesToScan(allFiles: [String], cache: ActivityCache) -> [String] {
         let fm = FileManager.default
         return allFiles.filter { filePath in
@@ -202,6 +229,7 @@ enum ActivityDataService {
 
     // MARK: - Period Calculation
 
+    /// Returns the "yyyy-MM-dd" start date for the given granularity, in local time.
     static func periodStartDate(for granularity: Granularity) -> String {
         let calendar = Calendar.current
         let now = Date()
@@ -214,6 +242,9 @@ enum ActivityDataService {
         case .month:
             startDate = calendar.date(byAdding: .month, value: -12, to: now)!
         }
-        return dayFormatter.string(from: startDate)
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.timeZone = .current
+        return fmt.string(from: startDate)
     }
 }
