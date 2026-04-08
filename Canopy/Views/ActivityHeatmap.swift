@@ -199,7 +199,7 @@ struct ActivityHeatmap: View {
                 let key = dateFormatter.string(from: date)
                 let value = buckets[key]?.totalTokens ?? 0
                 let weekOfMonth = calendar.component(.weekOfMonth, from: date)
-                let weekIndex = min(weekOfMonth - 1, 4)
+                let weekIndex = max(0, min(weekOfMonth - 1, 4))
                 weekTotals[weekIndex] += value
             }
 
