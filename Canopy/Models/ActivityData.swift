@@ -11,19 +11,26 @@ struct DailyBucket: Codable {
     var totalTokens: Int { inputTokens + outputTokens }
 }
 
+/// Token usage for a single hour.
+struct HourlyBucket: Codable {
+    var totalTokens: Int = 0
+}
+
 /// Persistent cache for scanned JSONL data.
 struct ActivityCache: Codable {
-    static let currentVersion = 3
+    static let currentVersion = 4
 
     var version: Int = ActivityCache.currentVersion
     var lastScanTimestamp: Date = .distantPast
     /// Tracks which files have been scanned and their state at scan time.
     var scannedFiles: [String: ScannedFileInfo] = [:]
-    /// Per-file daily buckets. Key is the file path, value is date→bucket.
-    /// This allows replacing a file's contribution on re-scan without double-counting.
+    /// Per-file daily buckets. Key is file path, value is date→bucket.
     var fileBuckets: [String: [String: DailyBucket]] = [:]
-    /// Pre-computed aggregate of all fileBuckets. Avoids re-aggregating when nothing changed.
+    /// Per-file hourly buckets. Key is file path, value is "yyyy-MM-dd-HH"→bucket.
+    var fileHourlyBuckets: [String: [String: HourlyBucket]] = [:]
+    /// Pre-computed aggregates. Avoids re-aggregating when nothing changed.
     var aggregatedBuckets: [String: DailyBucket]?
+    var aggregatedHourlyBuckets: [String: HourlyBucket]?
 }
 
 /// Metadata about a scanned JSONL file for incremental cache updates.

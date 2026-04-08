@@ -9,6 +9,7 @@ enum ActivityDataService {
         let iso8601: ISO8601DateFormatter
         let iso8601NoFrac: ISO8601DateFormatter
         let dayFmt: DateFormatter
+        let hourFmt: DateFormatter
 
         init() {
             iso8601 = ISO8601DateFormatter()
@@ -18,14 +19,29 @@ enum ActivityDataService {
             dayFmt = DateFormatter()
             dayFmt.dateFormat = "yyyy-MM-dd"
             dayFmt.timeZone = .current
+            hourFmt = DateFormatter()
+            hourFmt.dateFormat = "yyyy-MM-dd-HH"
+            hourFmt.timeZone = .current
         }
+    }
+
+    /// Result of parsing a single file: daily buckets + hourly buckets.
+    struct FileParsed {
+        var dailyBuckets: [String: DailyBucket] = [:]
+        var hourlyBuckets: [String: HourlyBucket] = [:] // key: "yyyy-MM-dd-HH"
     }
 
     // MARK: - Public API
 
+    struct ActivityResult {
+        var summary: ActivitySummary
+        var dailyBuckets: [String: DailyBucket]
+        var hourlyBuckets: [String: HourlyBucket]
+    }
+
     /// Load activity data, using cache for incremental updates.
     /// Call from a background thread.
-    static func loadData() -> (summary: ActivitySummary, buckets: [String: DailyBucket]) {
+    static func loadData() -> ActivityResult {
         var cache = loadCache() ?? ActivityCache()
         if cache.version != ActivityCache.currentVersion {
             cache = ActivityCache()
@@ -37,16 +53,18 @@ enum ActivityDataService {
 
         // Remove deleted files from cache
         let staleFiles = cache.scannedFiles.keys.filter { !allJsonlFiles.contains($0) }
-        var cacheChanged = !staleFiles.isEmpty || !toScan.isEmpty
+        let cacheChanged = !staleFiles.isEmpty || !toScan.isEmpty
         for stale in staleFiles {
             cache.scannedFiles.removeValue(forKey: stale)
             cache.fileBuckets.removeValue(forKey: stale)
+            cache.fileHourlyBuckets.removeValue(forKey: stale)
         }
 
-        // Scan new/changed files — REPLACE per-file buckets (no additive merge)
+        // Scan new/changed files — REPLACE per-file buckets
         for filePath in toScan {
-            let fileBuckets = parseJsonlFile(atPath: filePath, formatters: formatters)
-            cache.fileBuckets[filePath] = fileBuckets
+            let parsed = parseJsonlFile(atPath: filePath, formatters: formatters)
+            cache.fileBuckets[filePath] = parsed.dailyBuckets
+            cache.fileHourlyBuckets[filePath] = parsed.hourlyBuckets
 
             let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
             cache.scannedFiles[filePath] = ScannedFileInfo(
@@ -55,14 +73,17 @@ enum ActivityDataService {
             )
         }
 
-        // Re-aggregate only if something changed, otherwise use cached aggregate
-        let aggregated: [String: DailyBucket]
+        // Re-aggregate only if something changed
+        let aggregatedDaily: [String: DailyBucket]
+        let aggregatedHourly: [String: HourlyBucket]
         if cacheChanged || cache.aggregatedBuckets == nil {
-            let freshAggregate = aggregateBuckets(cache.fileBuckets)
-            cache.aggregatedBuckets = freshAggregate
-            aggregated = freshAggregate
+            aggregatedDaily = aggregateBuckets(cache.fileBuckets)
+            aggregatedHourly = aggregateHourlyBuckets(cache.fileHourlyBuckets)
+            cache.aggregatedBuckets = aggregatedDaily
+            cache.aggregatedHourlyBuckets = aggregatedHourly
         } else {
-            aggregated = cache.aggregatedBuckets!
+            aggregatedDaily = cache.aggregatedBuckets!
+            aggregatedHourly = cache.aggregatedHourlyBuckets ?? [:]
         }
 
         if cacheChanged {
@@ -71,27 +92,25 @@ enum ActivityDataService {
         }
 
         let periodStart = periodStartDate()
-        let summary = computeSummary(allBuckets: aggregated, periodStart: periodStart)
-        return (summary, aggregated)
+        let summary = computeSummary(allBuckets: aggregatedDaily, periodStart: periodStart)
+        return ActivityResult(summary: summary, dailyBuckets: aggregatedDaily, hourlyBuckets: aggregatedHourly)
     }
 
-    // MARK: - JSONL Parsing (line-by-line from disk)
+    // MARK: - JSONL Parsing
 
-    /// Parse a JSONL file into daily buckets.
-    static func parseJsonlFile(atPath path: String, formatters: Formatters) -> [String: DailyBucket] {
-        guard let fileHandle = FileHandle(forReadingAtPath: path) else { return [:] }
+    /// Parse a JSONL file into daily + hourly buckets.
+    static func parseJsonlFile(atPath path: String, formatters: Formatters) -> FileParsed {
+        guard let fileHandle = FileHandle(forReadingAtPath: path) else { return FileParsed() }
         defer { fileHandle.closeFile() }
-
         let data = fileHandle.readDataToEndOfFile()
-        return parseJsonlIntoBuckets(data, formatters: formatters)
+        return parseJsonlData(data, formatters: formatters)
     }
 
-    /// Parse JSONL data into daily buckets.
-    static func parseJsonlIntoBuckets(_ data: Data, formatters: Formatters) -> [String: DailyBucket] {
-        var buckets: [String: DailyBucket] = [:]
+    /// Parse JSONL data into daily + hourly buckets.
+    static func parseJsonlData(_ data: Data, formatters: Formatters) -> FileParsed {
+        var result = FileParsed()
         var hasAssistantEntry = false
 
-        // Process line by line from raw data
         let assistantMarker = Data("\"type\":\"assistant\"".utf8)
 
         data.withUnsafeBytes { buffer in
@@ -109,7 +128,6 @@ enum ActivityDataService {
                 let lineData = Data(bytes: base + lineStart, count: i - lineStart)
                 lineStart = i + 1
 
-                // Fast skip: only JSON-parse lines containing "type":"assistant"
                 guard lineData.range(of: assistantMarker) != nil else { continue }
 
                 guard let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
@@ -125,6 +143,7 @@ enum ActivityDataService {
                     continue
                 }
                 let dayKey = formatters.dayFmt.string(from: date)
+                let hourKey = formatters.hourFmt.string(from: date)
 
                 let inputTokens = (usageDict["input_tokens"] as? Int ?? 0)
                     + (usageDict["cache_creation_input_tokens"] as? Int ?? 0)
@@ -132,34 +151,35 @@ enum ActivityDataService {
                 let outputTokens = usageDict["output_tokens"] as? Int ?? 0
                 let model = message["model"] as? String ?? "unknown"
                 let modelTokens = inputTokens + outputTokens
+                let totalTokens = inputTokens + outputTokens
 
-                var bucket = buckets[dayKey] ?? DailyBucket()
+                var bucket = result.dailyBuckets[dayKey] ?? DailyBucket()
                 bucket.inputTokens += inputTokens
                 bucket.outputTokens += outputTokens
                 bucket.models[model, default: 0] += modelTokens
-                buckets[dayKey] = bucket
+                result.dailyBuckets[dayKey] = bucket
+
+                result.hourlyBuckets[hourKey, default: HourlyBucket()].totalTokens += totalTokens
 
                 hasAssistantEntry = true
             }
         }
 
-        // Count one session per file, attributed to the earliest day
-        if hasAssistantEntry, let firstDay = buckets.keys.sorted().first {
-            buckets[firstDay]?.sessionCount += 1
+        if hasAssistantEntry, let firstDay = result.dailyBuckets.keys.sorted().first {
+            result.dailyBuckets[firstDay]?.sessionCount += 1
         }
 
-        return buckets
+        return result
     }
 
-    /// Parse from String content (for tests).
+    /// Parse from String content (for tests). Returns daily buckets only.
     static func parseJsonlIntoBuckets(_ content: String) -> [String: DailyBucket] {
         guard let data = content.data(using: .utf8) else { return [:] }
-        return parseJsonlIntoBuckets(data, formatters: Formatters())
+        return parseJsonlData(data, formatters: Formatters()).dailyBuckets
     }
 
     // MARK: - Bucket Aggregation
 
-    /// Aggregate per-file buckets into a single daily bucket dictionary.
     static func aggregateBuckets(_ fileBuckets: [String: [String: DailyBucket]]) -> [String: DailyBucket] {
         var result: [String: DailyBucket] = [:]
         for (_, dailyBuckets) in fileBuckets {
@@ -168,7 +188,16 @@ enum ActivityDataService {
         return result
     }
 
-    /// Merge new buckets into existing, summing all fields.
+    static func aggregateHourlyBuckets(_ fileHourly: [String: [String: HourlyBucket]]) -> [String: HourlyBucket] {
+        var result: [String: HourlyBucket] = [:]
+        for (_, hourly) in fileHourly {
+            for (key, bucket) in hourly {
+                result[key, default: HourlyBucket()].totalTokens += bucket.totalTokens
+            }
+        }
+        return result
+    }
+
     static func mergeBuckets(into existing: inout [String: DailyBucket], from new: [String: DailyBucket]) {
         for (dayKey, newBucket) in new {
             var merged = existing[dayKey] ?? DailyBucket()
@@ -184,7 +213,6 @@ enum ActivityDataService {
 
     // MARK: - Summary Computation
 
-    /// Compute summary stats from daily buckets.
     static func computeSummary(allBuckets: [String: DailyBucket], periodStart: String) -> ActivitySummary {
         var summary = ActivitySummary()
         var allTimeModels: [String: Int] = [:]
@@ -220,7 +248,6 @@ enum ActivityDataService {
 
     // MARK: - File Discovery
 
-    /// Find all JSONL files in ~/.claude/projects/*/*.jsonl
     static func findAllJsonlFiles() -> [String] {
         let home = NSHomeDirectory()
         let projectsDir = (home as NSString).appendingPathComponent(".claude/projects")
@@ -263,7 +290,6 @@ enum ActivityDataService {
         FileManager.default.createFile(atPath: cacheFilePath, contents: data)
     }
 
-    /// Determine which files need (re)scanning based on modification time and size.
     static func filesToScan(allFiles: [String], cache: ActivityCache) -> [String] {
         let fm = FileManager.default
         return allFiles.filter { filePath in
@@ -281,7 +307,6 @@ enum ActivityDataService {
 
     // MARK: - Period Calculation
 
-    /// Returns the "yyyy-MM-dd" date 12 weeks ago, in local time.
     static func periodStartDate() -> String {
         let calendar = Calendar.current
         let startDate = calendar.date(byAdding: .weekOfYear, value: -12, to: Date())!

@@ -5,7 +5,7 @@ struct ActivityView: View {
     @EnvironmentObject var appState: AppState
     @State private var isLoading = false
     @State private var summary = ActivitySummary()
-    @State private var buckets: [String: DailyBucket] = [:]
+    @State private var hourlyBuckets: [String: HourlyBucket] = [:]
 
     private let cardBackground = Color(red: 0.102, green: 0.090, blue: 0.188)
     private let cardBorder    = Color(red: 0.165, green: 0.145, blue: 0.271)
@@ -13,7 +13,6 @@ struct ActivityView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Header
             HStack {
                 Text("Activity")
                     .font(.title2)
@@ -21,7 +20,6 @@ struct ActivityView: View {
                 Spacer()
             }
 
-            // Stats cards row
             HStack(spacing: 8) {
                 allTimeCard
                 periodCard
@@ -31,8 +29,7 @@ struct ActivityView: View {
             }
             .frame(height: 90)
 
-            // Heatmap fills remaining space
-            ActivityHeatmap(buckets: buckets)
+            ActivityHeatmap(hourlyBuckets: hourlyBuckets)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(16)
@@ -57,11 +54,7 @@ struct ActivityView: View {
     // MARK: - Stat Cards
 
     private var allTimeCard: some View {
-        StatCard(
-            title: "ALL-TIME TOKENS",
-            cardBackground: cardBackground,
-            cardBorder: cardBorder
-        ) {
+        StatCard(title: "ALL-TIME TOKENS", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text(abbreviatedTokenCount(summary.allTimeTotal))
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(accentPurple)
@@ -72,11 +65,7 @@ struct ActivityView: View {
     }
 
     private var periodCard: some View {
-        StatCard(
-            title: "LAST 12 WEEKS",
-            cardBackground: cardBackground,
-            cardBorder: cardBorder
-        ) {
+        StatCard(title: "LAST 12 WEEKS", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text(abbreviatedTokenCount(summary.periodTotal))
                 .font(.system(size: 18, weight: .bold))
             Text("In: \(abbreviatedTokenCount(summary.periodInput))  Out: \(abbreviatedTokenCount(summary.periodOutput))")
@@ -86,11 +75,7 @@ struct ActivityView: View {
     }
 
     private var sessionsCard: some View {
-        StatCard(
-            title: "SESSIONS",
-            cardBackground: cardBackground,
-            cardBorder: cardBorder
-        ) {
+        StatCard(title: "SESSIONS", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text("\(summary.periodSessionCount)")
                 .font(.system(size: 18, weight: .bold))
             Text("Last 12 Weeks")
@@ -100,11 +85,7 @@ struct ActivityView: View {
     }
 
     private var busiestDayCard: some View {
-        StatCard(
-            title: "BUSIEST DAY",
-            cardBackground: cardBackground,
-            cardBorder: cardBorder
-        ) {
+        StatCard(title: "BUSIEST DAY", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text(abbreviatedTokenCount(summary.busiestDayTokens))
                 .font(.system(size: 18, weight: .bold))
             Text(formattedBusiestDate(summary.busiestDayDate))
@@ -114,11 +95,7 @@ struct ActivityView: View {
     }
 
     private var modelsCard: some View {
-        StatCard(
-            title: "MODELS",
-            cardBackground: cardBackground,
-            cardBorder: cardBorder
-        ) {
+        StatCard(title: "MODELS", cardBackground: cardBackground, cardBorder: cardBorder) {
             if let top = summary.modelBreakdown.first {
                 Text("\(shortModelName(top.name)) \(top.percentage)%")
                     .font(.system(size: 14, weight: .bold))
@@ -139,10 +116,9 @@ struct ActivityView: View {
     // MARK: - Data Loading
 
     private func loadData() {
-        if let cached = appState.cachedActivityBuckets,
-           let cachedSummary = appState.cachedActivitySummary {
-            buckets = cached
-            summary = cachedSummary
+        if let cached = appState.cachedActivityResult {
+            summary = cached.summary
+            hourlyBuckets = cached.hourlyBuckets
             return
         }
 
@@ -151,10 +127,9 @@ struct ActivityView: View {
             let result = ActivityDataService.loadData()
             await MainActor.run {
                 self.summary = result.summary
-                self.buckets = result.buckets
+                self.hourlyBuckets = result.hourlyBuckets
                 self.isLoading = false
-                self.appState.cachedActivityBuckets = result.buckets
-                self.appState.cachedActivitySummary = result.summary
+                self.appState.cachedActivityResult = result
             }
         }
     }
@@ -183,9 +158,6 @@ struct ActivityView: View {
     }
 }
 
-// MARK: - StatCard helper
-
-/// Generic stat card with a title and free-form content.
 private struct StatCard<Content: View>: View {
     let title: String
     let cardBackground: Color

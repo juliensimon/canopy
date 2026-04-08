@@ -55,8 +55,7 @@ final class AppState: ObservableObject {
     @Published var worktreeSetupStatus: String?
 
     /// Pre-loaded activity data, populated at startup so the dashboard opens instantly.
-    @Published var cachedActivityBuckets: [String: DailyBucket]?
-    @Published var cachedActivitySummary: ActivitySummary?
+    @Published var cachedActivityResult: ActivityDataService.ActivityResult?
     @Published var activityIndexing = false
 
     /// When true, session mutations skip saving (app is terminating).
@@ -516,8 +515,7 @@ final class AppState: ObservableObject {
         Task.detached(priority: .utility) {
             let result = ActivityDataService.loadData()
             await MainActor.run {
-                self.cachedActivityBuckets = result.buckets
-                self.cachedActivitySummary = result.summary
+                self.cachedActivityResult = result
                 self.activityIndexing = false
             }
         }
