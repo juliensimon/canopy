@@ -1,7 +1,6 @@
 import SwiftUI
 
 /// GitHub-style contribution heatmap — 12 weeks × 24 hours per day.
-/// Each column is one day, each row is one hour. Real hourly resolution.
 struct ActivityHeatmap: View {
     let hourlyBuckets: [String: HourlyBucket]
 
@@ -15,17 +14,15 @@ struct ActivityHeatmap: View {
         Color(red: 0.486, green: 0.227, blue: 0.929),  // max
     ]
 
-    private struct GridLayout {
-        var columns: [[Int]]       // columns[dayIndex][hour] = token count
+    private struct GridData {
+        var columns: [[Int]]       // [dayIndex][hour] = tokens
         var cellLabels: [[String]] // hover tooltips
-        var dayLabels: [String]    // one per column (shown sparsely)
-        var hourLabels: [String]   // 24 rows
+        var monthSpans: [(name: String, columns: Int)] // merged month headers
     }
 
     var body: some View {
-        let layout = buildGrid()
-        let allValues = layout.columns.flatMap { $0 }
-        let maxValue = allValues.max() ?? 0
+        let grid = buildGrid()
+        let maxValue = grid.columns.flatMap { $0 }.max() ?? 0
 
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -37,15 +34,15 @@ struct ActivityHeatmap: View {
             }
             .padding(.bottom, 6)
 
-            // Day labels along the top (show Monday dates sparsely)
-            dayLabelsView(layout)
-                .padding(.leading, 28)
+            // Month labels — merged cells spanning the correct day columns
+            monthLabelsView(grid.monthSpans)
+                .padding(.leading, 24)
                 .padding(.bottom, 2)
 
             HStack(alignment: .top, spacing: 0) {
-                hourLabelsView(layout)
-                    .frame(width: 24)
-                gridContentView(layout, maxValue: maxValue)
+                hourLabelsView()
+                    .frame(width: 20)
+                gridContentView(grid, maxValue: maxValue)
             }
         }
         .padding(16)
@@ -79,11 +76,10 @@ struct ActivityHeatmap: View {
 
     // MARK: - Grid building
 
-    private func buildGrid() -> GridLayout {
+    private func buildGrid() -> GridData {
         let calendar = Calendar.current
         let today = Date()
 
-        // Start from 12 weeks ago (Monday)
         var comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
         comps.weekday = 2
         let thisMonday = calendar.date(from: comps) ?? today
@@ -91,27 +87,33 @@ struct ActivityHeatmap: View {
 
         let dateFmt = DateFormatter()
         dateFmt.dateFormat = "yyyy-MM-dd"
+        dateFmt.timeZone = .current
         let displayFmt = DateFormatter()
         displayFmt.dateFormat = "MMM d"
-        let hourKeyFmt = DateFormatter()
-        hourKeyFmt.dateFormat = "yyyy-MM-dd-HH"
-        hourKeyFmt.timeZone = .current
-        dateFmt.timeZone = .current
 
-        // 84 days × 24 hours
         let totalDays = 12 * 7
         var columns: [[Int]] = []
         var cellLabels: [[String]] = []
-        var dayLabels: [String] = []
+
+        // Track month spans for merged headers
+        var monthSpans: [(name: String, columns: Int)] = []
+        let monthNameFmt = DateFormatter()
+        monthNameFmt.dateFormat = "MMMM"
+        var currentMonth = -1
 
         for dayOffset in 0..<totalDays {
             let date = calendar.date(byAdding: .day, value: dayOffset, to: startDate) ?? startDate
             let dateStr = displayFmt.string(from: date)
             let dayKey = dateFmt.string(from: date)
+            let month = calendar.component(.month, from: date)
 
-            // Show label on Mondays
-            let weekday = calendar.component(.weekday, from: date)
-            dayLabels.append(weekday == 2 ? dateStr : "")
+            // Track month transitions
+            if month != currentMonth {
+                monthSpans.append((name: monthNameFmt.string(from: date), columns: 1))
+                currentMonth = month
+            } else {
+                monthSpans[monthSpans.count - 1].columns += 1
+            }
 
             var col: [Int] = []
             var colLabels: [String] = []
@@ -119,52 +121,42 @@ struct ActivityHeatmap: View {
                 let hourKey = "\(dayKey)-\(String(format: "%02d", hour))"
                 let tokens = hourlyBuckets[hourKey]?.totalTokens ?? 0
                 col.append(tokens)
-
-                let hourStr = hour == 0 ? "12a" : hour < 12 ? "\(hour)a" : hour == 12 ? "12p" : "\(hour-12)p"
-                colLabels.append("\(dateStr), \(hourStr)\n\(abbreviatedTokenCount(tokens)) tokens")
+                colLabels.append("\(dateStr), \(hour):00\n\(abbreviatedTokenCount(tokens)) tokens")
             }
             columns.append(col)
             cellLabels.append(colLabels)
         }
 
-        let hourLabels: [String] = (0..<24).map { hour in
-            if hour == 0 { return "12a" }
-            if hour < 12 { return "\(hour)a" }
-            if hour == 12 { return "12p" }
-            return "\(hour - 12)p"
-        }
-
-        return GridLayout(columns: columns, cellLabels: cellLabels, dayLabels: dayLabels, hourLabels: hourLabels)
+        return GridData(columns: columns, cellLabels: cellLabels, monthSpans: monthSpans)
     }
 
-    // MARK: - Color mapping
+    // MARK: - Color
 
     private func colorForValue(_ value: Int, maxValue: Int) -> Color {
         guard value > 0, maxValue > 0 else { return Self.colors[0] }
-        let ratio = Double(value) / Double(maxValue)
-        let level = min(Int(ratio * 6) + 1, 6)
+        let level = min(Int(Double(value) / Double(maxValue) * 6) + 1, 6)
         return Self.colors[level]
     }
 
     // MARK: - Sub-views
 
-    private func dayLabelsView(_ layout: GridLayout) -> some View {
+    private func monthLabelsView(_ spans: [(name: String, columns: Int)]) -> some View {
         HStack(spacing: 1) {
-            ForEach(Array(layout.dayLabels.enumerated()), id: \.offset) { _, label in
-                Text(label)
-                    .font(.system(size: 7))
+            ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
+                Text(span.name)
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Weight proportional to number of day columns
+                    .layoutPriority(Double(span.columns))
             }
         }
     }
 
-    private func hourLabelsView(_ layout: GridLayout) -> some View {
+    private func hourLabelsView() -> some View {
         VStack(spacing: 1) {
-            ForEach(Array(layout.hourLabels.enumerated()), id: \.offset) { idx, label in
-                // Show every 3rd hour to keep it readable
-                Text(idx % 3 == 0 ? label : "")
+            ForEach(0..<24, id: \.self) { hour in
+                Text(hour % 3 == 0 ? "\(hour)" : "")
                     .font(.system(size: 7))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
@@ -172,13 +164,13 @@ struct ActivityHeatmap: View {
         }
     }
 
-    private func gridContentView(_ layout: GridLayout, maxValue: Int) -> some View {
+    private func gridContentView(_ grid: GridData, maxValue: Int) -> some View {
         HStack(spacing: 1) {
-            ForEach(Array(layout.columns.enumerated()), id: \.offset) { colIdx, col in
+            ForEach(Array(grid.columns.enumerated()), id: \.offset) { colIdx, col in
                 VStack(spacing: 1) {
                     ForEach(Array(col.enumerated()), id: \.offset) { rowIdx, value in
-                        let tooltip = colIdx < layout.cellLabels.count && rowIdx < layout.cellLabels[colIdx].count
-                            ? layout.cellLabels[colIdx][rowIdx] : ""
+                        let tooltip = colIdx < grid.cellLabels.count && rowIdx < grid.cellLabels[colIdx].count
+                            ? grid.cellLabels[colIdx][rowIdx] : ""
                         RoundedRectangle(cornerRadius: 1)
                             .fill(colorForValue(value, maxValue: maxValue))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)

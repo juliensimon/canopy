@@ -383,44 +383,45 @@ private struct ProjectLaunchRow: View {
     let onWorktree: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Circle()
                 .fill(ProjectColor.color(for: project.colorIndex))
                 .frame(width: 8, height: 8)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(project.name)
                     .font(.system(size: 13, weight: .semibold))
-                Text(project.repositoryPath)
+                Text(shortenedPath(project.repositoryPath))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button(action: onWorktree) {
-                HStack(spacing: 4) {
-                    Text("Worktree")
-                    keycap("⌘⇧T")
-                }
+                Text("Worktree")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
 
             Button(action: onSession) {
-                HStack(spacing: 4) {
-                    Text("Session")
-                    keycap("⌘T")
-                }
+                Text("Session")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(Color.gray.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func shortenedPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 }
 
@@ -491,7 +492,7 @@ private struct ProjectQuickLaunchView: View {
             }
             .padding(20)
         }
-        .frame(maxWidth: 360)
+        .frame(maxWidth: 480)
         .sheet(isPresented: $showHelp) {
             HelpView()
         }
