@@ -236,14 +236,32 @@ enum ActivityDataService {
             }
         }
 
-        let totalModelTokens = allTimeModels.values.reduce(0, +)
+        // Group raw model IDs by family name before computing percentages,
+        // so that e.g. claude-sonnet-4-5 and claude-sonnet-4-6 are merged.
+        var familyTokens: [String: Int] = [:]
+        for (model, tokens) in allTimeModels {
+            let family = modelFamily(model)
+            familyTokens[family, default: 0] += tokens
+        }
+        let totalModelTokens = familyTokens.values.reduce(0, +)
         if totalModelTokens > 0 {
-            summary.modelBreakdown = allTimeModels
+            summary.modelBreakdown = familyTokens
                 .sorted { $0.value > $1.value }
                 .map { (name: $0.key, percentage: Int(round(Double($0.value) / Double(totalModelTokens) * 100))) }
         }
 
         return summary
+    }
+
+    // MARK: - Helpers
+
+    static func modelFamily(_ modelId: String) -> String {
+        let lower = modelId.lowercased()
+        if lower.contains("opus") { return "Opus" }
+        if lower.contains("sonnet") { return "Sonnet" }
+        if lower.contains("haiku") { return "Haiku" }
+        if lower.contains("claude") { return "Claude" }
+        return modelId
     }
 
     // MARK: - File Discovery
