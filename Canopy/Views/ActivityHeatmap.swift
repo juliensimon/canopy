@@ -125,7 +125,7 @@ struct ActivityHeatmap: View {
             colLabels.append(labelForWeek)
         }
 
-        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["Mon", "", "Wed", "", "Fri", "", "Sun"])
+        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
     }
 
     private func buildDayGrid() -> GridLayout {
@@ -172,13 +172,10 @@ struct ActivityHeatmap: View {
         }
 
         let rowLabels: [String] = (0..<24).map { hour in
-            switch hour {
-            case 0:  return "12a"
-            case 6:  return "6a"
-            case 12: return "12p"
-            case 18: return "6p"
-            default: return ""
-            }
+            if hour == 0 { return "12a" }
+            if hour < 12 { return "\(hour)a" }
+            if hour == 12 { return "12p" }
+            return "\(hour - 12)p"
         }
 
         return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: rowLabels)
@@ -231,7 +228,7 @@ struct ActivityHeatmap: View {
             labels.append(weekLabels)
         }
 
-        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["W1", "", "W3", "", "W5"])
+        return GridLayout(columns: columns, cellLabels: labels, columnLabels: colLabels, rowLabels: ["W1", "W2", "W3", "W4", "W5"])
     }
 
     // MARK: - Color mapping
