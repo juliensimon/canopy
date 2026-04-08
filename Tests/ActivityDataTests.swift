@@ -121,4 +121,22 @@ struct ActivityDataServiceTests {
         #expect(summary.busiestDayDate == "2026-04-02")
         #expect(summary.modelBreakdown.first?.name == "opus")
     }
+
+    @Test func emptyJsonlReturnsEmptyBuckets() {
+        let buckets = ActivityDataService.parseJsonlIntoBuckets("")
+        #expect(buckets.isEmpty)
+    }
+
+    @Test func filesToScanDetectsNewFiles() {
+        let cache = ActivityCache()
+        let result = ActivityDataService.filesToScan(allFiles: ["/fake/path.jsonl"], cache: cache)
+        #expect(result.count == 1)
+    }
+
+    @Test func computeSummaryEmptyBuckets() {
+        let summary = ActivityDataService.computeSummary(allBuckets: [:], periodStart: "2026-01-01")
+        #expect(summary.allTimeTotal == 0)
+        #expect(summary.periodSessionCount == 0)
+        #expect(summary.modelBreakdown.isEmpty)
+    }
 }
