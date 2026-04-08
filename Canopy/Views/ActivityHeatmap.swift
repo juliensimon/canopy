@@ -235,10 +235,8 @@ struct ActivityHeatmap: View {
     }
 
     private func rowLabelsView(_ layout: GridLayout) -> some View {
-        let rowCount = layout.columns.first?.count ?? 0
-        return VStack(spacing: 4) {
-            ForEach(0..<rowCount, id: \.self) { row in
-                let label = row < layout.rowLabels.count ? layout.rowLabels[row] : ""
+        VStack(spacing: 4) {
+            ForEach(Array(layout.rowLabels.enumerated()), id: \.offset) { _, label in
                 Text(label)
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
