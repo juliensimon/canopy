@@ -9,16 +9,12 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 64, height: 64)
-
             if let logo = Self.loadLogo() {
                 Image(nsImage: logo)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 160)
+                    .frame(maxWidth: 200)
             } else {
                 Text("Canopy")
                     .font(.title)
