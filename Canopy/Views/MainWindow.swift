@@ -85,6 +85,7 @@ struct MainWindow: View {
                                     .aspectRatio(contentMode: .fit)
                                     .frame(maxWidth: 300)
                                     .opacity(textOpacity)
+                                    .offset(y: -192)
                             }
                         }
                         .opacity(splashOpacity)
