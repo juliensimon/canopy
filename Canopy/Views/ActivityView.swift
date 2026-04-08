@@ -189,7 +189,7 @@ struct ActivityView: View {
         guard !dateStr.isEmpty else { return "—" }
         let parser = DateFormatter()
         parser.dateFormat = "yyyy-MM-dd"
-        parser.timeZone = TimeZone(identifier: "UTC")
+        parser.timeZone = .current
         guard let date = parser.date(from: dateStr) else { return dateStr }
         let display = DateFormatter()
         display.dateStyle = .medium
