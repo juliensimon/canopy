@@ -65,14 +65,16 @@ struct ActivitySummary {
     var periodTotal: Int { periodInput + periodOutput }
 }
 
-/// Formats a token count as an abbreviated string: 142.3M, 24.7K, 850.
+/// Formats a token count as an abbreviated string: 1.2T, 2.5G, 142.3M, 24.7K, 850.
 func abbreviatedTokenCount(_ count: Int) -> String {
-    if count >= 1_000_000 {
-        let millions = Double(count) / 1_000_000.0
-        return String(format: "%.1fM", millions)
+    if count >= 1_000_000_000_000 {
+        return String(format: "%.1fT", Double(count) / 1_000_000_000_000.0)
+    } else if count >= 1_000_000_000 {
+        return String(format: "%.1fG", Double(count) / 1_000_000_000.0)
+    } else if count >= 1_000_000 {
+        return String(format: "%.1fM", Double(count) / 1_000_000.0)
     } else if count >= 1_000 {
-        let thousands = Double(count) / 1_000.0
-        return String(format: "%.1fK", thousands)
+        return String(format: "%.1fK", Double(count) / 1_000.0)
     } else {
         return "\(count)"
     }

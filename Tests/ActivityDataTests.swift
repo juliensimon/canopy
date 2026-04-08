@@ -38,6 +38,18 @@ struct ActivityDataTests {
     @Test func abbreviatedTokenCountExactThousand() {
         #expect(abbreviatedTokenCount(1_000) == "1.0K")
     }
+
+    @Test func abbreviatedTokenCountBillions() {
+        #expect(abbreviatedTokenCount(2_500_000_000) == "2.5G")
+    }
+
+    @Test func abbreviatedTokenCountTrillions() {
+        #expect(abbreviatedTokenCount(1_200_000_000_000) == "1.2T")
+    }
+
+    @Test func abbreviatedTokenCountExactBillion() {
+        #expect(abbreviatedTokenCount(1_000_000_000) == "1.0G")
+    }
 }
 
 @Suite("ActivityDataService")
