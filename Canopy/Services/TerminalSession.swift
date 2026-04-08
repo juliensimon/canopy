@@ -144,8 +144,48 @@ final class TerminalSession: ObservableObject {
             rawOutput.removeFirst(rawOutput.count - maxRawOutputSize)
         }
 
+        guard containsVisibleContent(data) else { return }
         activity = .working
         restartIdleTimer()
+    }
+
+    /// Returns true if data contains printable characters beyond terminal control sequences.
+    private func containsVisibleContent(_ data: Data) -> Bool {
+        var i = data.startIndex
+        while i < data.endIndex {
+            let byte = data[i]
+            // Skip ESC sequences
+            if byte == 0x1B {
+                i = data.index(after: i)
+                guard i < data.endIndex else { return false }
+                let next = data[i]
+                if next == UInt8(ascii: "[") || next == UInt8(ascii: "]") || next == UInt8(ascii: ">") {
+                    // CSI/OSC/DEC: skip until terminator
+                    i = data.index(after: i)
+                    while i < data.endIndex {
+                        let c = data[i]
+                        if next == UInt8(ascii: "]") {
+                            // OSC terminates with BEL (0x07) or ST (ESC \)
+                            if c == 0x07 { i = data.index(after: i); break }
+                        } else if c >= 0x40 && c <= 0x7E {
+                            // CSI terminates with a letter
+                            i = data.index(after: i); break
+                        }
+                        i = data.index(after: i)
+                    }
+                } else {
+                    // Two-char escape (e.g. ESC = or ESC >)
+                    i = data.index(after: i)
+                }
+                continue
+            }
+            // Skip CR, LF, space, and common control chars
+            if byte == 0x0D || byte == 0x0A || byte == 0x08 { i = data.index(after: i); continue }
+            // Any printable ASCII or UTF-8 start byte → visible content
+            if byte >= 0x21 && byte != 0x7F { return true }
+            i = data.index(after: i)
+        }
+        return false
     }
 
     private func restartIdleTimer() {
