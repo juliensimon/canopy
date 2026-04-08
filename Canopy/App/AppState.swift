@@ -54,6 +54,10 @@ final class AppState: ObservableObject {
     @Published var worktreeSetupInProgress = false
     @Published var worktreeSetupStatus: String?
 
+    /// Pre-loaded activity data, populated at startup so the dashboard opens instantly.
+    @Published var cachedActivityBuckets: [String: DailyBucket]?
+    @Published var cachedActivitySummary: ActivitySummary?
+
     /// When true, session mutations skip saving (app is terminating).
     var isTerminating = false
 
@@ -501,6 +505,19 @@ final class AppState: ObservableObject {
     private func saveProjects() {
         guard let data = try? JSONEncoder().encode(projects) else { return }
         FileManager.default.createFile(atPath: projectsFilePath, contents: data)
+    }
+
+    // MARK: - Activity Data Pre-loading
+
+    /// Indexes all Claude Code JSONL files in the background at startup.
+    func preloadActivityData() {
+        Task.detached(priority: .utility) {
+            let result = ActivityDataService.loadData(granularity: .week)
+            await MainActor.run {
+                self.cachedActivityBuckets = result.buckets
+                self.cachedActivitySummary = result.summary
+            }
+        }
     }
 }
 

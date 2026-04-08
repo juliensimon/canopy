@@ -32,6 +32,7 @@ struct CanopyApp: App {
                 .task {
                     appState.loadProjects()
                     appState.loadSessions()
+                    appState.preloadActivityData()
                 }
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)

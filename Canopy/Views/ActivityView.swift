@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Main activity dashboard: stats cards + heatmap.
 struct ActivityView: View {
+    @EnvironmentObject var appState: AppState
     @State private var granularity: Granularity = .week
     @State private var isLoading = false
     @State private var summary = ActivitySummary()
@@ -33,8 +34,9 @@ struct ActivityView: View {
             }
             .frame(height: 90)
 
-            // Heatmap fills remaining space
+            // Heatmap fills remaining space — id forces full recreation on granularity change
             ActivityHeatmap(buckets: buckets, granularity: granularity)
+                .id(granularity)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(16)
@@ -46,8 +48,8 @@ struct ActivityView: View {
                     .scaleEffect(0.8)
             }
         }
-        .onAppear { loadData() }
-        .onChange(of: granularity) { loadData() }
+        .onAppear { loadData(useCache: true) }
+        .onChange(of: granularity) { loadData(useCache: false) }
     }
 
     // MARK: - Granularity Picker
@@ -158,7 +160,16 @@ struct ActivityView: View {
 
     // MARK: - Data Loading
 
-    private func loadData() {
+    private func loadData(useCache: Bool) {
+        // On first open with default granularity, use pre-loaded data if available
+        if useCache && granularity == .week,
+           let cached = appState.cachedActivityBuckets,
+           let cachedSummary = appState.cachedActivitySummary {
+            buckets = cached
+            summary = cachedSummary
+            return
+        }
+
         loadTask?.cancel()
         isLoading = true
         let g = granularity
@@ -166,7 +177,7 @@ struct ActivityView: View {
             let result = ActivityDataService.loadData(granularity: g)
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard self.granularity == g else { return } // stale result
+                guard self.granularity == g else { return }
                 self.summary = result.summary
                 self.buckets = result.buckets
                 self.isLoading = false
