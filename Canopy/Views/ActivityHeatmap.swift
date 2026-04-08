@@ -141,16 +141,24 @@ struct ActivityHeatmap: View {
     // MARK: - Sub-views
 
     private func monthLabelsView(_ spans: [(name: String, columns: Int)]) -> some View {
-        HStack(spacing: 1) {
-            ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
-                Text(span.name)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Weight proportional to number of day columns
-                    .layoutPriority(Double(span.columns))
+        GeometryReader { geo in
+            let totalCols = spans.reduce(0) { $0 + $1.columns }
+            let totalSpacing = CGFloat(totalCols - 1) // 1pt spacing per gap
+            let availableWidth = geo.size.width - totalSpacing
+            let colWidth = totalCols > 0 ? availableWidth / CGFloat(totalCols) : 0
+
+            HStack(spacing: 0) {
+                ForEach(Array(spans.enumerated()), id: \.offset) { idx, span in
+                    let spanWidth = colWidth * CGFloat(span.columns) + CGFloat(span.columns - 1)
+                    Text(span.name)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: spanWidth, alignment: .leading)
+                        .clipped()
+                }
             }
         }
+        .frame(height: 14)
     }
 
     private func hourLabelsView() -> some View {
