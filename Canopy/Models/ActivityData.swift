@@ -34,7 +34,7 @@ enum Granularity: String, CaseIterable {
 
 /// Persistent cache for scanned JSONL data.
 struct ActivityCache: Codable {
-    static let currentVersion = 2
+    static let currentVersion = 3
 
     var version: Int = ActivityCache.currentVersion
     var lastScanTimestamp: Date = .distantPast
@@ -43,6 +43,8 @@ struct ActivityCache: Codable {
     /// Per-file daily buckets. Key is the file path, value is date→bucket.
     /// This allows replacing a file's contribution on re-scan without double-counting.
     var fileBuckets: [String: [String: DailyBucket]] = [:]
+    /// Pre-computed aggregate of all fileBuckets. Avoids re-aggregating when nothing changed.
+    var aggregatedBuckets: [String: DailyBucket]?
 }
 
 /// Metadata about a scanned JSONL file for incremental cache updates.

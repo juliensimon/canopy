@@ -3,6 +3,24 @@ import Foundation
 /// Scans Claude Code JSONL session files and manages a cached activity index.
 enum ActivityDataService {
 
+    // MARK: - Shared formatters (created once per loadData call, passed around)
+
+    struct Formatters {
+        let iso8601: ISO8601DateFormatter
+        let iso8601NoFrac: ISO8601DateFormatter
+        let dayFmt: DateFormatter
+
+        init() {
+            iso8601 = ISO8601DateFormatter()
+            iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            iso8601NoFrac = ISO8601DateFormatter()
+            iso8601NoFrac.formatOptions = [.withInternetDateTime]
+            dayFmt = DateFormatter()
+            dayFmt.dateFormat = "yyyy-MM-dd"
+            dayFmt.timeZone = .current
+        }
+    }
+
     // MARK: - Public API
 
     /// Load activity data, using cache for incremental updates.
@@ -13,11 +31,13 @@ enum ActivityDataService {
             cache = ActivityCache()
         }
 
+        let formatters = Formatters()
         let allJsonlFiles = Set(findAllJsonlFiles())
         let toScan = filesToScan(allFiles: Array(allJsonlFiles), cache: cache)
 
         // Remove deleted files from cache
         let staleFiles = cache.scannedFiles.keys.filter { !allJsonlFiles.contains($0) }
+        var cacheChanged = !staleFiles.isEmpty || !toScan.isEmpty
         for stale in staleFiles {
             cache.scannedFiles.removeValue(forKey: stale)
             cache.fileBuckets.removeValue(forKey: stale)
@@ -25,8 +45,7 @@ enum ActivityDataService {
 
         // Scan new/changed files — REPLACE per-file buckets (no additive merge)
         for filePath in toScan {
-            guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else { continue }
-            let fileBuckets = parseJsonlIntoBuckets(content)
+            let fileBuckets = parseJsonlFile(atPath: filePath, formatters: formatters)
             cache.fileBuckets[filePath] = fileBuckets
 
             let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
@@ -36,65 +55,92 @@ enum ActivityDataService {
             )
         }
 
-        cache.lastScanTimestamp = Date()
-        saveCache(cache)
+        // Re-aggregate only if something changed, otherwise use cached aggregate
+        let aggregated: [String: DailyBucket]
+        if cacheChanged || cache.aggregatedBuckets == nil {
+            let freshAggregate = aggregateBuckets(cache.fileBuckets)
+            cache.aggregatedBuckets = freshAggregate
+            aggregated = freshAggregate
+        } else {
+            aggregated = cache.aggregatedBuckets!
+        }
 
-        // Aggregate all per-file buckets into a single daily bucket dictionary
-        let aggregated = aggregateBuckets(cache.fileBuckets)
+        if cacheChanged {
+            cache.lastScanTimestamp = Date()
+            saveCache(cache)
+        }
 
         let periodStart = periodStartDate(for: granularity)
         let summary = computeSummary(allBuckets: aggregated, periodStart: periodStart)
         return (summary, aggregated)
     }
 
-    // MARK: - JSONL Parsing
+    // MARK: - JSONL Parsing (line-by-line from disk)
 
-    /// Parse a single JSONL file into daily buckets.
-    /// Creates formatters locally per call to avoid thread-safety issues.
-    static func parseJsonlIntoBuckets(_ content: String) -> [String: DailyBucket] {
-        let iso8601 = ISO8601DateFormatter()
-        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    /// Parse a JSONL file line-by-line without loading the entire file into memory.
+    static func parseJsonlFile(atPath path: String, formatters: Formatters) -> [String: DailyBucket] {
+        guard let fileHandle = FileHandle(forReadingAtPath: path) else { return [:] }
+        defer { fileHandle.closeFile() }
 
-        let iso8601NoFrac = ISO8601DateFormatter()
-        iso8601NoFrac.formatOptions = [.withInternetDateTime]
+        let data = fileHandle.readDataToEndOfFile()
+        return parseJsonlIntoBuckets(data, formatters: formatters)
+    }
 
-        let dayFmt = DateFormatter()
-        dayFmt.dateFormat = "yyyy-MM-dd"
-        dayFmt.timeZone = .current
-
+    /// Parse JSONL data into daily buckets.
+    static func parseJsonlIntoBuckets(_ data: Data, formatters: Formatters) -> [String: DailyBucket] {
         var buckets: [String: DailyBucket] = [:]
         var hasAssistantEntry = false
 
-        for line in content.split(separator: "\n") {
-            guard let data = line.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  obj["type"] as? String == "assistant",
-                  let message = obj["message"] as? [String: Any],
-                  let usageDict = message["usage"] as? [String: Any],
-                  let timestamp = obj["timestamp"] as? String else {
-                continue
+        // Process line by line from raw data
+        let assistantMarker = Data("\"type\":\"assistant\"".utf8)
+
+        data.withUnsafeBytes { buffer in
+            guard let base = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+            let count = buffer.count
+            var lineStart = 0
+
+            for i in 0...count {
+                let isEnd = (i == count) || (base[i] == UInt8(ascii: "\n"))
+                guard isEnd, i > lineStart else {
+                    if isEnd { lineStart = i + 1 }
+                    continue
+                }
+
+                let lineData = Data(bytes: base + lineStart, count: i - lineStart)
+                lineStart = i + 1
+
+                // Fast skip: only JSON-parse lines containing "type":"assistant"
+                guard lineData.range(of: assistantMarker) != nil else { continue }
+
+                guard let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                      obj["type"] as? String == "assistant",
+                      let message = obj["message"] as? [String: Any],
+                      let usageDict = message["usage"] as? [String: Any],
+                      let timestamp = obj["timestamp"] as? String else {
+                    continue
+                }
+
+                guard let date = formatters.iso8601.date(from: timestamp)
+                        ?? formatters.iso8601NoFrac.date(from: timestamp) else {
+                    continue
+                }
+                let dayKey = formatters.dayFmt.string(from: date)
+
+                let inputTokens = (usageDict["input_tokens"] as? Int ?? 0)
+                    + (usageDict["cache_creation_input_tokens"] as? Int ?? 0)
+                    + (usageDict["cache_read_input_tokens"] as? Int ?? 0)
+                let outputTokens = usageDict["output_tokens"] as? Int ?? 0
+                let model = message["model"] as? String ?? "unknown"
+                let modelTokens = inputTokens + outputTokens
+
+                var bucket = buckets[dayKey] ?? DailyBucket()
+                bucket.inputTokens += inputTokens
+                bucket.outputTokens += outputTokens
+                bucket.models[model, default: 0] += modelTokens
+                buckets[dayKey] = bucket
+
+                hasAssistantEntry = true
             }
-
-            // Try fractional seconds first, then without
-            guard let date = iso8601.date(from: timestamp) ?? iso8601NoFrac.date(from: timestamp) else {
-                continue
-            }
-            let dayKey = dayFmt.string(from: date)
-
-            let inputTokens = (usageDict["input_tokens"] as? Int ?? 0)
-                + (usageDict["cache_creation_input_tokens"] as? Int ?? 0)
-                + (usageDict["cache_read_input_tokens"] as? Int ?? 0)
-            let outputTokens = usageDict["output_tokens"] as? Int ?? 0
-            let model = message["model"] as? String ?? "unknown"
-            let modelTokens = inputTokens + outputTokens
-
-            var bucket = buckets[dayKey] ?? DailyBucket()
-            bucket.inputTokens += inputTokens
-            bucket.outputTokens += outputTokens
-            bucket.models[model, default: 0] += modelTokens
-            buckets[dayKey] = bucket
-
-            hasAssistantEntry = true
         }
 
         // Count one session per file, attributed to the earliest day
@@ -103,6 +149,12 @@ enum ActivityDataService {
         }
 
         return buckets
+    }
+
+    /// Parse from String content (for tests).
+    static func parseJsonlIntoBuckets(_ content: String) -> [String: DailyBucket] {
+        guard let data = content.data(using: .utf8) else { return [:] }
+        return parseJsonlIntoBuckets(data, formatters: Formatters())
     }
 
     // MARK: - Bucket Aggregation
