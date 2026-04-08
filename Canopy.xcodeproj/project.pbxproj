@@ -56,6 +56,10 @@
 		F947F0BD6885AEF08CEF331A /* ProjectResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D422E570979B7E618CD81A /* ProjectResolutionTests.swift */; };
 		FAB222A456A757DE4298D4A7 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A4D3C785D57591E26D53FD6 /* MainWindow.swift */; };
 		FDEDB0A944CA58BA42876DF5 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C6EF49762707F54BEAD160 /* Settings.swift */; };
+		4A18D3BB1FA27E40900CEF21 /* ActivityData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78BF187502833BD470118C9 /* ActivityData.swift */; };
+		DB80B8E728010520D7F8985C /* ActivityDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA1DA260840960CD2F841F5 /* ActivityDataService.swift */; };
+		69F0342C0CBAFADD334EEB5A /* ActivityHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835751656BBB239C13FEAB31 /* ActivityHeatmap.swift */; };
+		8C553D679DE6EEE97C722BA1 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22F1979F08E86E4B9BE122A /* ActivityView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -120,6 +124,10 @@
 		EB57402CEF34C579AE3ED054 /* SettingsEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEdgeCaseTests.swift; sourceTree = "<group>"; };
 		FCCD73E1AAF4DB1313798423 /* GitServiceEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitServiceEdgeCaseTests.swift; sourceTree = "<group>"; };
 		FDCCBC975F1E040A1EB8E648 /* AppStatePersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePersistenceTests.swift; sourceTree = "<group>"; };
+		D78BF187502833BD470118C9 /* ActivityData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityData.swift; sourceTree = "<group>"; };
+		4DA1DA260840960CD2F841F5 /* ActivityDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDataService.swift; sourceTree = "<group>"; };
+		835751656BBB239C13FEAB31 /* ActivityHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityHeatmap.swift; sourceTree = "<group>"; };
+		E22F1979F08E86E4B9BE122A /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +145,8 @@
 		1448EDE9E8C372F3306CA622 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				E22F1979F08E86E4B9BE122A /* ActivityView.swift */,
+				835751656BBB239C13FEAB31 /* ActivityHeatmap.swift */,
 				9414820607B039974EEC65B0 /* AboutView.swift */,
 				D482C3938E22482339DC13E5 /* ActivityDot.swift */,
 				028C5B5137B3ECE6C957B6EC /* AddProjectSheet.swift */,
@@ -162,6 +172,7 @@
 		2723E2E765D22548C4C19E25 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4DA1DA260840960CD2F841F5 /* ActivityDataService.swift */,
 				380F49104F9CB7D2D472F216 /* GitService.swift */,
 				9D974FBD7BD5BBBDF64BE541 /* SessionCostService.swift */,
 				27744AE57F084B3F805FCE26 /* TerminalSession.swift */,
@@ -181,6 +192,7 @@
 		73D176B495E4FAE4259E14DF /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				D78BF187502833BD470118C9 /* ActivityData.swift */,
 				ABDE785C75EE225F22CA2DCF /* CLAUDE.md */,
 				9697FE4298A6EA5B8C4971A4 /* Project.swift */,
 				A2C6EF49762707F54BEAD160 /* Settings.swift */,
@@ -347,6 +359,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8C553D679DE6EEE97C722BA1 /* ActivityView.swift in Sources */,
+				69F0342C0CBAFADD334EEB5A /* ActivityHeatmap.swift in Sources */,
+				DB80B8E728010520D7F8985C /* ActivityDataService.swift in Sources */,
+				4A18D3BB1FA27E40900CEF21 /* ActivityData.swift in Sources */,
 				5ADD93F25B00D2714A1EFD72 /* AboutView.swift in Sources */,
 				EA5203931771989D35C133F1 /* ActivityDot.swift in Sources */,
 				359123E05E912D39DBE9FEAE /* AddProjectSheet.swift in Sources */,
