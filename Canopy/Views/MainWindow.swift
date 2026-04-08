@@ -59,7 +59,7 @@ struct MainWindow: View {
                 Color(nsColor: .windowBackgroundColor)
                     .ignoresSafeArea()
                     .overlay {
-                        VStack(spacing: 16) {
+                        ZStack {
                             Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                                 .resizable()
                                 .interpolation(.high)
