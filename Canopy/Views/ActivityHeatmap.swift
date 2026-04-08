@@ -277,6 +277,7 @@ struct ActivityHeatmap: View {
                         RoundedRectangle(cornerRadius: 3)
                             .fill(colorForValue(value, maxValue: maxValue))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
                             .help(tooltip)
                     }
                 }
