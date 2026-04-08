@@ -7,9 +7,9 @@ struct ActivityView: View {
     @State private var summary = ActivitySummary()
     @State private var hourlyBuckets: [String: HourlyBucket] = [:]
 
-    private let cardBackground = Color(red: 0.102, green: 0.090, blue: 0.188)
-    private let cardBorder    = Color(red: 0.165, green: 0.145, blue: 0.271)
-    private let accentPurple  = Color(red: 0.486, green: 0.227, blue: 0.929)
+    private let cardBackground = Color(red: 0.06, green: 0.08, blue: 0.06)
+    private let cardBorder    = Color(red: 0.12, green: 0.18, blue: 0.12)
+    private let accentGreen   = Color(red: 0.30, green: 0.75, blue: 0.32)
 
     var body: some View {
         VStack(spacing: 12) {
@@ -57,7 +57,7 @@ struct ActivityView: View {
         StatCard(title: "ALL-TIME TOKENS", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text(abbreviatedTokenCount(summary.allTimeTotal))
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(accentPurple)
+                .foregroundStyle(accentGreen)
             Text("In: \(abbreviatedTokenCount(summary.allTimeInput))  Out: \(abbreviatedTokenCount(summary.allTimeOutput))")
                 .font(.system(size: 9))
                 .foregroundStyle(.tertiary)
@@ -99,7 +99,7 @@ struct ActivityView: View {
             if let top = summary.modelBreakdown.first {
                 Text("\(shortModelName(top.name)) \(top.percentage)%")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(accentPurple)
+                    .foregroundStyle(accentGreen)
                 ForEach(summary.modelBreakdown.dropFirst().prefix(2), id: \.name) { entry in
                     Text("\(shortModelName(entry.name)) \(entry.percentage)%")
                         .font(.system(size: 9))

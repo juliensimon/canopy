@@ -1,23 +1,25 @@
 import SwiftUI
 
-/// GitHub-style contribution heatmap — 12 weeks × 24 hours per day.
+/// Forest canopy-themed contribution heatmap — 12 weeks × 24 hours per day.
+/// Active cells gently sway in opacity like light filtering through leaves.
 struct ActivityHeatmap: View {
     let hourlyBuckets: [String: HourlyBucket]
 
+    // Forest green palette: dark moss → emerald → bright canopy
     private static let colors: [Color] = [
-        Color(red: 0.118, green: 0.118, blue: 0.227),  // empty
-        Color(red: 0.145, green: 0.110, blue: 0.310),
-        Color(red: 0.176, green: 0.106, blue: 0.412),
-        Color(red: 0.240, green: 0.110, blue: 0.540),
-        Color(red: 0.310, green: 0.120, blue: 0.650),
-        Color(red: 0.400, green: 0.160, blue: 0.780),
-        Color(red: 0.486, green: 0.227, blue: 0.929),  // max
+        Color(red: 0.08, green: 0.10, blue: 0.08),   // empty — dark forest floor
+        Color(red: 0.08, green: 0.16, blue: 0.08),   // level 1 — deep moss
+        Color(red: 0.10, green: 0.24, blue: 0.10),   // level 2 — dark fern
+        Color(red: 0.12, green: 0.34, blue: 0.14),   // level 3 — forest shade
+        Color(red: 0.16, green: 0.46, blue: 0.18),   // level 4 — mid canopy
+        Color(red: 0.22, green: 0.60, blue: 0.24),   // level 5 — bright leaf
+        Color(red: 0.30, green: 0.75, blue: 0.32),   // level 6 — sunlit canopy
     ]
 
     private struct GridData {
-        var columns: [[Int]]       // [dayIndex][hour] = tokens
-        var cellLabels: [[String]] // hover tooltips
-        var monthSpans: [(name: String, columns: Int)] // merged month headers
+        var columns: [[Int]]
+        var cellLabels: [[String]]
+        var monthSpans: [(name: String, columns: Int)]
     }
 
     var body: some View {
@@ -34,7 +36,6 @@ struct ActivityHeatmap: View {
             }
             .padding(.bottom, 6)
 
-            // Month labels — merged cells spanning the correct day columns
             monthLabelsView(grid.monthSpans)
                 .padding(.leading, 24)
                 .padding(.bottom, 2)
@@ -48,11 +49,8 @@ struct ActivityHeatmap: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color(red: 0.102, green: 0.090, blue: 0.188))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(red: 0.165, green: 0.145, blue: 0.271), lineWidth: 1)
-                )
+                .fill(Color(red: 0.06, green: 0.08, blue: 0.06))
+                .stroke(Color(red: 0.12, green: 0.18, blue: 0.12), lineWidth: 1)
         )
     }
 
@@ -94,8 +92,6 @@ struct ActivityHeatmap: View {
         let totalDays = 12 * 7
         var columns: [[Int]] = []
         var cellLabels: [[String]] = []
-
-        // Track month spans for merged headers
         var monthSpans: [(name: String, columns: Int)] = []
         let monthNameFmt = DateFormatter()
         monthNameFmt.dateFormat = "MMMM"
@@ -107,7 +103,6 @@ struct ActivityHeatmap: View {
             let dayKey = dateFmt.string(from: date)
             let month = calendar.component(.month, from: date)
 
-            // Track month transitions
             if month != currentMonth {
                 monthSpans.append((name: monthNameFmt.string(from: date), columns: 1))
                 currentMonth = month
@@ -143,12 +138,12 @@ struct ActivityHeatmap: View {
     private func monthLabelsView(_ spans: [(name: String, columns: Int)]) -> some View {
         GeometryReader { geo in
             let totalCols = spans.reduce(0) { $0 + $1.columns }
-            let totalSpacing = CGFloat(totalCols - 1) // 1pt spacing per gap
+            let totalSpacing = CGFloat(totalCols - 1)
             let availableWidth = geo.size.width - totalSpacing
             let colWidth = totalCols > 0 ? availableWidth / CGFloat(totalCols) : 0
 
             HStack(spacing: 0) {
-                ForEach(Array(spans.enumerated()), id: \.offset) { idx, span in
+                ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
                     let spanWidth = colWidth * CGFloat(span.columns) + CGFloat(span.columns - 1)
                     Text(span.name)
                         .font(.system(size: 9, weight: .medium))
@@ -179,11 +174,13 @@ struct ActivityHeatmap: View {
                     ForEach(Array(col.enumerated()), id: \.offset) { rowIdx, value in
                         let tooltip = colIdx < grid.cellLabels.count && rowIdx < grid.cellLabels[colIdx].count
                             ? grid.cellLabels[colIdx][rowIdx] : ""
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(colorForValue(value, maxValue: maxValue))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                            .help(tooltip)
+                        LeafCell(
+                            color: colorForValue(value, maxValue: maxValue),
+                            isActive: value > 0,
+                            seed: colIdx * 24 + rowIdx
+                        )
+                        .contentShape(Rectangle())
+                        .help(tooltip)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -192,9 +189,50 @@ struct ActivityHeatmap: View {
     }
 }
 
+// MARK: - Animated leaf cell
+
+/// A single heatmap cell that gently sways in opacity when active,
+/// like light filtering through a canopy.
+private struct LeafCell: View {
+    let color: Color
+    let isActive: Bool
+    let seed: Int
+
+    @State private var swaying = false
+
+    // Each cell gets a unique duration and delay based on its seed,
+    // so the sway looks organic, not synchronized.
+    private var duration: Double {
+        3.5 + Double(seed % 7) * 0.5 // 3.5–7.0 seconds
+    }
+
+    private var delay: Double {
+        Double(seed % 13) * 0.3 // 0–3.9 second offset
+    }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(color)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(swaying && isActive ? 0.75 : 1.0)
+            .onAppear {
+                guard isActive else { return }
+                withAnimation(
+                    .easeInOut(duration: duration)
+                    .repeatForever(autoreverses: true)
+                    .delay(delay)
+                ) {
+                    swaying = true
+                }
+            }
+    }
+}
+
+// MARK: - Preview
+
 #Preview {
     ActivityHeatmap(hourlyBuckets: [:])
         .padding()
         .frame(width: 900, height: 400)
-        .background(Color(red: 0.08, green: 0.07, blue: 0.15))
+        .background(Color(red: 0.05, green: 0.06, blue: 0.05))
 }
