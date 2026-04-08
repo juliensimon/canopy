@@ -6,10 +6,13 @@ struct ActivityHeatmap: View {
     let granularity: Granularity
 
     private static let colors: [Color] = [
-        Color(red: 0.118, green: 0.118, blue: 0.227),  // #1e1e3a
-        Color(red: 0.176, green: 0.106, blue: 0.412),  // #2d1b69
-        Color(red: 0.357, green: 0.129, blue: 0.714),  // #5b21b6
-        Color(red: 0.486, green: 0.227, blue: 0.929),  // #7c3aed
+        Color(red: 0.118, green: 0.118, blue: 0.227),  // #1e1e3a — empty
+        Color(red: 0.145, green: 0.110, blue: 0.310),  // level 1
+        Color(red: 0.176, green: 0.106, blue: 0.412),  // level 2
+        Color(red: 0.240, green: 0.110, blue: 0.540),  // level 3
+        Color(red: 0.310, green: 0.120, blue: 0.650),  // level 4
+        Color(red: 0.400, green: 0.160, blue: 0.780),  // level 5
+        Color(red: 0.486, green: 0.227, blue: 0.929),  // level 6 — max
     ]
 
     struct GridLayout {
@@ -62,7 +65,7 @@ struct ActivityHeatmap: View {
             Text("Less")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-            ForEach(0..<4, id: \.self) { level in
+            ForEach(0..<7, id: \.self) { level in
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Self.colors[level])
                     .frame(width: 10, height: 10)
@@ -236,11 +239,9 @@ struct ActivityHeatmap: View {
     private func colorForValue(_ value: Int, maxValue: Int) -> Color {
         guard value > 0, maxValue > 0 else { return Self.colors[0] }
         let ratio = Double(value) / Double(maxValue)
-        switch ratio {
-        case ..<0.25: return Self.colors[1]
-        case ..<0.50: return Self.colors[2]
-        default:      return Self.colors[3]
-        }
+        // 6 levels mapped to even percentile bands
+        let level = min(Int(ratio * 6) + 1, 6)
+        return Self.colors[level]
     }
 
     // MARK: - Sub-views (take layout as parameter — computed once)
