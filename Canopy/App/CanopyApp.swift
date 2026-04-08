@@ -137,6 +137,11 @@ struct CanopyApp: App {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
 
                 Divider()
+
+                Button("Activity Dashboard") {
+                    appState.selectActivity()
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
             }
 
             CommandMenu("Tabs") {

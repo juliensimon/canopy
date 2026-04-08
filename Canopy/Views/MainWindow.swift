@@ -24,6 +24,8 @@ struct MainWindow: View {
                             TerminalInsetView(session: activeSession, appState: appState)
                                 .id(activeSession.id)
                                 .transition(.opacity)
+                        } else if appState.showActivity {
+                            ActivityView()
                         } else if let projectId = appState.selectedProjectId,
                                   let project = appState.projects.first(where: { $0.id == projectId }) {
                             ProjectDetailView(project: project)

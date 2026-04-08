@@ -41,6 +41,8 @@ final class AppState: ObservableObject {
     @Published var showAddProjectSheet = false
     @Published var showSettings = false
     @Published var showCommandPalette = false
+    /// Whether the Activity dashboard is currently shown.
+    @Published var showActivity = false
     @Published var showTerminalSearch = false
     @Published var showCloseConfirmation = false
     @Published var pendingCloseSessionId: UUID?
@@ -98,11 +100,19 @@ final class AppState: ObservableObject {
     func selectSession(_ id: UUID) {
         activeSessionId = id
         selectedProjectId = nil
+        showActivity = false
     }
 
     func selectProject(_ id: UUID) {
         activeSessionId = nil
         selectedProjectId = id
+        showActivity = false
+    }
+
+    func selectActivity() {
+        activeSessionId = nil
+        selectedProjectId = nil
+        showActivity = true
     }
 
     // MARK: - Session Management
