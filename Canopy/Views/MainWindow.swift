@@ -59,22 +59,22 @@ struct MainWindow: View {
                 Color(nsColor: .windowBackgroundColor)
                     .ignoresSafeArea()
                     .overlay {
-                        ZStack {
+                        VStack(spacing: 16) {
                             Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                                 .resizable()
                                 .interpolation(.high)
                                 .aspectRatio(contentMode: .fit)
-                                .frame(maxWidth: 600, maxHeight: 600)
+                                .frame(width: 768, height: 768)
                                 .mask(
                                     RadialGradient(
                                         gradient: Gradient(stops: [
                                             .init(color: .white, location: 0),
-                                            .init(color: .white, location: 0.45),
-                                            .init(color: .clear, location: 0.75)
+                                            .init(color: .white, location: 0.55),
+                                            .init(color: .clear, location: 0.85)
                                         ]),
                                         center: .center,
                                         startRadius: 0,
-                                        endRadius: 300
+                                        endRadius: 384
                                     )
                                 )
 
@@ -83,9 +83,8 @@ struct MainWindow: View {
                                     .resizable()
                                     .interpolation(.high)
                                     .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 400)
+                                    .frame(maxWidth: 300)
                                     .opacity(textOpacity)
-                                    .offset(y: 120)
                             }
                         }
                         .opacity(splashOpacity)
