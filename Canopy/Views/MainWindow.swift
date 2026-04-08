@@ -78,24 +78,15 @@ struct MainWindow: View {
                                     )
                                 )
 
-                            Text("Canopy")
-                                .font(.custom("Optima Bold", size: 52))
-                                .tracking(10)
-                                .foregroundStyle(
-                                    RadialGradient(
-                                        colors: [
-                                            Color(red: 0.4, green: 0.85, blue: 0.55),
-                                            Color(red: 0.25, green: 0.65, blue: 0.35),
-                                            Color(red: 0.15, green: 0.45, blue: 0.25)
-                                        ],
-                                        center: .center,
-                                        startRadius: 0,
-                                        endRadius: 180
-                                    )
-                                )
-                                .shadow(color: Color(red: 0.3, green: 0.7, blue: 0.4).opacity(0.6), radius: 20)
-                                .opacity(textOpacity)
-                                .offset(y: 120)
+                            if let logoImage = Self.loadLogo() {
+                                Image(nsImage: logoImage)
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 400)
+                                    .opacity(textOpacity)
+                                    .offset(y: 120)
+                            }
                         }
                         .opacity(splashOpacity)
                     }
@@ -134,6 +125,20 @@ struct MainWindow: View {
         .onAppear {
             appState.loadProjects()
         }
+    }
+
+    /// Load the logo PNG from the app bundle or Resources directory.
+    private static func loadLogo() -> NSImage? {
+        // Xcode build: bundle resource
+        if let path = Bundle.main.path(forResource: "CanopyLogo", ofType: "png") {
+            return NSImage(contentsOfFile: path)
+        }
+        // SPM/bundle.sh: relative to executable
+        if let exec = Bundle.main.executablePath {
+            let resourcesDir = ((exec as NSString).deletingLastPathComponent as NSString).appendingPathComponent("../Resources/CanopyLogo.png")
+            return NSImage(contentsOfFile: resourcesDir)
+        }
+        return nil
     }
 }
 
