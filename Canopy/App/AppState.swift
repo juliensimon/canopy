@@ -86,6 +86,13 @@ final class AppState: ObservableObject {
             guard let self, let id = self.activeSessionId else { return }
             self.toggleSplitTerminal(for: id)
         }
+        NotificationCenter.default.addObserver(forName: .canopySelectTab, object: nil, queue: .main) { [weak self] note in
+            guard let self, let index = note.object as? Int else { return }
+            let sessions = self.orderedSessions
+            if index <= sessions.count {
+                self.selectSession(sessions[index - 1].id)
+            }
+        }
     }
 
     var activeSession: SessionInfo? {

@@ -1,18 +1,19 @@
 import SwiftUI
+import SwiftTerm
 
 struct TerminalSearchBar: View {
     let terminalSession: TerminalSession
     @Binding var isVisible: Bool
     var initialQuery: String = ""
+
     @State private var query = ""
-    @State private var matches: [SearchMatch] = []
-    @State private var currentMatchIndex = 0
+    @State private var matches: [Match] = []
+    @State private var currentIndex = 0
     @FocusState private var isSearchFocused: Bool
 
-    struct SearchMatch: Identifiable {
-        let id = UUID()
-        let lineNumber: Int
-        let line: String
+    struct Match {
+        let snippet: String   // ~60 chars around the hit
+        let lineIndex: Int    // line number in getFullText() output
     }
 
     var body: some View {
@@ -22,73 +23,55 @@ struct TerminalSearchBar: View {
                     .foregroundStyle(.secondary)
                     .font(.system(size: 12))
 
-                TextField("Search terminal output...", text: $query)
+                TextField("Search terminal...", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .focused($isSearchFocused)
-                    .onSubmit { nextMatch() }
+                    .foregroundColor(matches.isEmpty && !query.isEmpty ? .red : nil)
+                    .onSubmit { navigate(by: 1) }
 
                 if !matches.isEmpty {
-                    Text("\(currentMatchIndex + 1)/\(matches.count)")
+                    Text("\(currentIndex + 1)/\(matches.count)")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
-
-                    Button(action: { previousMatch() }) {
-                        Image(systemName: "chevron.up")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: { nextMatch() }) {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
+                    Button(action: { navigate(by: -1) }) {
+                        Image(systemName: "chevron.up").font(.system(size: 10, weight: .bold))
+                    }.buttonStyle(.plain)
+                    Button(action: { navigate(by: 1) }) {
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                    }.buttonStyle(.plain)
                 }
 
                 Button(action: { isVisible = false }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                }.buttonStyle(.plain)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(.bar)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             if !matches.isEmpty {
                 Divider()
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(matches.enumerated()), id: \.element.id) { index, match in
-                                HStack(spacing: 8) {
-                                    Text("\(match.lineNumber)")
-                                        .font(.system(size: 10, design: .monospaced))
-                                        .foregroundStyle(.tertiary)
-                                        .frame(width: 35, alignment: .trailing)
-                                    Text(match.line)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .lineLimit(1)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(index == currentMatchIndex ? Color.accentColor.opacity(0.1) : Color.clear)
-                                .contentShape(Rectangle())
-                                .id(index)
-                                .onTapGesture {
-                                    currentMatchIndex = index
-                                    copyMatch(match)
-                                }
+                            ForEach(Array(matches.enumerated()), id: \.offset) { index, match in
+                                Text(match.snippet)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 3)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(index == currentIndex ? Color.accentColor.opacity(0.15) : Color.clear)
+                                    .contentShape(Rectangle())
+                                    .id(index)
+                                    .onTapGesture { jumpTo(index: index) }
                             }
                         }
                     }
+                    .background(Color(nsColor: .windowBackgroundColor))
                     .frame(maxHeight: 150)
-                    .onChange(of: currentMatchIndex) { _, newValue in
-                        proxy.scrollTo(newValue, anchor: .center)
-                    }
+                    .onChange(of: currentIndex) { _, i in proxy.scrollTo(i, anchor: .center) }
                 }
             }
         }
@@ -97,38 +80,71 @@ struct TerminalSearchBar: View {
             isSearchFocused = true
         }
         .onChange(of: query) { _, _ in search() }
-        .onKeyPress(.escape) { isVisible = false; return .handled }
+        .onChange(of: isVisible) { _, visible in
+            if !visible {
+                terminalSession.terminalView?.clearSearch()
+                query = ""
+                matches = []
+            }
+        }
+        .onKeyPress(.upArrow)   { navigate(by: -1); return .handled }
+        .onKeyPress(.downArrow) { navigate(by:  1); return .handled }
+        .onKeyPress(.escape)    { isVisible = false; return .handled }
     }
+
+    // MARK: - Search
 
     private func search() {
         guard !query.isEmpty else {
             matches = []
-            currentMatchIndex = 0
+            terminalSession.terminalView?.clearSearch()
             return
         }
-        let text = terminalSession.getFullText()
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         let q = query.lowercased()
-        matches = lines.enumerated().compactMap { index, line in
-            let str = String(line)
-            guard str.lowercased().contains(q) else { return nil }
-            return SearchMatch(lineNumber: index + 1, line: str)
+        let lines = terminalSession.getFullText().components(separatedBy: "\n")
+        matches = lines.enumerated().compactMap { lineIndex, line in
+            guard let range = line.lowercased().range(of: q) else { return nil }
+            let snippet = makeSnippet(line: line, range: range, query: query)
+            return Match(snippet: snippet, lineIndex: lineIndex)
         }
-        currentMatchIndex = 0
+        currentIndex = 0
+        if let first = matches.first { scrollToLine(first.lineIndex, totalLines: lines.count) }
     }
 
-    private func nextMatch() {
+    private func navigate(by delta: Int) {
         guard !matches.isEmpty else { return }
-        currentMatchIndex = (currentMatchIndex + 1) % matches.count
+        currentIndex = (currentIndex + delta + matches.count) % matches.count
+        let lines = terminalSession.getFullText().components(separatedBy: "\n")
+        scrollToLine(matches[currentIndex].lineIndex, totalLines: lines.count)
     }
 
-    private func previousMatch() {
-        guard !matches.isEmpty else { return }
-        currentMatchIndex = (currentMatchIndex - 1 + matches.count) % matches.count
+    private func jumpTo(index: Int) {
+        currentIndex = index
+        let lines = terminalSession.getFullText().components(separatedBy: "\n")
+        scrollToLine(matches[index].lineIndex, totalLines: lines.count)
     }
 
-    private func copyMatch(_ match: SearchMatch) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(match.line, forType: .string)
+    // MARK: - Scroll
+
+    private func scrollToLine(_ lineIndex: Int, totalLines: Int) {
+        guard let tv = terminalSession.terminalView, totalLines > 0 else { return }
+        // Try SwiftTerm's native search first (highlights text, works for plain output)
+        let found = tv.findNext(query)
+        if found { return }
+        // Fallback: estimate scroll position from relative line index and jump there
+        let position = Double(lineIndex) / Double(totalLines)
+        tv.scroll(toPosition: position)
+    }
+
+    // MARK: - Snippet
+
+    private func makeSnippet(line: String, range: Range<String.Index>, query: String) -> String {
+        let window = 30
+        let start = line.index(range.lowerBound, offsetBy: -min(window, line.distance(from: line.startIndex, to: range.lowerBound)))
+        let end   = line.index(range.upperBound,  offsetBy:  min(window, line.distance(from: range.upperBound, to: line.endIndex)))
+        var snippet = String(line[start..<end])
+        if start > line.startIndex { snippet = "…" + snippet }
+        if end < line.endIndex     { snippet = snippet + "…" }
+        return snippet
     }
 }

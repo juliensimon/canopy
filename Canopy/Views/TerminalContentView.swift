@@ -6,6 +6,7 @@ extension Notification.Name {
     static let canopyShowTerminalSearch  = Notification.Name("canopyShowTerminalSearch")
     static let canopyShowActivity        = Notification.Name("canopyShowActivity")
     static let canopyToggleSplitTerminal = Notification.Name("canopyToggleSplitTerminal")
+    static let canopySelectTab           = Notification.Name("canopySelectTab")
 }
 
 /// Bridges SwiftTerm's LocalProcessTerminalView into SwiftUI.
@@ -137,12 +138,8 @@ final class TerminalViewController: NSViewController {
                 let cmdShift = mods == [.command, .shift]
                 let key = event.charactersIgnoringModifiers ?? ""
 
-                if cmdOnly && key == "k" {
-                    NotificationCenter.default.post(name: .canopyShowCommandPalette, object: nil)
-                    return nil
-                }
                 if cmdOnly && key == "f" {
-                    NotificationCenter.default.post(name: .canopyShowTerminalSearch, object: nil)
+                    NotificationCenter.default.post(name: .canopyShowCommandPalette, object: nil)
                     return nil
                 }
                 if cmdShift && key == "a" {
@@ -151,6 +148,10 @@ final class TerminalViewController: NSViewController {
                 }
                 if cmdShift && key == "d" {
                     NotificationCenter.default.post(name: .canopyToggleSplitTerminal, object: nil)
+                    return nil
+                }
+                if cmdOnly, let digit = key.first?.wholeNumberValue, (1...9).contains(digit) {
+                    NotificationCenter.default.post(name: .canopySelectTab, object: digit)
                     return nil
                 }
 

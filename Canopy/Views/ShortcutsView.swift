@@ -23,9 +23,11 @@ struct ShortcutsView: View {
                 Divider()
                     .gridCellColumns(2)
 
-                shortcutSection("Tabs") {
+                shortcutSection("Navigation") {
+                    shortcutRow("Find in Sessions", "F")
+                    shortcutRow("Activity Dashboard", "\u{21E7}A")
                     shortcutRow("Switch to Tab 1\u{2013}9", "1\u{2013}9")
-                    shortcutRow("Cycle Sort Mode", "\u{21E7}S")
+                    shortcutRow("Cycle Tab Sort Mode", "\u{21E7}S")
                 }
 
                 Divider()

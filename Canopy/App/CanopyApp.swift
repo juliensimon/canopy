@@ -116,15 +116,8 @@ struct CanopyApp: App {
             }
 
             CommandMenu("Session") {
-                Button("Command Palette") {
+                Button("Find in Sessions") {
                     appState.showCommandPalette.toggle()
-                }
-                .keyboardShortcut("k", modifiers: .command)
-
-                Divider()
-
-                Button("Find in Terminal") {
-                    appState.showTerminalSearch.toggle()
                 }
                 .keyboardShortcut("f", modifiers: .command)
 
@@ -160,6 +153,18 @@ struct CanopyApp: App {
                     appState.tabSortMode = allCases[nextIndex]
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
+
+                Divider()
+
+                ForEach(1...9, id: \.self) { index in
+                    Button("Tab \(index)") {
+                        let sessions = appState.orderedSessions
+                        if index <= sessions.count {
+                            appState.selectSession(sessions[index - 1].id)
+                        }
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
+                }
             }
         }
     }

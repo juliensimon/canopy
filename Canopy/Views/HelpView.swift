@@ -69,6 +69,8 @@ struct HelpView: View {
 
                 // Tips
                 section("Tips") {
+                    concept("Find in Sessions (⌘F)",
+                            "Search sessions by name, branch, project, or anything that appeared in the terminal. Selecting a match that came from terminal content jumps to the session and highlights the results inline.")
                     concept("Text selection",
                             "Hold ⌥ Option while dragging to select text when Claude Code is running. Claude uses mouse reporting which hijacks normal selection — Option bypasses it.")
                     concept("Copy session output",

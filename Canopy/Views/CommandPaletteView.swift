@@ -89,7 +89,7 @@ struct CommandPaletteView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search sessions, projects, actions...", text: $query)
+                TextField("Find sessions, projects, actions...", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 16))
                     .focused($isSearchFocused)
