@@ -11,16 +11,28 @@ struct CommandPaletteItem: Identifiable {
     let kind: CommandPaletteItemKind
     let title: String
     let subtitle: String
+    let keywords: String  // extra searchable text, not displayed
     let icon: String
     let action: () -> Void
+
+    init(kind: CommandPaletteItemKind, title: String, subtitle: String,
+         keywords: String = "", icon: String, action: @escaping () -> Void) {
+        self.kind = kind; self.title = title; self.subtitle = subtitle
+        self.keywords = keywords; self.icon = icon; self.action = action
+    }
 
     @MainActor
     static func generate(from state: AppState) -> [CommandPaletteItem] {
         var items: [CommandPaletteItem] = []
 
         for session in state.orderedSessions {
+            let projectName = state.projects.first { $0.id == session.projectId }?.name ?? ""
+            let branch = session.branchName ?? ""
+            let subtitle = branch.isEmpty ? session.workingDirectory : "\(branch) — \(session.workingDirectory)"
+            let bufferText = state.terminalSessions[session.id]?.getFullText() ?? ""
             items.append(CommandPaletteItem(
-                kind: .session, title: session.name, subtitle: session.workingDirectory,
+                kind: .session, title: session.name, subtitle: subtitle,
+                keywords: "\(projectName) \(branch) \(bufferText)",
                 icon: "terminal", action: { state.selectSession(session.id) }
             ))
         }
@@ -52,7 +64,9 @@ struct CommandPaletteItem: Identifiable {
         guard !query.isEmpty else { return items }
         let q = query.lowercased()
         return items.filter {
-            $0.title.lowercased().contains(q) || $0.subtitle.lowercased().contains(q)
+            $0.title.lowercased().contains(q)
+            || $0.subtitle.lowercased().contains(q)
+            || $0.keywords.lowercased().contains(q)
         }
     }
 }
@@ -165,6 +179,18 @@ struct CommandPaletteView: View {
 
     private func execute(_ item: CommandPaletteItem) {
         appState.showCommandPalette = false
+        // If this was a session match and the query doesn't match name/subtitle
+        // (i.e. it matched buffer content), open terminal search pre-populated.
+        if item.kind == .session && !query.isEmpty {
+            let q = query.lowercased()
+            let matchedMeta = item.title.lowercased().contains(q) || item.subtitle.lowercased().contains(q)
+            if !matchedMeta {
+                appState.terminalSearchQuery = query
+                appState.showTerminalSearch = true
+            } else {
+                appState.terminalSearchQuery = ""
+            }
+        }
         item.action()
     }
 }

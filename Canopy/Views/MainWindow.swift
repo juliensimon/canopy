@@ -219,7 +219,8 @@ struct TerminalInsetView: View {
                 VStack {
                     TerminalSearchBar(
                         terminalSession: appState.terminalSession(for: session),
-                        isVisible: $appState.showTerminalSearch
+                        isVisible: $appState.showTerminalSearch,
+                        initialQuery: appState.terminalSearchQuery
                     )
                     Spacer()
                 }

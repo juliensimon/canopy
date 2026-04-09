@@ -3,6 +3,7 @@ import SwiftUI
 struct TerminalSearchBar: View {
     let terminalSession: TerminalSession
     @Binding var isVisible: Bool
+    var initialQuery: String = ""
     @State private var query = ""
     @State private var matches: [SearchMatch] = []
     @State private var currentMatchIndex = 0
@@ -91,7 +92,10 @@ struct TerminalSearchBar: View {
                 }
             }
         }
-        .onAppear { isSearchFocused = true }
+        .onAppear {
+            if !initialQuery.isEmpty { query = initialQuery }
+            isSearchFocused = true
+        }
         .onChange(of: query) { _, _ in search() }
         .onKeyPress(.escape) { isVisible = false; return .handled }
     }

@@ -1,16 +1,15 @@
 #!/bin/bash
-# Creates a proper macOS .app bundle from the swift build output.
-#
-# Why? A raw executable doesn't get proper window server access on macOS.
-# The .app bundle tells macOS "this is a GUI application" via its Info.plist,
-# which enables proper window rendering, dock icon, menu bar, etc.
+# Builds Canopy.app via Xcode and installs it to /Applications.
 
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 APP_NAME="Canopy"
-BUNDLE_ID="com.canopy.app"
-BUILD_DIR=".build/release"
-APP_DIR="build/${APP_NAME}.app"
+SCHEME="Canopy"
+PROJECT="Canopy.xcodeproj"
+DERIVED_DATA="build/DerivedData"
+ARCHIVE="build/${APP_NAME}.xcarchive"
 
 # Generate build info from git
 GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -29,56 +28,20 @@ enum BuildInfo {
 }
 BUILDINFO
 
-echo "Building release..."
-swift build -c release 2>&1
+echo "Building with Xcode (Release)..."
+xcodebuild \
+    -project "$PROJECT" \
+    -scheme "$SCHEME" \
+    -configuration Release \
+    -derivedDataPath "$DERIVED_DATA" \
+    -archivePath "$ARCHIVE" \
+    archive \
+    | xcpretty 2>/dev/null || cat
 
-echo "Creating app bundle..."
-rm -rf "$APP_DIR"
-mkdir -p "${APP_DIR}/Contents/MacOS"
-mkdir -p "${APP_DIR}/Contents/Resources"
+APP_PATH="${ARCHIVE}/Products/Applications/${APP_NAME}.app"
 
-# Copy the binary
-cp "${BUILD_DIR}/${APP_NAME}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
+echo "Installing to /Applications..."
+rm -rf "/Applications/${APP_NAME}.app"
+cp -r "$APP_PATH" "/Applications/${APP_NAME}.app"
 
-# Copy resources
-cp "Resources/Canopy.icns" "${APP_DIR}/Contents/Resources/Canopy.icns" 2>/dev/null || true
-cp "Resources/CanopyLogo.png" "${APP_DIR}/Contents/Resources/CanopyLogo.png" 2>/dev/null || true
-
-# Create Info.plist — this tells macOS this is a real GUI app
-cat > "${APP_DIR}/Contents/Info.plist" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundleIdentifier</key>
-    <string>${BUNDLE_ID}</string>
-    <key>CFBundleName</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundleDisplayName</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>CFBundleIconFile</key>
-    <string>Canopy</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.developer-tools</string>
-    <key>NSSupportsAutomaticTermination</key>
-    <false/>
-    <key>NSSupportsSuddenTermination</key>
-    <false/>
-</dict>
-</plist>
-PLIST
-
-echo "Done! App bundle at: ${APP_DIR}"
-echo "Run with: open ${APP_DIR}"
+echo "Done! Installed at: /Applications/${APP_NAME}.app"

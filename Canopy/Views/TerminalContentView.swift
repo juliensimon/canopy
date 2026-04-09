@@ -1,6 +1,13 @@
 import SwiftUI
 import SwiftTerm
 
+extension Notification.Name {
+    static let canopyShowCommandPalette = Notification.Name("canopyShowCommandPalette")
+    static let canopyShowTerminalSearch  = Notification.Name("canopyShowTerminalSearch")
+    static let canopyShowActivity        = Notification.Name("canopyShowActivity")
+    static let canopyToggleSplitTerminal = Notification.Name("canopyToggleSplitTerminal")
+}
+
 /// Bridges SwiftTerm's LocalProcessTerminalView into SwiftUI.
 ///
 /// SwiftUI aggressively intercepts keyboard events for its own navigation,
@@ -122,9 +129,32 @@ final class TerminalViewController: NSViewController {
                 return event
             }
 
-            // Let Cmd+key shortcuts (copy, paste, quit, etc.) flow through
-            // the normal menu/responder chain instead of forwarding as raw keys.
+            // Intercept app-level Cmd shortcuts that SwiftTerm would otherwise
+            // consume (e.g. ⌘K = clear screen in terminal, ⌘F = terminal search).
             if event.type == .keyDown && event.modifierFlags.contains(.command) {
+                let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                let cmdOnly = mods == .command
+                let cmdShift = mods == [.command, .shift]
+                let key = event.charactersIgnoringModifiers ?? ""
+
+                if cmdOnly && key == "k" {
+                    NotificationCenter.default.post(name: .canopyShowCommandPalette, object: nil)
+                    return nil
+                }
+                if cmdOnly && key == "f" {
+                    NotificationCenter.default.post(name: .canopyShowTerminalSearch, object: nil)
+                    return nil
+                }
+                if cmdShift && key == "a" {
+                    NotificationCenter.default.post(name: .canopyShowActivity, object: nil)
+                    return nil
+                }
+                if cmdShift && key == "d" {
+                    NotificationCenter.default.post(name: .canopyToggleSplitTerminal, object: nil)
+                    return nil
+                }
+
+                // All other Cmd shortcuts: let AppKit menu system handle them.
                 window.makeFirstResponder(tv)
                 return event
             }

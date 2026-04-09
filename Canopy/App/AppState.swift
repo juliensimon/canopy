@@ -44,6 +44,7 @@ final class AppState: ObservableObject {
     /// Whether the Activity dashboard is currently shown.
     @Published var showActivity = false
     @Published var showTerminalSearch = false
+    @Published var terminalSearchQuery: String = ""
     @Published var showCloseConfirmation = false
     @Published var pendingCloseSessionId: UUID?
 
@@ -68,6 +69,23 @@ final class AppState: ObservableObject {
 
     init(configDir: String? = nil) {
         self.configDir = configDir ?? (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
+        installKeyboardShortcutObservers()
+    }
+
+    private func installKeyboardShortcutObservers() {
+        NotificationCenter.default.addObserver(forName: .canopyShowCommandPalette, object: nil, queue: .main) { [weak self] _ in
+            self?.showCommandPalette = true
+        }
+        NotificationCenter.default.addObserver(forName: .canopyShowTerminalSearch, object: nil, queue: .main) { [weak self] _ in
+            self?.showTerminalSearch = true
+        }
+        NotificationCenter.default.addObserver(forName: .canopyShowActivity, object: nil, queue: .main) { [weak self] _ in
+            self?.selectActivity()
+        }
+        NotificationCenter.default.addObserver(forName: .canopyToggleSplitTerminal, object: nil, queue: .main) { [weak self] _ in
+            guard let self, let id = self.activeSessionId else { return }
+            self.toggleSplitTerminal(for: id)
+        }
     }
 
     var activeSession: SessionInfo? {

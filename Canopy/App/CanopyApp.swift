@@ -143,17 +143,15 @@ struct CanopyApp: App {
                     appState.selectActivity()
                 }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
-            }
 
-            CommandMenu("Tabs") {
-                Picker("Sort By", selection: $appState.tabSortMode) {
+                Divider()
+
+                Picker("Sort Tabs By", selection: $appState.tabSortMode) {
                     ForEach(TabSortMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
                     }
                 }
                 .pickerStyle(.inline)
-
-                Divider()
 
                 Button("Cycle Sort Mode") {
                     let allCases = TabSortMode.allCases
@@ -162,18 +160,6 @@ struct CanopyApp: App {
                     appState.tabSortMode = allCases[nextIndex]
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-
-                Divider()
-
-                ForEach(1...9, id: \.self) { index in
-                    Button("Tab \(index)") {
-                        let sessions = appState.orderedSessions
-                        if index <= sessions.count {
-                            appState.selectSession(sessions[index - 1].id)
-                        }
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
-                }
             }
         }
     }
