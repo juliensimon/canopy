@@ -93,8 +93,11 @@ final class AppState: ObservableObject {
             }
         }
         NotificationCenter.default.addObserver(forName: .canopySelectTab, object: nil, queue: .main) { [weak self] note in
+            // Extract the Sendable Int out of the non-Sendable Notification
+            // before crossing into the main-actor isolation domain.
+            guard let index = note.object as? Int else { return }
             MainActor.assumeIsolated {
-                guard let self, let index = note.object as? Int else { return }
+                guard let self else { return }
                 let sessions = self.orderedSessions
                 if index <= sessions.count {
                     self.selectSession(sessions[index - 1].id)
