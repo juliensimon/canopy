@@ -14,7 +14,7 @@ struct Sidebar: View {
     @State private var renameSession: SessionInfo?
     @State private var renameText = ""
     @State private var infoSession: SessionInfo?
-    @State private var projectToDelete: Project?
+    @State private var projectToClose: Project?
     @State private var mergeSession: SessionInfo?
 
     private var plainSessions: [SessionInfo] {
@@ -32,7 +32,7 @@ struct Sidebar: View {
                         HStack(spacing: 6) {
                             Image(systemName: "chart.bar.fill")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color(red: 0.30, green: 0.75, blue: 0.32))
                             Text("Activity")
                                 .font(.system(size: 12, weight: .medium))
                         }
@@ -41,7 +41,7 @@ struct Sidebar: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(appState.showActivity ? Color.purple.opacity(0.15) : Color.clear)
+                                .fill(appState.showActivity ? Color(red: 0.30, green: 0.75, blue: 0.32).opacity(0.15) : Color.clear)
                         )
                     }
                     .buttonStyle(.plain)
@@ -92,19 +92,19 @@ struct Sidebar: View {
             )
             .environmentObject(appState)
         }
-        .alert("Delete Project?", isPresented: Binding(
-            get: { projectToDelete != nil },
-            set: { if !$0 { projectToDelete = nil } }
+        .alert("Close Project?", isPresented: Binding(
+            get: { projectToClose != nil },
+            set: { if !$0 { projectToClose = nil } }
         )) {
-            Button("Delete", role: .destructive) {
-                if let project = projectToDelete {
+            Button("Close", role: .destructive) {
+                if let project = projectToClose {
                     appState.removeProject(id: project.id)
-                    projectToDelete = nil
+                    projectToClose = nil
                 }
             }
-            Button("Cancel", role: .cancel) { projectToDelete = nil }
+            Button("Cancel", role: .cancel) { projectToClose = nil }
         } message: {
-            Text("Remove \"\(projectToDelete?.name ?? "")\" from Canopy? This does not delete the repository or its worktrees from disk.")
+            Text("Remove \"\(projectToClose?.name ?? "")\" from the sidebar? The repository and its worktrees on disk are not affected.")
         }
         .alert("Rename Session", isPresented: Binding(
             get: { renameSession != nil },
@@ -323,8 +323,8 @@ struct Sidebar: View {
 
         Divider()
 
-        Button("Delete Project", role: .destructive) {
-            projectToDelete = project
+        Button("Close Project", role: .destructive) {
+            projectToClose = project
         }
     }
 

@@ -247,7 +247,7 @@ struct AppStateTests {
         #expect(state.projects[0].name == "test")
     }
 
-    @Test @MainActor func removeProject() {
+    @Test @MainActor func closeProject() {
         let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(atPath: tmpDir) }
         let state = AppState(configDir: tmpDir)
