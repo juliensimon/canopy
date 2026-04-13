@@ -21,8 +21,6 @@
 
 https://github.com/user-attachments/assets/e455e1a9-884c-46e5-bd14-9c0fc3424672
 
-![Canopy main window](docs/screenshots/hero.png)
-
 </div>
 
 ---
