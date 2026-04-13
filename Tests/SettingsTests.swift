@@ -122,6 +122,33 @@ struct SettingsTests {
         #expect(decoded.notifyOnFinish == true)
     }
 
+    // MARK: - autoCheckForUpdates
+
+    @Test func autoCheckForUpdatesDefaultTrue() {
+        let settings = CanopySettings()
+        #expect(settings.autoCheckForUpdates == true)
+        #expect(settings.lastUpdateCheck == nil)
+    }
+
+    @Test func autoCheckForUpdatesCodableRoundTrip() throws {
+        var settings = CanopySettings()
+        settings.autoCheckForUpdates = false
+        let stamp = Date(timeIntervalSince1970: 1_700_000_000)
+        settings.lastUpdateCheck = stamp
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.autoCheckForUpdates == false)
+        #expect(decoded.lastUpdateCheck == stamp)
+    }
+
+    @Test func autoCheckForUpdatesDecodesFromEmpty() throws {
+        let json = "{}"
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.autoCheckForUpdates == true)
+        #expect(decoded.lastUpdateCheck == nil)
+    }
+
     // MARK: - Persistence
 
     @Test func saveAndLoad() {

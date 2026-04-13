@@ -24,6 +24,7 @@ struct CanopyApp: App {
     @State private var showAbout = false
     @State private var showHelp = false
     @State private var showShortcuts = false
+    @State private var updateSheetState: UpdateSheetState?
 
     var body: some Scene {
         WindowGroup {
@@ -33,6 +34,7 @@ struct CanopyApp: App {
                     appState.loadProjects()
                     appState.loadSessions()
                     appState.preloadActivityData()
+                    await runStartupUpdateCheck()
                 }
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)
@@ -46,6 +48,14 @@ struct CanopyApp: App {
                 }
                 .sheet(isPresented: $showShortcuts) {
                     ShortcutsView()
+                }
+                .sheet(item: Binding(
+                    get: { updateSheetState.map(IdentifiedUpdateState.init) },
+                    set: { updateSheetState = $0?.state }
+                )) { identified in
+                    UpdateCheckSheet(state: identified.state) {
+                        updateSheetState = nil
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     appState.saveSessionsBeforeTermination()
@@ -105,6 +115,12 @@ struct CanopyApp: App {
                     if let url = URL(string: "https://github.com/juliensimon/canopy/issues") {
                         NSWorkspace.shared.open(url)
                     }
+                }
+
+                Divider()
+
+                Button("Check for Updates...") {
+                    Task { await runManualUpdateCheck() }
                 }
             }
 
@@ -173,4 +189,57 @@ struct CanopyApp: App {
             }
         }
     }
+
+    // MARK: - Update check
+
+    /// Manual "Check for Updates…" from the Help menu. Always shows the sheet,
+    /// including on `.upToDate` and `.failed` — user asked, so give feedback.
+    @MainActor
+    private func runManualUpdateCheck() async {
+        updateSheetState = .checking
+        let checker = UpdateChecker()
+        let result = await checker.checkForUpdates()
+        updateSheetState = Self.sheetState(for: result)
+        recordCheckTimestamp(result: result)
+    }
+
+    /// Startup auto-check. Silent unless an update is available — never
+    /// presents `.upToDate` or `.failed`. Throttled to once per day via
+    /// `CanopySettings.lastUpdateCheck`.
+    @MainActor
+    private func runStartupUpdateCheck() async {
+        guard appState.settings.autoCheckForUpdates else { return }
+        guard UpdateChecker.shouldAutoCheck(lastCheck: appState.settings.lastUpdateCheck) else { return }
+        let checker = UpdateChecker()
+        let result = await checker.checkForUpdates()
+        recordCheckTimestamp(result: result)
+        if case .available = result {
+            updateSheetState = Self.sheetState(for: result)
+        }
+    }
+
+    @MainActor
+    private func recordCheckTimestamp(result: UpdateCheckResult) {
+        // Only record successful checks — don't let a transient network error
+        // block the next day's retry.
+        if case .failed = result { return }
+        appState.settings.lastUpdateCheck = Date()
+        appState.settings.save()
+    }
+
+    private static func sheetState(for result: UpdateCheckResult) -> UpdateSheetState {
+        switch result {
+        case .upToDate: .upToDate
+        case .available(let version, let url): .available(version: version, url: url)
+        case .failed(let message): .failed(message: message)
+        }
+    }
+}
+
+/// Wraps `UpdateSheetState` with a stable identity so SwiftUI's
+/// `.sheet(item:)` can observe it. A fresh identity per state transition is
+/// fine — the sheet only exists while non-nil.
+private struct IdentifiedUpdateState: Identifiable {
+    let id = UUID()
+    let state: UpdateSheetState
 }

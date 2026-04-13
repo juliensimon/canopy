@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var idePath: String
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
+    @State private var autoCheckForUpdates: Bool
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -19,6 +20,7 @@ struct SettingsView: View {
         self._idePath = State(initialValue: settings.idePath)
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
+        self._autoCheckForUpdates = State(initialValue: settings.autoCheckForUpdates)
     }
 
     var body: some View {
@@ -88,6 +90,19 @@ struct SettingsView: View {
                         .padding(4)
                     } label: {
                         Label("Notifications", systemImage: "bell")
+                    }
+
+                    // Updates section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Automatically check for updates", isOn: $autoCheckForUpdates)
+                            Text("Silently checks GitHub Releases once per day when Canopy launches. You'll only be notified when a new version is available.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(4)
+                    } label: {
+                        Label("Updates", systemImage: "arrow.down.circle")
                     }
 
                     // IDE section
@@ -179,6 +194,7 @@ struct SettingsView: View {
         settings.idePath = idePath
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
+        settings.autoCheckForUpdates = autoCheckForUpdates
         settings.save()
         appState.settings = settings
         dismiss()
