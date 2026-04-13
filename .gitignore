@@ -35,6 +35,9 @@ xcuserdata/
 .superpowers/
 docs/superpowers/
 
+# Claude Code local project state
+.claude/
+
 # Code coverage
 *.profraw
 
