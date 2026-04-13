@@ -428,7 +428,7 @@ struct ActivityAggregationTests {
         #expect(summary.periodSessionCount == 8)
         #expect(summary.busiestDayTokens == 4000)
         #expect(summary.busiestDayDate == "2026-04-02")
-        #expect(summary.modelBreakdown.first?.name == "opus")
+        #expect(summary.modelBreakdown.first?.name == "Opus")
     }
 
     @Test func summaryEmpty() {
@@ -469,7 +469,7 @@ struct ActivityAggregationTests {
         ]
         let summary = ActivityDataService.computeSummary(allBuckets: buckets, periodStart: "2026-01-01")
         #expect(summary.modelBreakdown.count == 1)
-        #expect(summary.modelBreakdown.first?.name == "opus")
+        #expect(summary.modelBreakdown.first?.name == "Opus")
         #expect(summary.modelBreakdown.first?.percentage == 100)
     }
 
@@ -479,9 +479,9 @@ struct ActivityAggregationTests {
                                        models: ["haiku": 50, "opus": 80, "sonnet": 20]),
         ]
         let summary = ActivityDataService.computeSummary(allBuckets: buckets, periodStart: "2026-01-01")
-        #expect(summary.modelBreakdown[0].name == "opus")
-        #expect(summary.modelBreakdown[1].name == "haiku")
-        #expect(summary.modelBreakdown[2].name == "sonnet")
+        #expect(summary.modelBreakdown[0].name == "Opus")
+        #expect(summary.modelBreakdown[1].name == "Haiku")
+        #expect(summary.modelBreakdown[2].name == "Sonnet")
     }
 
     @Test func summaryZeroTokenBucketsDoNotAffectBusiestDay() {

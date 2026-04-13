@@ -122,10 +122,11 @@ struct AppStateSelectionTests {
 
     // MARK: - Session Naming
 
-    @Test @MainActor func createSessionUsesDirectoryName() {
+    @Test @MainActor func createSessionDefaultsToSessionNumber() {
         let state = AppState()
         state.createSession(directory: "/Users/dev/my-project")
-        #expect(state.sessions[0].name == "my-project")
+        // Name is set synchronously to "Session N"; async git detection updates it later
+        #expect(state.sessions[0].name == "Session 1")
     }
 
     @Test @MainActor func createSessionFallsBackToSessionNumber() {
