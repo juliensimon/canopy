@@ -4,5 +4,5 @@ enum BuildInfo {
     static let gitHash = "714bc5d"
     static let gitDate = "2026-04-13 16:56:43 +0200"
     static let gitMessage = "ci: add workflow_dispatch fallback to homebrew tap workflow"
-    static let buildDate = "2026-04-13 17:59"
+    static let buildDate = "2026-04-13 18:05"
 }

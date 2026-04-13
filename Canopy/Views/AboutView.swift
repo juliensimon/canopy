@@ -4,6 +4,7 @@ import AppKit
 /// About window showing version, author, and build info.
 struct AboutView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appState: AppState
 
     private let githubURL = "https://github.com/juliensimon/canopy"
 
@@ -34,6 +35,8 @@ struct AboutView: View {
                 infoRow("Built", BuildInfo.buildDate)
             }
             .textSelection(.enabled)
+
+            updateStatusRow
 
             Divider()
 
@@ -79,6 +82,46 @@ struct AboutView: View {
             return NSImage(contentsOfFile: path)
         }
         return nil
+    }
+
+    @ViewBuilder
+    private var updateStatusRow: some View {
+        HStack(spacing: 8) {
+            switch appState.updateStatus {
+            case .unknown:
+                Text(" ").font(.caption)
+            case .checking:
+                ProgressView().controlSize(.small)
+                Text("Checking for updates…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .upToDate:
+                Text("✓ Up to date")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .available(let version, let url):
+                Text("New version \(version) available")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                Button("Download") {
+                    NSWorkspace.shared.open(url)
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            case .failed:
+                Text("Couldn't check for updates")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Check Now") {
+                Task { await appState.checkForUpdatesNow() }
+            }
+            .buttonStyle(.link)
+            .font(.caption)
+            .disabled(appState.updateStatus == .checking)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
