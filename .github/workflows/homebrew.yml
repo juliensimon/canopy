@@ -1,0 +1,66 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Compute version and checksums URL
+        id: info
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          CHECKSUMS_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums-sha256.txt"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "checksums_url=$CHECKSUMS_URL" >> "$GITHUB_OUTPUT"
+
+      # Download the checksums file (tiny, fast) rather than the full DMG.
+      # This avoids CDN propagation delays that would hash an incomplete download.
+      - name: Download checksums and extract SHA256
+        id: sha
+        run: |
+          curl -L --fail --retry 5 --retry-delay 10 \
+            -o checksums.txt "${{ steps.info.outputs.checksums_url }}"
+          SHA256=$(awk '{print $1}' checksums.txt)
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: juliensimon/homebrew-canopy
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-canopy
+
+      - name: Update cask formula
+        working-directory: homebrew-canopy
+        run: |
+          VERSION="${{ steps.info.outputs.version }}"
+          SHA256="${{ steps.sha.outputs.sha256 }}"
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/canopy.rb
+          sed -i "s/sha256 .*/sha256 \"${SHA256}\"/" Casks/canopy.rb
+
+      - name: Open PR on tap repo
+        working-directory: homebrew-canopy
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ steps.info.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "release/v${VERSION}"
+          git add Casks/canopy.rb
+          git commit -m "chore: bump Canopy to v${VERSION}"
+          git push origin "release/v${VERSION}"
+          gh pr create \
+            --repo juliensimon/homebrew-canopy \
+            --title "chore: bump Canopy to v${VERSION}" \
+            --body "Automated update from canopy release v${VERSION}. Review and merge to make it available via \`brew upgrade\`." \
+            --base main \
+            --head "release/v${VERSION}"
