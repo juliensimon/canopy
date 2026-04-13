@@ -96,7 +96,7 @@ struct CanopyApp: App {
                 Divider()
 
                 Button("User Guide") {
-                    if let url = URL(string: "https://github.com/juliensimon/canopy/blob/main/docs/guide.md") {
+                    if let url = URL(string: "https://github.com/juliensimon/canopy/blob/master/docs/guide.md") {
                         NSWorkspace.shared.open(url)
                     }
                 }

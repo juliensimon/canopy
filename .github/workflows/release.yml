@@ -89,11 +89,13 @@ jobs:
             -exportOptionsPlist /tmp/ExportOptions.plist \
             -exportPath "build/export"
 
-      # Verify signature before spending time on notarization
+      # Verify the codesign signature is well-formed before spending time on
+      # notarization. We deliberately do NOT run `spctl --assess` here:
+      # Gatekeeper rejects any signed-but-not-yet-notarized app on macOS 14+
+      # (exit 3), so the assess check only makes sense after stapling.
       - name: Verify signature
         run: |
           codesign --verify --deep --strict "build/export/Canopy.app"
-          spctl --assess --type execute "build/export/Canopy.app"
           echo "Signature OK"
 
       # Create a professional DMG with background and Applications shortcut
