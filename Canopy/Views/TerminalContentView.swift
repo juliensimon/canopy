@@ -138,8 +138,12 @@ final class TerminalViewController: NSViewController {
                 let cmdShift = mods == [.command, .shift]
                 let key = event.charactersIgnoringModifiers ?? ""
 
-                if cmdOnly && key == "f" {
+                if cmdOnly && key == "k" {
                     NotificationCenter.default.post(name: .canopyShowCommandPalette, object: nil)
+                    return nil
+                }
+                if cmdOnly && key == "f" {
+                    NotificationCenter.default.post(name: .canopyShowTerminalSearch, object: nil)
                     return nil
                 }
                 if cmdShift && key == "a" {

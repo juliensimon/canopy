@@ -116,8 +116,13 @@ struct CanopyApp: App {
             }
 
             CommandMenu("Session") {
-                Button("Find in Sessions") {
+                Button("Command Palette") {
                     appState.showCommandPalette.toggle()
+                }
+                .keyboardShortcut("k", modifiers: .command)
+
+                Button("Find in Terminal") {
+                    appState.showTerminalSearch = true
                 }
                 .keyboardShortcut("f", modifiers: .command)
 

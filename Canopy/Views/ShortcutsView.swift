@@ -24,7 +24,8 @@ struct ShortcutsView: View {
                     .gridCellColumns(2)
 
                 shortcutSection("Navigation") {
-                    shortcutRow("Find in Sessions", "F")
+                    shortcutRow("Command Palette", "K")
+                    shortcutRow("Find in Terminal", "F")
                     shortcutRow("Activity Dashboard", "\u{21E7}A")
                     shortcutRow("Switch to Tab 1\u{2013}9", "1\u{2013}9")
                     shortcutRow("Cycle Tab Sort Mode", "\u{21E7}S")

@@ -175,6 +175,24 @@ Shown when you click a project header in the sidebar. Displays:
 
 Per-project overrides for auto-start and Claude flags are available in the project edit sheet.
 
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+T` | New plain session (directory picker) |
+| `Cmd+Shift+T` | New worktree session |
+| `Cmd+Shift+P` | Add project |
+| `Cmd+K` | Command palette (fuzzy-match sessions, projects, branches, actions) |
+| `Cmd+F` | Find in terminal output |
+| `Cmd+Shift+D` | Toggle split terminal |
+| `Cmd+Shift+A` | Activity dashboard |
+| `Cmd+Shift+S` | Cycle tab sort mode |
+| `Cmd+1`–`Cmd+9` | Jump to tab N |
+| `Cmd+,` | Settings |
+| `Cmd+?` | Help |
+
+The same list is available at any time via **Help > Keyboard Shortcuts**.
+
 ## Configuration files
 
 All configuration lives in `~/.config/canopy/`:
