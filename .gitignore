@@ -31,5 +31,15 @@ xcuserdata/
 .env
 .env.local
 
-# Superpowers brainstorming
+# Superpowers brainstorming + planning docs
 .superpowers/
+docs/superpowers/
+
+# Code coverage
+*.profraw
+
+# Temporary build helpers
+build/
+
+# Release pipeline scratch
+ExportOptions.plist.bak

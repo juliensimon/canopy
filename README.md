@@ -2,8 +2,6 @@
 
 <img src="Resources/CanopyLogo.png" alt="Canopy" width="240"/>
 
-# Canopy
-
 **Parallel Claude Code sessions with git worktrees — a native macOS app.**
 
 *One window. Four branches. Four Claudes. Zero context switching.*
@@ -265,7 +263,7 @@ Because Canopy is dual-licensed (see below), contributors are asked to sign the 
 
 Built by **Julien Simon** — [julien@julien.org](mailto:julien@julien.org).
 
-I'm Chief Evangelist at [Arcee AI](https://arcee.ai) and I've been writing software for a long time. I built Canopy because I use Claude Code every day and the rough edges were getting in the way of the work. It started as a weekend experiment and turned into the tool I now reach for first every morning.
+I've been writing software for a long time. I built Canopy because I use Claude Code every day and the rough edges were getting in the way of the work. It started as a weekend experiment and turned into the tool I now reach for first every morning.
 
 If Canopy saves you time, the best thank-you is to tell someone else who might also find it useful — post it on social, drop it in a Slack, submit a PR. A star on the repo never hurts either.
 
