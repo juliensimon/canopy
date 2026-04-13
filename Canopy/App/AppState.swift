@@ -104,6 +104,13 @@ final class AppState: ObservableObject {
                 }
             }
         }
+        NotificationCenter.default.addObserver(forName: .canopySelectSession, object: nil, queue: .main) { [weak self] note in
+            guard let id = note.userInfo?["sessionId"] as? UUID else { return }
+            MainActor.assumeIsolated {
+                self?.selectSession(id)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
     }
 
     var activeSession: SessionInfo? {
@@ -175,13 +182,11 @@ final class AppState: ObservableObject {
         guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
 
         let projectName = projects.first(where: { $0.id == session.projectId })?.name
-        let title = (projectName ?? "Canopy").replacingOccurrences(of: "\"", with: "\\\"")
-        let subtitle = session.name.replacingOccurrences(of: "\"", with: "\\\"")
-        let script = "display notification \"Session finished\" with title \"\(title)\" subtitle \"\(subtitle)\" sound name \"Glass\""
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-        try? process.run()
+        NotificationService.shared.postSessionFinished(
+            title: projectName ?? "Canopy",
+            subtitle: session.name,
+            sessionId: sessionId
+        )
     }
 
     // MARK: - Split Terminal
