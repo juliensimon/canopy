@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 /// Custom NSApplicationDelegate that ensures the app is properly activated
 /// as a foreground application. Without this, SPM-built executables appear
 /// as background processes — windows show up but don't receive keyboard events.
@@ -10,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Suppress SwiftTerm's "Unhandled DEC Private Mode" log noise
         freopen("/dev/null", "w", stderr)
+
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

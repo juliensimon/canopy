@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 /// Controls how tabs are ordered in the tab bar and sidebar.
 enum TabSortMode: String, CaseIterable {
@@ -175,13 +176,34 @@ final class AppState: ObservableObject {
         guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
 
         let projectName = projects.first(where: { $0.id == session.projectId })?.name
-        let title = (projectName ?? "Canopy").replacingOccurrences(of: "\"", with: "\\\"")
-        let subtitle = session.name.replacingOccurrences(of: "\"", with: "\\\"")
-        let script = "display notification \"Session finished\" with title \"\(title)\" subtitle \"\(subtitle)\" sound name \"Glass\""
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-        try? process.run()
+        let content = UNMutableNotificationContent()
+        content.title = projectName ?? "Canopy"
+        content.subtitle = session.name
+        content.body = "Session finished"
+        content.sound = .default
+
+        if let iconURL = cachedNotificationIconURL(),
+           let attachment = try? UNNotificationAttachment(identifier: "icon", url: iconURL) {
+            content.attachments = [attachment]
+        }
+
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    /// Returns a file URL to a cached PNG of the app icon, writing it on first access.
+    /// UNNotificationAttachment requires a file URL, and asset catalog entries aren't files.
+    private func cachedNotificationIconURL() -> URL? {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("canopy-notification-icon.png")
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+
+        let icon = NSApp.applicationIconImage ?? NSImage(named: NSImage.applicationIconName)
+        guard let tiff = icon?.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        try? png.write(to: url)
+        return url
     }
 
     // MARK: - Split Terminal
