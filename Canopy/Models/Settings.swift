@@ -22,6 +22,9 @@ struct CanopySettings: Codable {
     /// Whether to show macOS notifications when a session finishes.
     var notifyOnFinish: Bool
 
+    /// Whether to check GitHub for a newer Canopy release on launch (rate-limited to once per day).
+    var checkForUpdatesOnLaunch: Bool
+
     var ideName: String {
         ((idePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
@@ -30,13 +33,14 @@ struct CanopySettings: Codable {
         ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true) {
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true) {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
         self.idePath = idePath
         self.terminalPath = terminalPath
         self.notifyOnFinish = notifyOnFinish
+        self.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +51,7 @@ struct CanopySettings: Codable {
         idePath = try container.decodeIfPresent(String.self, forKey: .idePath) ?? "/Applications/Cursor.app"
         terminalPath = try container.decodeIfPresent(String.self, forKey: .terminalPath) ?? "/System/Applications/Utilities/Terminal.app"
         notifyOnFinish = try container.decodeIfPresent(Bool.self, forKey: .notifyOnFinish) ?? true
+        checkForUpdatesOnLaunch = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdatesOnLaunch) ?? true
     }
 
     /// The full command sent to the terminal when auto-starting.

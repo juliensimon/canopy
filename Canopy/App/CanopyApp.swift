@@ -33,6 +33,7 @@ struct CanopyApp: App {
                     appState.loadProjects()
                     appState.loadSessions()
                     appState.preloadActivityData()
+                    await appState.checkForUpdatesIfNeeded()
                 }
                 .sheet(isPresented: $appState.showSettings) {
                     SettingsView(settings: appState.settings)
@@ -40,6 +41,7 @@ struct CanopyApp: App {
                 }
                 .sheet(isPresented: $showAbout) {
                     AboutView()
+                        .environmentObject(appState)
                 }
                 .sheet(isPresented: $showHelp) {
                     HelpView()

@@ -59,6 +59,12 @@ final class AppState: ObservableObject {
     @Published var cachedActivityResult: ActivityDataService.ActivityResult?
     @Published var activityIndexing = false
 
+    /// Result of the most recent update check.
+    @Published var updateStatus: UpdateStatus = .unknown
+
+    private let lastUpdateCheckKey = "canopy.lastUpdateCheck"
+    private let updateCheckInterval: TimeInterval = 24 * 60 * 60
+
     /// When true, session mutations skip saving (app is terminating).
     var isTerminating = false
 
@@ -175,13 +181,56 @@ final class AppState: ObservableObject {
         guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
 
         let projectName = projects.first(where: { $0.id == session.projectId })?.name
-        let title = (projectName ?? "Canopy").replacingOccurrences(of: "\"", with: "\\\"")
-        let subtitle = session.name.replacingOccurrences(of: "\"", with: "\\\"")
-        let script = "display notification \"Session finished\" with title \"\(title)\" subtitle \"\(subtitle)\" sound name \"Glass\""
+        postNotification(title: projectName ?? "Canopy", body: "Session finished", subtitle: session.name)
+    }
+
+    private func postNotification(title: String, body: String, subtitle: String? = nil) {
+        let escapedTitle = title.replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedBody = body.replacingOccurrences(of: "\"", with: "\\\"")
+        var script = "display notification \"\(escapedBody)\" with title \"\(escapedTitle)\""
+        if let subtitle {
+            let escapedSubtitle = subtitle.replacingOccurrences(of: "\"", with: "\\\"")
+            script += " subtitle \"\(escapedSubtitle)\""
+        }
+        script += " sound name \"Glass\""
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-e", script]
         try? process.run()
+    }
+
+    // MARK: - Update Checking
+
+    /// Called at launch — only fetches if the user has the setting enabled
+    /// and we haven't checked in the last 24 hours.
+    func checkForUpdatesIfNeeded() async {
+        guard settings.checkForUpdatesOnLaunch else { return }
+        if let last = UserDefaults.standard.object(forKey: lastUpdateCheckKey) as? Date,
+           Date().timeIntervalSince(last) < updateCheckInterval {
+            return
+        }
+        await checkForUpdatesNow()
+    }
+
+    /// Manually-triggered or rate-limit-bypassing update check.
+    func checkForUpdatesNow() async {
+        updateStatus = .checking
+        do {
+            let release = try await UpdateChecker.fetchLatest()
+            UserDefaults.standard.set(Date(), forKey: lastUpdateCheckKey)
+            switch UpdateChecker.compareSemver(BuildInfo.version, release.tagName) {
+            case .orderedAscending:
+                let displayVersion = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
+                updateStatus = .available(version: displayVersion, url: release.htmlUrl)
+                if !NSApp.isActive {
+                    postNotification(title: "Canopy update available", body: "Version \(displayVersion) is now available.")
+                }
+            case .orderedSame, .orderedDescending:
+                updateStatus = .upToDate
+            }
+        } catch {
+            updateStatus = .failed(error.localizedDescription)
+        }
     }
 
     // MARK: - Split Terminal

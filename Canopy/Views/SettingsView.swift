@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var idePath: String
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
+    @State private var checkForUpdatesOnLaunch: Bool
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -19,6 +20,7 @@ struct SettingsView: View {
         self._idePath = State(initialValue: settings.idePath)
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
+        self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
     }
 
     var body: some View {
@@ -143,6 +145,23 @@ struct SettingsView: View {
                     } label: {
                         Label("Terminal", systemImage: "terminal")
                     }
+
+                    // Updates section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Check for updates on launch", isOn: $checkForUpdatesOnLaunch)
+                            Text("Canopy will check GitHub once per day for a newer release.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Button("Check for Updates Now") {
+                                Task { await appState.checkForUpdatesNow() }
+                            }
+                            .disabled(appState.updateStatus == .checking)
+                        }
+                        .padding(4)
+                    } label: {
+                        Label("Updates", systemImage: "arrow.down.circle")
+                    }
                 }
             }
 
@@ -179,6 +198,7 @@ struct SettingsView: View {
         settings.idePath = idePath
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
+        settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         settings.save()
         appState.settings = settings
         dismiss()
