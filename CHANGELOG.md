@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-13
+
+First public release. 0.1.0 was an internal build; 0.9.0 is the same
+app polished for distribution: signed, notarized, and installable via
+Homebrew or direct DMG download.
+
+### Added
+- Direct DMG download link in the README (stable
+  `releases/latest/download/Canopy.dmg` URL, published alongside the
+  versioned asset).
+- Dynamic GitHub badges (release, downloads, build status, stars,
+  issues, last commit) in the README header.
+- Splash header image (rainforest canopy at sunrise with the Canopy
+  wordmark) replacing the bare logo at the top of the README.
+- User guide section listing every keyboard shortcut.
+- Help menu entry pointing at the online user guide.
+
+### Fixed
+- Command palette is now bound to `Cmd+K` (industry standard) instead
+  of `Cmd+F`. `Cmd+F` is now wired through to the terminal output
+  search it was always meant to trigger. The in-app Shortcuts sheet
+  was updated to match.
+
+### Changed
+- Pitch line in the README rewritten to drop the arbitrary "four
+  Claudes" framing.
+
 ## [0.1.0] - 2026-04-07
 
 ### Added
