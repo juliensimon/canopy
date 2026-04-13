@@ -114,7 +114,7 @@ jobs:
             --hide-extension "Canopy.app" \
             --app-drop-link 425 190 \
             "build/Canopy-${VERSION}.dmg" \
-            "build/export/"
+            "build/export/Canopy.app"
 
       # Sign the DMG itself (required for notarization)
       - name: Sign DMG
