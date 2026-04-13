@@ -73,24 +73,32 @@ final class AppState: ObservableObject {
     }
 
     private func installKeyboardShortcutObservers() {
+        // queue: .main guarantees the closure runs on the main thread, but
+        // Swift 6 sees it as @Sendable and won't let it touch @MainActor state
+        // without a runtime witness. MainActor.assumeIsolated provides exactly
+        // that — a safe assertion that we're already on the main actor.
         NotificationCenter.default.addObserver(forName: .canopyShowCommandPalette, object: nil, queue: .main) { [weak self] _ in
-            self?.showCommandPalette = true
+            MainActor.assumeIsolated { self?.showCommandPalette = true }
         }
         NotificationCenter.default.addObserver(forName: .canopyShowTerminalSearch, object: nil, queue: .main) { [weak self] _ in
-            self?.showTerminalSearch = true
+            MainActor.assumeIsolated { self?.showTerminalSearch = true }
         }
         NotificationCenter.default.addObserver(forName: .canopyShowActivity, object: nil, queue: .main) { [weak self] _ in
-            self?.selectActivity()
+            MainActor.assumeIsolated { self?.selectActivity() }
         }
         NotificationCenter.default.addObserver(forName: .canopyToggleSplitTerminal, object: nil, queue: .main) { [weak self] _ in
-            guard let self, let id = self.activeSessionId else { return }
-            self.toggleSplitTerminal(for: id)
+            MainActor.assumeIsolated {
+                guard let self, let id = self.activeSessionId else { return }
+                self.toggleSplitTerminal(for: id)
+            }
         }
         NotificationCenter.default.addObserver(forName: .canopySelectTab, object: nil, queue: .main) { [weak self] note in
-            guard let self, let index = note.object as? Int else { return }
-            let sessions = self.orderedSessions
-            if index <= sessions.count {
-                self.selectSession(sessions[index - 1].id)
+            MainActor.assumeIsolated {
+                guard let self, let index = note.object as? Int else { return }
+                let sessions = self.orderedSessions
+                if index <= sessions.count {
+                    self.selectSession(sessions[index - 1].id)
+                }
             }
         }
     }
