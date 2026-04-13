@@ -110,6 +110,13 @@ final class AppState: ObservableObject {
                 }
             }
         }
+        NotificationCenter.default.addObserver(forName: .canopySelectSession, object: nil, queue: .main) { [weak self] note in
+            guard let id = note.userInfo?["sessionId"] as? UUID else { return }
+            MainActor.assumeIsolated {
+                self?.selectSession(id)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
     }
 
     var activeSession: SessionInfo? {
@@ -181,22 +188,11 @@ final class AppState: ObservableObject {
         guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
 
         let projectName = projects.first(where: { $0.id == session.projectId })?.name
-        postNotification(title: projectName ?? "Canopy", body: "Session finished", subtitle: session.name)
-    }
-
-    private func postNotification(title: String, body: String, subtitle: String? = nil) {
-        let escapedTitle = title.replacingOccurrences(of: "\"", with: "\\\"")
-        let escapedBody = body.replacingOccurrences(of: "\"", with: "\\\"")
-        var script = "display notification \"\(escapedBody)\" with title \"\(escapedTitle)\""
-        if let subtitle {
-            let escapedSubtitle = subtitle.replacingOccurrences(of: "\"", with: "\\\"")
-            script += " subtitle \"\(escapedSubtitle)\""
-        }
-        script += " sound name \"Glass\""
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-        try? process.run()
+        NotificationService.shared.postSessionFinished(
+            title: projectName ?? "Canopy",
+            subtitle: session.name,
+            sessionId: sessionId
+        )
     }
 
     // MARK: - Update Checking
