@@ -35,6 +35,10 @@ targets:
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - package: SwiftTerm
+    scheme:
+      testTargets:
+        - CanopyTests
+      gatherCoverageData: false
     entitlements:
       path: Canopy/App/Canopy.entitlements
       properties:
@@ -50,3 +54,4 @@ targets:
     settings:
       base:
         SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: true
