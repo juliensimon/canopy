@@ -173,10 +173,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(cat VERSION)
+          # Publish a version-less copy as well so the README can link to a
+          # stable URL: /releases/latest/download/Canopy.dmg
+          cp "build/Canopy-${VERSION}.dmg" "build/Canopy.dmg"
           gh release create "v${VERSION}" \
             --title "Canopy v${VERSION}" \
             --notes-file RELEASE_NOTES.md \
             "build/Canopy-${VERSION}.dmg" \
+            "build/Canopy.dmg" \
             "checksums-sha256.txt"
 
       # Clean up the temporary keychain (always runs, even on failure)

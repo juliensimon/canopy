@@ -1,15 +1,29 @@
 <div align="center">
 
-<img src="Resources/CanopyLogo.png" alt="Canopy" width="240"/>
+<img src="docs/screenshots/splash.png" alt="Canopy" width="820"/>
 
 **Parallel Claude Code sessions with git worktrees — a native macOS app.**
 
-*One window. Four branches. Four Claudes. Zero context switching.*
+*One window. Parallel branches. Parallel Claudes. Zero context switching.*
+
+<br/>
+
+[![Latest release](https://img.shields.io/github/v/release/juliensimon/canopy?display_name=tag&sort=semver&color=4c9a6a)](https://github.com/juliensimon/canopy/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/juliensimon/canopy/total?color=4c9a6a&logo=github)](https://github.com/juliensimon/canopy/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/juliensimon/canopy/release.yml?branch=master&logo=github)](https://github.com/juliensimon/canopy/actions/workflows/release.yml)
+[![Stars](https://img.shields.io/github/stars/juliensimon/canopy?color=4c9a6a&logo=github)](https://github.com/juliensimon/canopy/stargazers)
+[![Issues](https://img.shields.io/github/issues/juliensimon/canopy?color=4c9a6a)](https://github.com/juliensimon/canopy/issues)
+[![Last commit](https://img.shields.io/github/last-commit/juliensimon/canopy?color=4c9a6a)](https://github.com/juliensimon/canopy/commits/master)
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Homebrew](https://img.shields.io/badge/Homebrew-cask-FBB040?logo=homebrew&logoColor=white)](#install)
+
+<br/>
+
+### [⬇ Download Canopy for macOS](https://github.com/juliensimon/canopy/releases/latest/download/Canopy.dmg)
+
+<sub>Universal binary · Apple Silicon + Intel · Notarized · macOS 14+</sub>
 
 </div>
 
