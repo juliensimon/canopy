@@ -1,147 +1,282 @@
+<div align="center">
+
+<img src="Resources/CanopyLogo.png" alt="Canopy" width="240"/>
+
 # Canopy
 
-**Parallel Claude Code sessions with git worktrees.**
+**Parallel Claude Code sessions with git worktrees — a native macOS app.**
 
-Canopy is a native macOS app that lets you run multiple [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions in parallel, each in its own [git worktree](https://git-scm.com/docs/git-worktree). Work on a feature, a bug fix, and a refactor at the same time -- each with its own branch, its own directory, and its own Claude instance.
+*One window. Four branches. Four Claudes. Zero context switching.*
 
-How good is this? Good enough for me to use it hours every day on all my projects. I eat my own dog food! Quirks get fixed and features get added quickly.
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Swift 6](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swift.org)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Homebrew](https://img.shields.io/badge/Homebrew-cask-FBB040?logo=homebrew&logoColor=white)](#install)
 
-## Why
+</div>
 
-Claude Code is powerful, but it works in a single directory on a single branch. If you want to run two tasks in parallel, you need two checkouts. Managing those by hand (creating worktrees, copying `.env` files, symlinking `node_modules`, launching Claude in each one, cleaning up afterwards) gets tedious fast.
+---
 
-Canopy automates the entire lifecycle:
+<div align="center">
 
-1. **Create** a worktree with a new branch from your base
-2. **Set up** the environment (copy config files, symlink heavy directories, run setup commands)
-3. **Launch** Claude Code with your preferred flags, resuming previous conversations
-4. **Merge** the branch back when you're done
-5. **Clean up** the worktree and branch
+<video src="docs/screenshots/demo.mp4" width="900" autoplay loop muted playsinline></video>
 
-All from a single window with tabs, a sidebar, and right-click context menus.
+![Canopy main window](docs/screenshots/hero.png)
 
-## How it works
+</div>
 
-Canopy builds on two ideas:
+---
 
-- **[Git worktrees](https://git-scm.com/docs/git-worktree)** let you check out multiple branches of the same repo simultaneously, each in its own directory. They share the same `.git` object store, so they're lightweight and fast to create. See the [Git documentation on parallel development](https://git-scm.com/docs/git-worktree#_description) for background.
-- **Claude Code sessions** are directory-scoped. Each worktree gets its own Claude instance. Canopy finds and resumes previous sessions automatically using `--resume`.
+## Why I built this
 
-### Architecture
+I've been using Canopy every day for months on my own projects. I'm sharing it now because it has earned its place on my dock, and I think it might earn a place on yours too.
 
+Here's the honest pitch: **Claude Code is already a superpower. Canopy is the rig that lets you bring four of them to the same fight.**
+
+When you use Claude Code seriously — not just for experiments, but for real production work — you hit a wall the tool wasn't designed to push through. Claude is brilliant at focusing on *one* thing in *one* directory. But real engineering work doesn't come one thing at a time. A bug report lands while you're refactoring. A teammate asks you to review a change while you're writing tests. The roadmap demands you keep shipping while you investigate a flaky test. You need to work on three things at once, but Claude — and `git` — want you to work on one.
+
+You *can* hack around it: stash, checkout, maybe a second clone, maybe `git worktree add` and a hand-written shell script to copy your `.env`, maybe remember which of your six Terminal.app tabs was running which session. You end up with a tab graveyard, stale worktrees littering your disk, Claude sessions you can't find, and a quiet tax on every task you do.
+
+Canopy removes that tax. Completely.
+
+## What you actually get back
+
+Every Canopy feature exists because I was tired of doing something manually. Each one saves a few seconds. Do the math over a day — over a week, over a month — and the compound is real.
+
+| You used to do this | With Canopy |
+|---|---|
+| Stash your work, checkout another branch, lose Claude's conversation context | Open a new worktree session — your old session keeps running in another tab |
+| Hunt through `~/.claude/projects/<hash>/` for a session ID, then `claude --resume abc123…` | Click the tab. Canopy resumes the right session automatically. |
+| Juggle six Terminal.app windows, cmd-tabbing to find the right one | One window, one tab bar, `Cmd+1`–`Cmd+9` to jump anywhere |
+| Copy-paste the working directory into Cursor/VS Code with cmd-c / cmd-shift-o / cmd-v | Right-click → **Open in IDE** |
+| Switch windows to run `git log` while Claude is working | `Cmd+Shift+D` — shell pane drops in below Claude, no interruption |
+| Re-run `npm install`, copy `.env`, symlink `node_modules` every time you make a worktree | Configure once per project. Canopy does it on every new worktree. |
+| Wonder which of your branches are merged and safe to delete | Project view lists every worktree with status and a one-click **Merge & Finish** |
+| `git checkout main && git pull && git merge feat/… && git worktree remove … && git branch -d …` | Right-click → **Merge & Finish** — two panels, one button |
+| Squint at `ls ~/.claude/projects/` trying to guess how many tokens you've burned this week | Open **Activity** — token counts, session history, 12-week heatmap |
+
+None of these are big problems on their own. All of them are papercuts. Canopy is a tool for people who notice papercuts.
+
+---
+
+## Install
+
+### Homebrew (recommended)
+
+```bash
+brew install --cask juliensimon/canopy/canopy
 ```
-+-----------+----------------------------+
-| Sidebar   | Tab Bar                    |
-|           | [branch-a] [branch-b]  [+] |
-| Projects  +----------------------------+
-| & Sessions|                            |
-|           |   Terminal (SwiftTerm)     |
-|           |   Running Claude Code      |
-|           |                            |
-|           +----------------------------+
-|           | Status Bar                 |
-+-----------+----------------------------+
-```
 
-Each project in the sidebar maps to a git repo. Under each project, you see active sessions (one per worktree). Click a tab or sidebar entry to switch. Activity dots show which sessions have output streaming.
+### Direct download
+
+Grab the latest signed and notarized `.dmg` from **[Releases](https://github.com/juliensimon/canopy/releases/latest)**. Open, drag to Applications, launch.
+
+**Requirements:** macOS 14 Sonoma or later. Apple Silicon or Intel. Claude Code installed (`claude` available in your `$PATH`).
+
+---
 
 ## Quick start
 
-### Build
+1. **Add a project** (`Cmd+Shift+P`) — point at any git repository. Configure files to copy (`.env`), symlink paths (`node_modules`), and setup commands (`npm install`).
+2. **Create a worktree session** (`Cmd+Shift+T`) — pick a base branch, name your feature branch.
+3. Canopy creates the worktree, copies config, runs your setup, and launches Claude Code. Start prompting.
+4. Need a parallel task? `Cmd+Shift+T` again. Each session is completely isolated.
+5. When you're done with a session, right-click → **Merge & Finish**. Canopy merges your branch and cleans up the worktree.
+
+That's the whole loop. Repeat forever.
+
+---
+
+## Features in depth
+
+### 🪟 Parallel sessions, one window
+
+![Main window with multiple tabs](docs/screenshots/hero.png)
+
+Each tab is a separate worktree running its own Claude Code instance. Switch between them with `Cmd+1`–`Cmd+9`. Drag tabs to reorder. Sort by name, project, creation date, or directory with `Cmd+Shift+S`. Activity dots show which sessions have output streaming, so you know at a glance which Claude is still thinking.
+
+When you close and reopen Canopy, every session comes back — **with its Claude conversation resumed automatically**. No session IDs to remember, no `--resume` flags to type. Canopy finds the right session by scanning `~/.claude/projects/` and passes it to `claude` for you.
+
+---
+
+### 📊 Activity dashboard — know where your tokens go
+
+![Activity dashboard](docs/screenshots/activity.png)
+
+Token usage is the one thing Claude Code doesn't surface well. Canopy fixes that.
+
+The **Activity** view parses your `~/.claude/projects/` JSONL files and gives you a full picture of how you've been using Claude:
+
+- **All-time token totals** — input and output, across every session you've ever run
+- **Last 12 weeks** — same breakdown, so you can see recent trends
+- **Session count** — how many conversations you've had in the window
+- **Busiest day** — when were you deep in Claude?
+- **Model breakdown** — percentage split across Opus, Sonnet, and Haiku
+- **Hour-by-hour heatmap** — 12 weeks of your actual working hours, visualized
+
+This is the view I use to answer "am I on track for my API budget this month" and "when am I most productive." No third-party tools, no scraping, no estimation — it's reading the same JSONL files Claude Code writes.
+
+---
+
+### ⌨️ Command palette — fuzzy search everything
+
+`Cmd+K` opens a fuzzy-match palette over every session, project, branch, and action Canopy knows about. Type three letters of a branch name, hit return, you're there. Type the name of a project, hit return, the project view opens. Type "merge", hit return, the merge flow fires on the current session.
+
+If you have more than four or five sessions open, this is the fastest way to navigate. Faster than clicking. Faster than Mission Control. Fast enough to feel instant.
+
+---
+
+### 🔎 Find in terminal — stop scrolling
+
+![Terminal search](docs/screenshots/terminal-search.png)
+
+`Cmd+F` inside any session opens an incremental search over the terminal output. Matches highlight as you type. Return jumps to the next match. Shift-return jumps to the previous one. Escape closes the search.
+
+This is a small feature that turns out to matter a lot: when Claude produces a 400-line plan and you need to jump to the part about "database migration," you used to scroll. Now you don't.
+
+---
+
+### ⬓ Split terminal — Claude up top, shell below
+
+![Split terminal](docs/screenshots/split-terminal.png)
+
+`Cmd+Shift+D` toggles a secondary shell pane below Claude's terminal. Need to run `git status` while Claude is mid-thought? Peek at the test output from another tool? Tail a log? You don't need to interrupt Claude or open a new window. The split pane is a full interactive shell, scoped to the same worktree, and you can hide it the same way you showed it.
+
+This is the feature I was most skeptical I'd use, and now I can't imagine working without it.
+
+---
+
+### ✅ Merge & Finish — one click, one worktree retired
+
+![Merge and Finish flow](docs/screenshots/merge-finish.png)
+
+The last step of every feature used to be a four-command dance:
 
 ```bash
-# Build and create .app bundle
-bash scripts/bundle.sh
-
-# Launch
-open build/Canopy.app
+git checkout main
+git pull
+git merge feat/whatever
+git worktree remove ../canopy-worktrees/myproject/feat-whatever
+git branch -d feat/whatever
 ```
 
-Requires macOS 14+ and Swift 6.0.
+…except you never actually did all of it, and now you have 11 stale worktrees and 40 merged branches on your laptop. Canopy replaces the whole thing with a two-phase confirmation sheet. Phase 1: pick the target branch, confirm the commit count, see any conflicts before they happen. Phase 2: pick what to clean up — worktree directory, feature branch, both, or neither. One click. Done. No debt.
 
-### First steps
+---
 
-1. **Add a project** (`Cmd+Shift+P`) -- point to a git repository
-2. **Create a worktree session** (`Cmd+Shift+T`) -- pick a base branch, name your feature branch
-3. Canopy creates the worktree, copies your config files, runs setup commands, and launches Claude
-4. Work on your feature. Open more worktree sessions for parallel tasks.
-5. When done, right-click the session and choose **Merge & Finish**
+### 🌳 Project view — see every worktree at once
 
-### Project configuration
+![Project detail view](docs/screenshots/project-detail.png)
 
-When adding a project, you can configure:
+Click any project in the sidebar to see every worktree, its branch, its status, and a one-click button to open, merge, or delete it. "Open All" resumes every inactive worktree at once with their prior Claude sessions — the fastest way to get back into a multi-branch project after a weekend away.
 
-
-| Setting           | Example                         | Purpose                                                                |
-| ----------------- | ------------------------------- | ---------------------------------------------------------------------- |
-| Files to copy     | `.env`, `.env.local`            | Copied from main repo into each new worktree                           |
-| Symlink paths     | `node_modules`, `.venv`         | Symlinked (not copied) to save disk space                              |
-| Setup commands    | `npm install`, `bundle install` | Run in the worktree after creation                                     |
-| Worktree base dir | `~/worktrees/myproject`         | Where worktrees are created (default: `../canopy-worktrees/<project>`) |
-| Auto-start Claude | on/off                          | Override the global setting per project                                |
-| Claude flags      | `--permission-mode auto`        | Override the global flags per project                                  |
-
-
-## Features
-
-- **Worktree lifecycle**: create, open, merge, delete -- all from the UI
-- **Session resume**: reopening a worktree continues the previous Claude conversation
-- **Auto-start Claude**: configurable globally and per-project
-- **Tab sorting**: manual, by name, project, creation date, or directory (`Cmd+Shift+S` to cycle)
-- **Drag-and-drop**: reorder tabs and sidebar sessions
-- **Context menus**: Open in Terminal, Finder, or IDE; copy paths and branch names; rename sessions
-- **Merge & Finish**: merge your branch, then clean up the worktree and branch in one step
-- **Config backup**: `projects.backup.json` is created on every launch
-- **Split terminal**: open a secondary shell pane below the main terminal (`Cmd+Shift+D`) for quick checks without interrupting Claude
-- **Session persistence**: sessions are saved across app restarts with automatic Claude resume
-- **Tab switching**: `Cmd+1-9` to jump to any tab instantly
-- **Finish notifications**: macOS notification when a session finishes while Canopy is in the background (configurable in Settings)
+---
 
 ## Keyboard shortcuts
 
+| Shortcut | Action |
+|---|---|
+| `Cmd+T` | New plain session (directory picker) |
+| `Cmd+Shift+T` | New worktree session |
+| `Cmd+Shift+P` | Add project |
+| `Cmd+K` | Command palette |
+| `Cmd+F` | Find in terminal |
+| `Cmd+Shift+D` | Toggle split terminal |
+| `Cmd+Shift+S` | Cycle tab sort mode |
+| `Cmd+1`–`Cmd+9` | Jump to tab N |
+| `Cmd+,` | Settings |
+| `Cmd+?` | Keyboard shortcuts reference |
 
-| Shortcut      | Action                               |
-| ------------- | ------------------------------------ |
-| `Cmd+T`       | New plain session (directory picker) |
-| `Cmd+Shift+T` | New worktree session                 |
-| `Cmd+Shift+P` | Add project                          |
-| `Cmd+Shift+S` | Cycle tab sort mode                  |
-| `Cmd+,`       | Settings                             |
-| `Cmd+?`       | Help                                 |
-| `Cmd+1-9`     | Switch to tab 1–9                    |
-| `Cmd+Shift+D` | Toggle split terminal                |
+---
 
+## How it works
 
-## Configuration
+Canopy builds on two ideas that play well together:
 
-Settings and project data are stored in `~/.config/canopy/`:
+- **[Git worktrees](https://git-scm.com/docs/git-worktree)** let you check out multiple branches of the same repo simultaneously, each in its own directory, sharing one `.git` store. Creating one is cheap and fast.
+- **Claude Code sessions** are directory-scoped and resumable. Canopy finds the last session ID for each worktree and passes it via `--resume`, so conversations survive restarts.
 
-- `settings.json` -- global preferences (auto-start, Claude flags, IDE path, etc.)
-- `projects.json` -- your project list and per-project config
-- `projects.backup.json` -- automatic backup created on launch
-- `sessions.json` -- persisted sessions restored on app restart
+Everything else — the tabs, the project view, the Activity dashboard, the palette, the split pane — is a native SwiftUI app wrapped around [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) for terminal emulation. No Electron, no webviews, no bundled Node. It launches fast, idles quiet, and behaves like a Mac app.
 
-## Learn more
+```
+┌───────────┬────────────────────────────┐
+│  Sidebar  │  Tab Bar                   │
+│           │  [branch-a] [branch-b] [+] │
+│  Projects ├────────────────────────────┤
+│  Sessions │                            │
+│           │    Terminal (SwiftTerm)    │
+│           │    Running Claude Code     │
+│           │                            │
+│           ├────────────────────────────┤
+│           │  Shell split (Cmd+Shift+D) │
+├───────────┴────────────────────────────┤
+│  Status bar · activity dots · tokens   │
+└────────────────────────────────────────┘
+```
 
-- [User Guide](docs/guide.md) -- detailed walkthrough of all features and workflows
-- [Git Worktrees](https://git-scm.com/docs/git-worktree) -- the Git feature Canopy builds on
-- [Parallel Development with Worktrees](https://git-scm.com/docs/git-worktree#_description) -- why worktrees are useful
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) -- the AI coding assistant Canopy manages
+For a deeper walkthrough, read the **[User Guide](docs/guide.md)**.
 
-## Feedback
+---
 
-Found a bug or have a feature request? [Open an issue](https://github.com/juliensimon/canopy/issues).
+## Per-project configuration
+
+Every project can be configured independently from the **Add Project** sheet:
+
+| Setting | Example | Why |
+|---|---|---|
+| Files to copy | `.env`, `.env.local` | Untracked config files Claude needs at runtime |
+| Symlink paths | `node_modules`, `.venv`, `vendor` | Heavy directories; symlinks save disk and install time |
+| Setup commands | `npm install`, `bundle install`, `make setup` | Run once in each fresh worktree |
+| Worktree base directory | `~/worktrees/myproject` | Where new worktrees live (default: `../canopy-worktrees/<project>`) |
+| Auto-start Claude | on/off | Per-project override of the global default |
+| Claude flags | `--permission-mode auto` | Per-project override of the global flags |
+
+All configuration lives in `~/.config/canopy/`:
+
+- `settings.json` — global preferences
+- `projects.json` — project list and per-project config
+- `projects.backup.json` — automatic backup created on every launch
+- `sessions.json` — persisted sessions, restored on app restart
+
+---
+
+## Roadmap
+
+Canopy is at `0.1.0`. It's stable enough that I use it every day, but there are features I still want to build:
+
+- **Sparkle in-app updates** — check for updates from within the app, not just Homebrew
+- **Command palette expansion** — fuzzy search over terminal output history, not just sessions
+- **Token/cost alerts** — get a notification when a session crosses a budget you set
+- **iCloud project sync** — same project list across machines
+- **Voice input** (WhisperKit) — local, on-device dictation into Claude
+- **Session transcript export** — clean Markdown export for sharing
+
+See **[TODO.md](TODO.md)** for the full list.
+
+---
+
+## Contributing
+
+Found a bug, have a feature request, or want to send a patch? **[Open an issue](https://github.com/juliensimon/canopy/issues)** or a PR.
+
+Because Canopy is dual-licensed (see below), contributors are asked to sign the **[Contributor License Agreement](CLA.md)** by submitting a pull request. This is a lightweight CLA that grants the project maintainer the right to relicense contributions. It's what makes dual licensing possible while keeping the open source version free under AGPL.
+
+---
 
 ## Author
 
-**Julien Simon** -- [julien@julien.org](mailto:julien@julien.org)
+Built by **Julien Simon** — [julien@julien.org](mailto:julien@julien.org).
+
+I'm Chief Evangelist at [Arcee AI](https://arcee.ai) and I've been writing software for a long time. I built Canopy because I use Claude Code every day and the rough edges were getting in the way of the work. It started as a weekend experiment and turned into the tool I now reach for first every morning.
+
+If Canopy saves you time, the best thank-you is to tell someone else who might also find it useful — post it on social, drop it in a Slack, submit a PR. A star on the repo never hurts either.
+
+---
 
 ## License
 
-Copyright 2026 Julien Simon.
+Copyright © 2026 Julien Simon.
 
-Canopy is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+Canopy is licensed under the **[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0). You can use it, modify it, and redistribute it under the terms of that license.
 
-**Commercial licensing**: If you need to use Canopy under terms other than AGPL-3.0 (e.g., embedding in a proprietary product or redistributing without source disclosure), commercial licenses are available. Contact [julien@julien.org](mailto:julien@julien.org).
-
-**Contributing**: By submitting a pull request, you agree to the [Contributor License Agreement](CLA.md), which grants the project maintainer the right to relicense your contributions. This enables dual licensing while keeping the open source version free under AGPL.
+**Commercial licensing**: If you need to use Canopy under terms other than AGPL-3.0 — for example, embedding it in a proprietary product or redistributing without source disclosure — commercial licenses are available. Contact [julien@julien.org](mailto:julien@julien.org).
