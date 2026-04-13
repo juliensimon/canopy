@@ -3,6 +3,15 @@ name: Update Homebrew Tap
 on:
   release:
     types: [published]
+  # Manual trigger for cases where the release: published event didn't
+  # cascade — e.g. when a release was created from another workflow using
+  # the default GITHUB_TOKEN, which deliberately does not fire downstream
+  # workflows. Pass the tag (with the leading "v") to update the cask.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish to the tap (e.g. v0.9.0)'
+        required: true
 
 permissions:
   contents: read
@@ -14,10 +23,15 @@ jobs:
     steps:
       - name: Compute version and checksums URL
         id: info
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${DISPATCH_TAG:-$RELEASE_TAG}"
           VERSION="${TAG#v}"
-          CHECKSUMS_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums-sha256.txt"
+          CHECKSUMS_URL="https://github.com/${REPOSITORY}/releases/download/${TAG}/checksums-sha256.txt"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "checksums_url=$CHECKSUMS_URL" >> "$GITHUB_OUTPUT"
 
