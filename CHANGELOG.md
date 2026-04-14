@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-04-14
+
+### Fixed
+- Activity view: labels, stat values, legend text, month spans, and hour-axis
+  ticks were invisible in light mode because the dark-filled cards still used
+  adaptive foreground styles (`.secondary`, `.tertiary`). Replaced the
+  adaptive styles with explicit light-on-dark constants so the cards render
+  correctly regardless of the system appearance. (#5, #6)
+- Build: `UserNotifications` is not yet audited for Swift 6 strict
+  concurrency, so `NotificationService` now uses `@preconcurrency import
+  UserNotifications` to silence spurious `Sendable` warnings without losing
+  diagnostics on our own code.
+
+### Changed
+- README: dropped the ASCII layout diagram and the Roadmap section in favor
+  of the screenshots and live issue tracker. Docs-only, no user-visible
+  behavior change.
+
 ## [0.9.1] - 2026-04-13
 
 ### Added
