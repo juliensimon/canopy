@@ -10,6 +10,11 @@ struct ActivityView: View {
     private let cardBackground = Color(red: 0.06, green: 0.08, blue: 0.06)
     private let cardBorder    = Color(red: 0.12, green: 0.18, blue: 0.12)
     private let accentGreen   = Color(red: 0.30, green: 0.75, blue: 0.32)
+    // Cards have a fixed dark background, so text colors must not follow
+    // system appearance — otherwise light mode renders dark-on-dark.
+    fileprivate static let primaryText   = Color.white
+    fileprivate static let secondaryText = Color.white.opacity(0.72)
+    fileprivate static let tertiaryText  = Color.white.opacity(0.5)
 
     var body: some View {
         VStack(spacing: 12) {
@@ -43,7 +48,7 @@ struct ActivityView: View {
                     if appState.activityIndexing {
                         Text("Indexing sessions...")
                             .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ActivityView.secondaryText)
                     }
                 }
             }
@@ -60,7 +65,7 @@ struct ActivityView: View {
                 .foregroundStyle(accentGreen)
             Text("In: \(abbreviatedTokenCount(summary.allTimeInput))  Out: \(abbreviatedTokenCount(summary.allTimeOutput))")
                 .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ActivityView.tertiaryText)
         }
     }
 
@@ -68,9 +73,10 @@ struct ActivityView: View {
         StatCard(title: "LAST 12 WEEKS", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text(abbreviatedTokenCount(summary.periodTotal))
                 .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(ActivityView.primaryText)
             Text("In: \(abbreviatedTokenCount(summary.periodInput))  Out: \(abbreviatedTokenCount(summary.periodOutput))")
                 .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ActivityView.tertiaryText)
         }
     }
 
@@ -78,9 +84,10 @@ struct ActivityView: View {
         StatCard(title: "SESSIONS", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text("\(summary.periodSessionCount)")
                 .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(ActivityView.primaryText)
             Text("Last 12 Weeks")
                 .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ActivityView.tertiaryText)
         }
     }
 
@@ -88,9 +95,10 @@ struct ActivityView: View {
         StatCard(title: "BUSIEST DAY", cardBackground: cardBackground, cardBorder: cardBorder) {
             Text(abbreviatedTokenCount(summary.busiestDayTokens))
                 .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(ActivityView.primaryText)
             Text(formattedBusiestDate(summary.busiestDayDate))
                 .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ActivityView.tertiaryText)
         }
     }
 
@@ -103,12 +111,12 @@ struct ActivityView: View {
                 ForEach(summary.modelBreakdown.dropFirst().prefix(2), id: \.name) { entry in
                     Text("\(shortModelName(entry.name)) \(entry.percentage)%")
                         .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ActivityView.tertiaryText)
                 }
             } else {
                 Text("—")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ActivityView.secondaryText)
             }
         }
     }
@@ -169,7 +177,7 @@ private struct StatCard<Content: View>: View {
             Text(title)
                 .font(.system(size: 9))
                 .tracking(0.5)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ActivityView.secondaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             content
