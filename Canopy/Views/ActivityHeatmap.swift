@@ -5,6 +5,11 @@ import SwiftUI
 struct ActivityHeatmap: View {
     let hourlyBuckets: [String: HourlyBucket]
 
+    // Heatmap card has a fixed dark background, so labels need an
+    // explicit light color — semantic styles flip on light mode and
+    // disappear against the dark fill.
+    static let labelColor = Color.white.opacity(0.72)
+
     // Forest green palette: dark moss → emerald → bright canopy
     private static let colors: [Color] = [
         Color(red: 0.08, green: 0.10, blue: 0.08),   // empty — dark forest floor
@@ -30,7 +35,7 @@ struct ActivityHeatmap: View {
             HStack {
                 Text("Last 12 Weeks")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Self.labelColor)
                 Spacer()
                 legend
             }
@@ -60,7 +65,7 @@ struct ActivityHeatmap: View {
         HStack(spacing: 3) {
             Text("Less")
                 .font(.system(size: 9))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Self.labelColor)
             ForEach(0..<7, id: \.self) { level in
                 RoundedRectangle(cornerRadius: 1)
                     .fill(Self.colors[level])
@@ -68,7 +73,7 @@ struct ActivityHeatmap: View {
             }
             Text("More")
                 .font(.system(size: 9))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Self.labelColor)
         }
     }
 
@@ -147,7 +152,7 @@ struct ActivityHeatmap: View {
                     let spanWidth = colWidth * CGFloat(span.columns) + CGFloat(span.columns - 1)
                     Text(span.name)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Self.labelColor)
                         .frame(width: spanWidth, alignment: .leading)
                         .clipped()
                 }
@@ -161,7 +166,7 @@ struct ActivityHeatmap: View {
             ForEach(0..<24, id: \.self) { hour in
                 Text(hour % 3 == 0 ? "\(hour)" : "")
                     .font(.system(size: 7))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Self.labelColor)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             }
         }
