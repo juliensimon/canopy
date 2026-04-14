@@ -8,7 +8,7 @@ struct ActivityHeatmap: View {
     // Heatmap card has a fixed dark background, so labels need an
     // explicit light color — semantic styles flip on light mode and
     // disappear against the dark fill.
-    static let labelColor = Color.white.opacity(0.72)
+    private static let labelColor = Color.white.opacity(0.72)
 
     // Forest green palette: dark moss → emerald → bright canopy
     private static let colors: [Color] = [

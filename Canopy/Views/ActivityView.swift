@@ -12,9 +12,9 @@ struct ActivityView: View {
     private let accentGreen   = Color(red: 0.30, green: 0.75, blue: 0.32)
     // Cards have a fixed dark background, so text colors must not follow
     // system appearance — otherwise light mode renders dark-on-dark.
-    static let primaryText   = Color.white
-    static let secondaryText = Color.white.opacity(0.72)
-    static let tertiaryText  = Color.white.opacity(0.5)
+    fileprivate static let primaryText   = Color.white
+    fileprivate static let secondaryText = Color.white.opacity(0.72)
+    fileprivate static let tertiaryText  = Color.white.opacity(0.5)
 
     var body: some View {
         VStack(spacing: 12) {
