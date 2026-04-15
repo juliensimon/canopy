@@ -114,7 +114,9 @@ final class AppState: ObservableObject {
             guard let id = note.userInfo?["sessionId"] as? UUID else { return }
             MainActor.assumeIsolated {
                 self?.selectSession(id)
-                NSApp.activate(ignoringOtherApps: true)
+                if let app = NSApp {
+                    app.activate(ignoringOtherApps: true)
+                }
             }
         }
     }
