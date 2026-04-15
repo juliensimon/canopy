@@ -16,5 +16,26 @@ jobs:
       - name: Build
         run: swift build -c release
 
-      - name: Test
-        run: swift test
+      - name: Test with coverage
+        run: swift test --enable-code-coverage
+
+      - name: Export coverage to lcov
+        run: |
+          set -euo pipefail
+          BIN_PATH="$(swift build --show-bin-path)"
+          PROF_DATA="${BIN_PATH}/codecov/default.profdata"
+          XCTEST_BUNDLE="$(find "${BIN_PATH}" -name '*.xctest' -print -quit)"
+          XCTEST_NAME="$(basename "${XCTEST_BUNDLE}" .xctest)"
+          XCTEST_BIN="${XCTEST_BUNDLE}/Contents/MacOS/${XCTEST_NAME}"
+          xcrun llvm-cov export \
+            -format=lcov \
+            -instr-profile "${PROF_DATA}" \
+            -ignore-filename-regex='.build|Tests' \
+            "${XCTEST_BIN}" > coverage.lcov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.lcov
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
