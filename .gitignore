@@ -46,3 +46,4 @@ build/
 
 # Release pipeline scratch
 ExportOptions.plist.bak
+.worktrees/
