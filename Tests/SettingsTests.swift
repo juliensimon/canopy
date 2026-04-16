@@ -14,6 +14,8 @@ struct SettingsTests {
         #expect(settings.confirmBeforeClosing == true)
         #expect(settings.idePath == "/Applications/Cursor.app")
         #expect(settings.terminalPath == "/System/Applications/Utilities/Terminal.app")
+        #expect(settings.useSandbox == false)
+        #expect(settings.sbxFlags == "")
     }
 
     // MARK: - Claude Command
@@ -69,6 +71,8 @@ struct SettingsTests {
         #expect(decoded.claudeFlags == "--permission-mode auto")
         #expect(decoded.confirmBeforeClosing == true)
         #expect(decoded.terminalPath == "/System/Applications/Utilities/Terminal.app")
+        #expect(decoded.useSandbox == false)
+        #expect(decoded.sbxFlags == "")
     }
 
     // MARK: - IDE / Terminal Names
@@ -120,6 +124,55 @@ struct SettingsTests {
         let data = json.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
         #expect(decoded.notifyOnFinish == true)
+    }
+
+    // MARK: - Sandbox
+
+    @Test func claudeCommandWithSandbox() {
+        var settings = CanopySettings()
+        settings.useSandbox = true
+        #expect(settings.claudeCommand == "sbx run claude -- --permission-mode auto")
+    }
+
+    @Test func claudeCommandWithSandboxFlags() {
+        var settings = CanopySettings()
+        settings.useSandbox = true
+        settings.sbxFlags = "--memory 8g"
+        #expect(settings.claudeCommand == "sbx run --memory 8g claude -- --permission-mode auto")
+    }
+
+    @Test func claudeCommandSandboxOffIgnoresSbxFlags() {
+        var settings = CanopySettings()
+        settings.useSandbox = false
+        settings.sbxFlags = "--memory 8g"
+        #expect(settings.claudeCommand == "claude --permission-mode auto")
+    }
+
+    @Test func sandboxCodableRoundTrip() throws {
+        var original = CanopySettings()
+        original.useSandbox = true
+        original.sbxFlags = "--memory 8g"
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+
+        #expect(decoded.useSandbox == true)
+        #expect(decoded.sbxFlags == "--memory 8g")
+    }
+
+    @Test func claudeCommandSandboxTrimsWhitespace() {
+        var settings = CanopySettings()
+        settings.useSandbox = true
+        settings.sbxFlags = "  --memory 8g  "
+        #expect(settings.claudeCommand == "sbx run --memory 8g claude -- --permission-mode auto")
+    }
+
+    @Test func claudeCommandSandboxEmptyFlags() {
+        var settings = CanopySettings()
+        settings.useSandbox = true
+        settings.sbxFlags = "   "
+        settings.claudeFlags = ""
+        #expect(settings.claudeCommand == "sbx run claude --")
     }
 
     // MARK: - Persistence

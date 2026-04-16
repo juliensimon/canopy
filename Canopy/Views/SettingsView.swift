@@ -12,6 +12,10 @@ struct SettingsView: View {
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
     @State private var checkForUpdatesOnLaunch: Bool
+    @State private var useSandbox: Bool
+    @State private var sbxFlags: String
+    @State private var sandboxStatus: SandboxChecker.Status?
+    @State private var checkingSandbox = false
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -21,6 +25,8 @@ struct SettingsView: View {
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
         self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
+        self._useSandbox = State(initialValue: settings.useSandbox)
+        self._sbxFlags = State(initialValue: settings.sbxFlags)
     }
 
     var body: some View {
@@ -59,6 +65,41 @@ struct SettingsView: View {
                                         .foregroundStyle(.primary)
                                 }
                                 .padding(.top, 4)
+
+                                Divider()
+
+                                Toggle("Run in Docker Sandbox (sbx)", isOn: Binding(
+                                    get: { useSandbox },
+                                    set: { newValue in
+                                        if newValue {
+                                            verifySandbox()
+                                        } else {
+                                            useSandbox = false
+                                            sandboxStatus = nil
+                                        }
+                                    }
+                                ))
+                                .disabled(checkingSandbox)
+
+                                if let status = sandboxStatus, status != .available {
+                                    Text(sandboxWarning(for: status))
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+
+                                if useSandbox {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Sandbox flags")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                        TextField("e.g. --memory 8g", text: $sbxFlags)
+                                            .textFieldStyle(.roundedBorder)
+                                            .font(.system(size: 12, design: .monospaced))
+                                        Text("Additional flags passed to `sbx run`.")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
                             }
                         }
                         .padding(4)
@@ -182,12 +223,50 @@ struct SettingsView: View {
     }
 
     private var previewCommand: String {
-        var cmd = "claude"
-        let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty {
-            cmd += " " + trimmed
+        var parts: [String] = []
+        if useSandbox {
+            parts.append("sbx run")
+            let trimmedSbx = sbxFlags.trimmingCharacters(in: .whitespaces)
+            if !trimmedSbx.isEmpty {
+                parts.append(trimmedSbx)
+            }
+            parts.append("claude --")
+            let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                parts.append(trimmed)
+            }
+        } else {
+            parts.append("claude")
+            let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                parts.append(trimmed)
+            }
         }
-        return cmd
+        return parts.joined(separator: " ")
+    }
+
+    private func verifySandbox() {
+        checkingSandbox = true
+        sandboxStatus = nil
+        Task {
+            let status = await SandboxChecker.check()
+            await MainActor.run {
+                sandboxStatus = status
+                useSandbox = status == .available
+                checkingSandbox = false
+            }
+        }
+    }
+
+    private func sandboxWarning(for status: SandboxChecker.Status) -> String {
+        switch status {
+        case .missingDocker:
+            return "Docker not found. Install Docker Desktop from docker.com."
+        case .missingSbx:
+            return "sbx not found. Install with: brew install docker/tap/sbx"
+        case .available:
+            return ""
+        }
     }
 
     private func save() {
@@ -199,6 +278,8 @@ struct SettingsView: View {
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
         settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
+        settings.useSandbox = useSandbox
+        settings.sbxFlags = sbxFlags
         settings.save()
         appState.settings = settings
         dismiss()

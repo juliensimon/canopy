@@ -157,6 +157,21 @@ This is the feature I was most skeptical I'd use, and now I can't imagine workin
 
 ---
 
+### 🛡 Docker Sandbox — run Claude in isolation
+
+Enable **Run in Docker Sandbox** in Settings or per-project to launch Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM via `sbx run`. Your working directory is bind-mounted into the sandbox, so file edits work normally, but the agent can't touch the rest of your system — network, Docker socket, home directory, and tools are all isolated.
+
+Canopy checks that both Docker Desktop and `sbx` are installed before enabling the toggle. When sandbox mode is active:
+
+- The command becomes `sbx run [sbx-flags] claude -- [claude-flags]`
+- Session resume is disabled (session files live inside the ephemeral microVM)
+- A shield icon appears next to the session name in the sidebar
+- The split terminal still opens a host shell (useful for inspecting the real filesystem)
+
+**Requirements:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`).
+
+---
+
 ### ✅ Merge & Finish — one click, one worktree retired
 
 ![Merge and Finish flow](docs/screenshots/merge-finish.png)
@@ -226,6 +241,8 @@ Every project can be configured independently from the **Add Project** sheet:
 | Worktree base directory | `~/worktrees/myproject` | Where new worktrees live (default: `../canopy-worktrees/<project>`) |
 | Auto-start Claude | on/off | Per-project override of the global default |
 | Claude flags | `--permission-mode auto` | Per-project override of the global flags |
+| Docker Sandbox | on/off | Run Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM |
+| Sandbox flags | `--memory 8g` | Additional flags passed to `sbx run` |
 
 All configuration lives in `~/.config/canopy/`:
 

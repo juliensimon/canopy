@@ -54,6 +54,17 @@ When Canopy creates or opens a session, it can auto-start Claude Code with your 
 
 Session IDs are found automatically by scanning `~/.claude/projects/`.
 
+### Docker Sandbox mode
+
+Canopy can optionally run Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM for hard process isolation. When enabled, the command becomes `sbx run claude -- [flags]` instead of `claude [flags]`. Your working directory is bind-mounted into the sandbox, so file edits work normally, but the agent can't touch the rest of your system.
+
+Key behaviors in sandbox mode:
+- **Session resume is disabled** -- session files (`~/.claude/projects/`) live inside the ephemeral microVM and don't persist across runs
+- **A shield icon** appears next to the session name in the sidebar
+- **The split terminal** still opens a host shell (not sandboxed), which is useful for inspecting the real filesystem
+
+Sandbox mode requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`). Canopy validates both are installed before enabling the toggle.
+
 ## Workflows
 
 ### Starting a new feature
@@ -170,10 +181,12 @@ Shown when you click a project header in the sidebar. Displays:
 |---------|---------|---------|
 | Auto-start Claude | On | Launch Claude Code when opening a session |
 | Claude flags | `--permission-mode auto` | Flags passed to the `claude` command |
+| Docker Sandbox | Off | Run Claude inside a `sbx` microVM (requires Docker Desktop + `sbx`) |
+| Sandbox flags | *(empty)* | Additional flags passed to `sbx run` (e.g., `--memory 8g`) |
 | Confirm before closing | On | Ask before closing a session |
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |
 
-Per-project overrides for auto-start and Claude flags are available in the project edit sheet.
+Per-project overrides for auto-start, Claude flags, and sandbox mode are available in the project edit sheet.
 
 ## Keyboard shortcuts
 
@@ -208,7 +221,7 @@ All configuration lives in `~/.config/canopy/`:
 
 - **Text selection in the terminal**: Hold `Option` while dragging. Claude Code enables mouse reporting which captures normal clicks -- `Option` bypasses it.
 - **Copy full session output**: Right-click a session > Copy Session Output. Useful for sharing Claude's work.
-- **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off.
+- **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off. Note: sandbox sessions are not resumable -- the session data lives inside the ephemeral microVM and is discarded when the sandbox stops.
 - **Worktree base directory**: By default, worktrees are created at `../canopy-worktrees/<project>/` (as siblings of your repo). Override this per-project if you prefer a different location.
 - **Quick rebuild**: Run `bash scripts/bundle.sh` then `open build/Canopy.app`.
 

@@ -170,10 +170,12 @@ struct SessionView: View {
                 let shouldStart = project?.shouldAutoStartClaude(globalSettings: appState.settings)
                     ?? appState.settings.autoStartClaude
                 if shouldStart {
+                    let isSandboxed = project?.useSandbox ?? appState.settings.useSandbox
                     var command = project?.resolvedClaudeCommand(globalSettings: appState.settings)
                         ?? appState.settings.claudeCommand
-                    // Resume a specific Claude session if we have its ID
-                    if let sessionId = session.claudeSessionId {
+                    // Resume a specific Claude session if we have its ID.
+                    // Skip in sandbox mode -- session files live inside the ephemeral microVM.
+                    if !isSandboxed, let sessionId = session.claudeSessionId {
                         command += " --resume \(sessionId)"
                     }
                     Task { @MainActor in

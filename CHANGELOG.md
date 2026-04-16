@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Docker Sandbox support: optionally run Claude Code inside a `sbx` microVM
+  for hard process isolation. Configurable globally and per-project with a
+  toggle and optional `sbx run` flags. Canopy validates that Docker Desktop
+  and `sbx` are installed before enabling. Session resume is automatically
+  disabled in sandbox mode (session files are ephemeral). A shield icon in
+  the sidebar indicates sandboxed sessions.
+
 ## [0.9.2] - 2026-04-14
 
 ### Fixed

@@ -14,6 +14,9 @@ struct EditProjectSheet: View {
     @State private var overrideClaude: Bool
     @State private var autoStartClaude: Bool
     @State private var claudeFlags: String
+    @State private var useSandbox: Bool
+    @State private var sbxFlags: String
+    @State private var sandboxStatus: SandboxChecker.Status?
     @State private var selectedColorIndex: Int
 
     init(project: Project) {
@@ -22,9 +25,13 @@ struct EditProjectSheet: View {
         self._filesToCopy = State(initialValue: project.filesToCopy.joined(separator: ", "))
         self._symlinkPaths = State(initialValue: project.symlinkPaths.joined(separator: ", "))
         self._setupCommands = State(initialValue: project.setupCommands.joined(separator: ", "))
-        self._overrideClaude = State(initialValue: project.autoStartClaude != nil || project.claudeFlags != nil)
+        self._overrideClaude = State(initialValue:
+            project.autoStartClaude != nil || project.claudeFlags != nil
+            || project.useSandbox != nil || project.sbxFlags != nil)
         self._autoStartClaude = State(initialValue: project.autoStartClaude ?? false)
         self._claudeFlags = State(initialValue: project.claudeFlags ?? "")
+        self._useSandbox = State(initialValue: project.useSandbox ?? false)
+        self._sbxFlags = State(initialValue: project.sbxFlags ?? "")
         self._selectedColorIndex = State(initialValue: project.colorIndex ?? 0)
     }
 
@@ -126,6 +133,46 @@ struct EditProjectSheet: View {
                                 .font(.system(size: 12, design: .monospaced))
                         }
                         .padding(.leading, 16)
+
+                        Toggle("Run in Docker Sandbox (sbx)", isOn: Binding(
+                            get: { useSandbox },
+                            set: { newValue in
+                                if newValue {
+                                    Task {
+                                        let status = await SandboxChecker.check()
+                                        await MainActor.run {
+                                            sandboxStatus = status
+                                            useSandbox = status == .available
+                                        }
+                                    }
+                                } else {
+                                    useSandbox = false
+                                    sandboxStatus = nil
+                                }
+                            }
+                        ))
+                            .font(.subheadline)
+                            .padding(.leading, 16)
+
+                        if let status = sandboxStatus, status != .available {
+                            Text(status == .missingDocker
+                                ? "Docker not found. Install Docker Desktop from docker.com."
+                                : "sbx not found. Install with: brew install docker/tap/sbx")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .padding(.leading, 16)
+                        }
+
+                        if useSandbox {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Sandbox flags")
+                                    .font(.subheadline)
+                                TextField("e.g. --memory 8g", text: $sbxFlags)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                            }
+                            .padding(.leading, 16)
+                        }
                     }
                 }
             }
@@ -155,6 +202,8 @@ struct EditProjectSheet: View {
         updated.setupCommands = parseCSV(setupCommands)
         updated.autoStartClaude = overrideClaude ? autoStartClaude : nil
         updated.claudeFlags = overrideClaude ? claudeFlags : nil
+        updated.useSandbox = overrideClaude ? useSandbox : nil
+        updated.sbxFlags = overrideClaude ? sbxFlags : nil
         updated.colorIndex = selectedColorIndex
         appState.updateProject(updated)
         dismiss()

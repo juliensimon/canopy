@@ -142,9 +142,9 @@ struct Sidebar: View {
 
         HStack(spacing: 6) {
             if let ts = appState.terminalSessions[session.id] {
-                LiveSessionRow(session: session, terminalSession: ts, projectColor: color)
+                LiveSessionRow(session: session, terminalSession: ts, projectColor: color, isSandboxed: isSandboxed(session))
             } else {
-                SidebarSessionRow(session: session, projectColor: color)
+                SidebarSessionRow(session: session, projectColor: color, isSandboxed: isSandboxed(session))
             }
 
             Spacer()
@@ -330,6 +330,14 @@ struct Sidebar: View {
 
     // MARK: - Helpers
 
+    private func isSandboxed(_ session: SessionInfo) -> Bool {
+        if let projectId = session.projectId,
+           let project = appState.projects.first(where: { $0.id == projectId }) {
+            return project.useSandbox ?? appState.settings.useSandbox
+        }
+        return appState.settings.useSandbox
+    }
+
     private func projectColorFor(_ session: SessionInfo) -> Color {
         guard let projectId = session.projectId,
               let project = appState.projects.first(where: { $0.id == projectId }) else {
@@ -424,12 +432,14 @@ struct LiveSessionRow: View {
     let session: SessionInfo
     @ObservedObject var terminalSession: TerminalSession
     var projectColor: Color = .gray
+    var isSandboxed: Bool = false
 
     var body: some View {
         SidebarSessionRow(
             session: session,
             activity: terminalSession.activity,
-            projectColor: projectColor
+            projectColor: projectColor,
+            isSandboxed: isSandboxed
         )
     }
 }
@@ -440,6 +450,7 @@ struct SidebarSessionRow: View {
     let session: SessionInfo
     var activity: SessionActivity = .idle
     var projectColor: Color = .gray
+    var isSandboxed: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -451,6 +462,12 @@ struct SidebarSessionRow: View {
                     Text(session.name)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
+                    if isSandboxed {
+                        Image(systemName: "shield.lefthalf.filled")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .help("Running in Docker Sandbox")
+                    }
                 }
                 Text(subtitle)
                     .font(.system(size: 10))
