@@ -248,7 +248,7 @@ struct SettingsView: View {
     private func verifySandbox() {
         checkingSandbox = true
         sandboxStatus = nil
-        Task {
+        Task.detached(priority: .utility) {
             let status = await SandboxChecker.check()
             await MainActor.run {
                 sandboxStatus = status

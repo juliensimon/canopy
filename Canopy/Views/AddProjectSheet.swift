@@ -18,6 +18,7 @@ struct AddProjectSheet: View {
     @State private var useSandbox = false
     @State private var sbxFlags = ""
     @State private var sandboxStatus: SandboxChecker.Status?
+    @State private var checkingSandbox = false
     @State private var isValidRepo = false
     @State private var validationMessage = ""
     @State private var selectedColorIndex: Int = 0
@@ -155,11 +156,13 @@ struct AddProjectSheet: View {
                             get: { useSandbox },
                             set: { newValue in
                                 if newValue {
-                                    Task {
+                                    checkingSandbox = true
+                                    Task.detached(priority: .utility) {
                                         let status = await SandboxChecker.check()
                                         await MainActor.run {
                                             sandboxStatus = status
                                             useSandbox = status == .available
+                                            checkingSandbox = false
                                         }
                                     }
                                 } else {
@@ -170,6 +173,7 @@ struct AddProjectSheet: View {
                         ))
                             .font(.subheadline)
                             .padding(.leading, 16)
+                            .disabled(checkingSandbox)
 
                         if let status = sandboxStatus, status != .available {
                             Text(status == .missingDocker

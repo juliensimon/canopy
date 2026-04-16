@@ -18,14 +18,28 @@ struct SandboxChecker {
         return .available
     }
 
+    /// Returns a shell path that supports `-ilc` for login/interactive command execution.
+    ///
+    /// Falls back to `/bin/zsh` when the user's configured shell is incompatible
+    /// (for example, `fish`) so command checks don't fail incorrectly.
+    static func loginShell() -> String {
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let name = URL(fileURLWithPath: shell).lastPathComponent
+        switch name {
+        case "zsh", "bash":
+            return shell
+        default:
+            return "/bin/zsh"
+        }
+    }
+
     /// Returns true if the given command name is found in the user's shell PATH.
     ///
     /// Uses `-ilc` (interactive login) so that both `.zprofile` and `.zshrc` are
     /// sourced -- Homebrew's PATH is often configured in `.zshrc` only.
     static func commandExists(_ name: String) async -> Bool {
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
+        process.executableURL = URL(fileURLWithPath: loginShell())
         process.arguments = ["-ilc", "which \(name)"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
