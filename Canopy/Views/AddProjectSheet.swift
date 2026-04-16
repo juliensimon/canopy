@@ -15,6 +15,9 @@ struct AddProjectSheet: View {
     @State private var overrideClaude = false
     @State private var autoStartClaude = false
     @State private var claudeFlags = ""
+    @State private var useSandbox = false
+    @State private var sbxFlags = ""
+    @State private var sandboxStatus: SandboxChecker.Status?
     @State private var isValidRepo = false
     @State private var validationMessage = ""
     @State private var selectedColorIndex: Int = 0
@@ -147,6 +150,46 @@ struct AddProjectSheet: View {
                                 .font(.system(size: 12, design: .monospaced))
                         }
                         .padding(.leading, 16)
+
+                        Toggle("Run in Docker Sandbox (sbx)", isOn: Binding(
+                            get: { useSandbox },
+                            set: { newValue in
+                                if newValue {
+                                    Task {
+                                        let status = await SandboxChecker.check()
+                                        await MainActor.run {
+                                            sandboxStatus = status
+                                            useSandbox = status == .available
+                                        }
+                                    }
+                                } else {
+                                    useSandbox = false
+                                    sandboxStatus = nil
+                                }
+                            }
+                        ))
+                            .font(.subheadline)
+                            .padding(.leading, 16)
+
+                        if let status = sandboxStatus, status != .available {
+                            Text(status == .missingDocker
+                                ? "Docker not found. Install Docker Desktop from docker.com."
+                                : "sbx not found. Install with: brew install docker/tap/sbx")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .padding(.leading, 16)
+                        }
+
+                        if useSandbox {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Sandbox flags")
+                                    .font(.subheadline)
+                                TextField("e.g. --memory 8g", text: $sbxFlags)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                            }
+                            .padding(.leading, 16)
+                        }
                     }
                 }
             }
@@ -215,7 +258,9 @@ struct AddProjectSheet: View {
             symlinkPaths: parseCommaSeparated(symlinkPaths),
             setupCommands: parseCommaSeparated(setupCommands),
             autoStartClaude: overrideClaude ? autoStartClaude : nil,
-            claudeFlags: overrideClaude ? claudeFlags : nil
+            claudeFlags: overrideClaude ? claudeFlags : nil,
+            useSandbox: overrideClaude ? useSandbox : nil,
+            sbxFlags: overrideClaude ? sbxFlags : nil
         )
         project.colorIndex = selectedColorIndex
         appState.addProject(project)

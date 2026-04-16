@@ -25,6 +25,12 @@ struct CanopySettings: Codable {
     /// Whether to check GitHub for a newer Canopy release on launch (rate-limited to once per day).
     var checkForUpdatesOnLaunch: Bool
 
+    /// Whether to run Claude Code inside a Docker Sandbox (sbx) microVM.
+    var useSandbox: Bool
+
+    /// Additional flags passed to `sbx run` (e.g. "--memory 8g").
+    var sbxFlags: String
+
     var ideName: String {
         ((idePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
@@ -33,7 +39,7 @@ struct CanopySettings: Codable {
         ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true) {
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true, useSandbox: Bool = false, sbxFlags: String = "") {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
@@ -41,6 +47,8 @@ struct CanopySettings: Codable {
         self.terminalPath = terminalPath
         self.notifyOnFinish = notifyOnFinish
         self.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
+        self.useSandbox = useSandbox
+        self.sbxFlags = sbxFlags
     }
 
     init(from decoder: Decoder) throws {
@@ -52,16 +60,37 @@ struct CanopySettings: Codable {
         terminalPath = try container.decodeIfPresent(String.self, forKey: .terminalPath) ?? "/System/Applications/Utilities/Terminal.app"
         notifyOnFinish = try container.decodeIfPresent(Bool.self, forKey: .notifyOnFinish) ?? true
         checkForUpdatesOnLaunch = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdatesOnLaunch) ?? true
+        useSandbox = try container.decodeIfPresent(Bool.self, forKey: .useSandbox) ?? false
+        sbxFlags = try container.decodeIfPresent(String.self, forKey: .sbxFlags) ?? ""
     }
 
     /// The full command sent to the terminal when auto-starting.
+    ///
+    /// When sandbox mode is enabled, `--` separates sbx flags from claude flags:
+    /// `sbx run [sbx-flags] claude -- [claude-flags]`
+    /// The `--` is always included in sandbox mode so that flags appended later
+    /// (like `--resume`) are correctly passed to claude, not to sbx.
     var claudeCommand: String {
-        var cmd = "claude"
-        let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty {
-            cmd += " " + trimmed
+        var parts: [String] = []
+        if useSandbox {
+            parts.append("sbx run")
+            let trimmedSbx = sbxFlags.trimmingCharacters(in: .whitespaces)
+            if !trimmedSbx.isEmpty {
+                parts.append(trimmedSbx)
+            }
+            parts.append("claude --")
+            let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                parts.append(trimmed)
+            }
+        } else {
+            parts.append("claude")
+            let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                parts.append(trimmed)
+            }
         }
-        return cmd
+        return parts.joined(separator: " ")
     }
 
     // MARK: - Persistence

@@ -27,6 +27,12 @@ struct Project: Identifiable, Codable {
     /// Override global Claude flags for this project. nil = use global.
     var claudeFlags: String?
 
+    /// Override global sandbox setting for this project. nil = use global.
+    var useSandbox: Bool?
+
+    /// Override global sbx flags for this project. nil = use global.
+    var sbxFlags: String?
+
     /// Color index into ProjectColor palette. Auto-assigned on creation, user-overridable.
     var colorIndex: Int?
 
@@ -38,6 +44,8 @@ struct Project: Identifiable, Codable {
         setupCommands: [String] = [],
         autoStartClaude: Bool? = nil,
         claudeFlags: String? = nil,
+        useSandbox: Bool? = nil,
+        sbxFlags: String? = nil,
         colorIndex: Int? = nil
     ) {
         self.id = UUID()
@@ -48,6 +56,8 @@ struct Project: Identifiable, Codable {
         self.setupCommands = setupCommands
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
+        self.useSandbox = useSandbox
+        self.sbxFlags = sbxFlags
         self.colorIndex = colorIndex
     }
 
@@ -63,6 +73,8 @@ struct Project: Identifiable, Codable {
         worktreeBaseDir = try container.decodeIfPresent(String.self, forKey: .worktreeBaseDir)
         autoStartClaude = try container.decodeIfPresent(Bool.self, forKey: .autoStartClaude)
         claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags)
+        useSandbox = try container.decodeIfPresent(Bool.self, forKey: .useSandbox)
+        sbxFlags = try container.decodeIfPresent(String.self, forKey: .sbxFlags)
         colorIndex = try container.decodeIfPresent(Int.self, forKey: .colorIndex)
     }
 
@@ -81,13 +93,32 @@ struct Project: Identifiable, Codable {
     }
 
     /// Resolves the Claude command, falling back to global settings.
+    ///
+    /// When sandbox mode is enabled, `--` separates sbx flags from claude flags:
+    /// `sbx run [sbx-flags] claude -- [claude-flags]`
     func resolvedClaudeCommand(globalSettings: CanopySettings) -> String {
-        var cmd = "claude"
+        let sandbox = useSandbox ?? globalSettings.useSandbox
+        let sbxFlagsResolved = sbxFlags ?? globalSettings.sbxFlags
         let flags = claudeFlags ?? globalSettings.claudeFlags
         let trimmed = flags.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty {
-            cmd += " " + trimmed
+
+        var parts: [String] = []
+        if sandbox {
+            parts.append("sbx run")
+            let trimmedSbx = sbxFlagsResolved.trimmingCharacters(in: .whitespaces)
+            if !trimmedSbx.isEmpty {
+                parts.append(trimmedSbx)
+            }
+            parts.append("claude --")
+            if !trimmed.isEmpty {
+                parts.append(trimmed)
+            }
+        } else {
+            parts.append("claude")
+            if !trimmed.isEmpty {
+                parts.append(trimmed)
+            }
         }
-        return cmd
+        return parts.joined(separator: " ")
     }
 }
