@@ -204,7 +204,7 @@ struct SettingsView: View {
                                         .font(.system(size: 12, design: .monospaced))
                                     cliStatusDot(ghPath)
                                 }
-                                Text("Used for PR status indicators. Auto-detected from Homebrew.")
+                                Text("Used for PR status indicators. Auto-detected from common install locations.")
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
@@ -312,10 +312,13 @@ struct SettingsView: View {
     }
 
     private func cliStatusDot(_ path: String) -> some View {
-        Circle()
-            .fill(FileManager.default.isExecutableFile(atPath: path) ? Color.green : Color.red)
-            .frame(width: 8, height: 8)
-            .help(FileManager.default.isExecutableFile(atPath: path) ? "Found" : "Not found at this path")
+        let isFound = !path.isEmpty && FileManager.default.isExecutableFile(atPath: path)
+        return Image(systemName: isFound ? "checkmark.circle.fill" : "xmark.circle.fill")
+            .foregroundStyle(isFound ? Color.green : Color.red)
+            .font(.system(size: 10))
+            .help(isFound ? "Found" : "Not found at this path")
+            .accessibilityLabel("CLI status")
+            .accessibilityValue(isFound ? "Found" : "Not found")
     }
 
     private func save() {

@@ -66,7 +66,7 @@ struct CanopySettings: Codable {
             "/usr/local/bin/\(name)",
             "/usr/bin/\(name)"
         ]
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/usr/bin/\(name)"
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? ""
     }
 
     init(from decoder: Decoder) throws {
