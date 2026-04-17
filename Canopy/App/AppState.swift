@@ -65,9 +65,9 @@ final class AppState: ObservableObject {
     /// Git status for the currently active session.
     @Published var activeGitStatus: GitStatusInfo?
 
-    /// Cached PR data to avoid hitting gh CLI every poll cycle.
-    private var cachedPRs: [GitPRInfo] = []
-    private var lastPRRefresh: Date = .distantPast
+    /// Cached PR data per repo path, to avoid hitting gh CLI every poll cycle.
+    private var cachedPRsByRepo: [String: [GitPRInfo]] = [:]
+    private var lastPRRefreshByRepo: [String: Date] = [:]
     private var gitPollTask: Task<Void, Never>?
 
     private let lastUpdateCheckKey = "canopy.lastUpdateCheck"
@@ -213,6 +213,7 @@ final class AppState: ObservableObject {
             activeGitStatus = nil
             return
         }
+        let sessionId = session.id
         let path = session.workingDirectory
         guard await git.isGitRepo(path: path) else {
             activeGitStatus = nil
@@ -222,14 +223,19 @@ final class AppState: ObservableObject {
         let diff = await git.diffStat(repoPath: path)
         let ahead = await git.commitsAhead(repoPath: path)
 
+        // Cache PRs per repo path (60s TTL)
         let prs: [GitPRInfo]
-        if Date().timeIntervalSince(lastPRRefresh) > 60 {
+        let lastRefresh = lastPRRefreshByRepo[path] ?? .distantPast
+        if Date().timeIntervalSince(lastRefresh) > 60 {
             prs = await git.openPRs(repoPath: path)
-            cachedPRs = prs
-            lastPRRefresh = Date()
+            cachedPRsByRepo[path] = prs
+            lastPRRefreshByRepo[path] = Date()
         } else {
-            prs = cachedPRs
+            prs = cachedPRsByRepo[path] ?? []
         }
+
+        // Guard against stale results if session changed during async work
+        guard activeSessionId == sessionId else { return }
 
         activeGitStatus = GitStatusInfo(
             diffStat: diff, commitsAhead: ahead,
@@ -242,7 +248,8 @@ final class AppState: ObservableObject {
         gitPollTask?.cancel()
         gitPollTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refreshGitStatus()
+                guard let self else { return }
+                await self.refreshGitStatus()
                 try? await Task.sleep(for: .seconds(10))
             }
         }

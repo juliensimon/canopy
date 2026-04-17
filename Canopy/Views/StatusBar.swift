@@ -207,7 +207,7 @@ struct StatusBar: View {
     private func abbreviatedPath(_ path: String) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         if path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
+            return "~" + String(path.dropFirst(home.count))
         }
         return path
     }
