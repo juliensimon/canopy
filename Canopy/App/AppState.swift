@@ -62,6 +62,14 @@ final class AppState: ObservableObject {
     /// Result of the most recent update check.
     @Published var updateStatus: UpdateStatus = .unknown
 
+    /// Git status for the currently active session.
+    @Published var activeGitStatus: GitStatusInfo?
+
+    /// Cached PR data to avoid hitting gh CLI every poll cycle.
+    private var cachedPRs: [GitPRInfo] = []
+    private var lastPRRefresh: Date = .distantPast
+    private var gitPollTask: Task<Void, Never>?
+
     private let lastUpdateCheckKey = "canopy.lastUpdateCheck"
     private let updateCheckInterval: TimeInterval = 24 * 60 * 60
 
@@ -195,6 +203,55 @@ final class AppState: ObservableObject {
             subtitle: session.name,
             sessionId: sessionId
         )
+    }
+
+    // MARK: - Git Status Polling
+
+    /// Fetches git status for the active session and updates `activeGitStatus`.
+    func refreshGitStatus() async {
+        guard let session = activeSession else {
+            activeGitStatus = nil
+            return
+        }
+        let path = session.workingDirectory
+        guard await git.isGitRepo(path: path) else {
+            activeGitStatus = nil
+            return
+        }
+
+        let diff = await git.diffStat(repoPath: path)
+        let ahead = await git.commitsAhead(repoPath: path)
+
+        let prs: [GitPRInfo]
+        if Date().timeIntervalSince(lastPRRefresh) > 60 {
+            prs = await git.openPRs(repoPath: path)
+            cachedPRs = prs
+            lastPRRefresh = Date()
+        } else {
+            prs = cachedPRs
+        }
+
+        activeGitStatus = GitStatusInfo(
+            diffStat: diff, commitsAhead: ahead,
+            openPRs: prs, changedFiles: diff?.changedFiles ?? []
+        )
+    }
+
+    /// Starts periodic git status polling.
+    func startGitStatusPolling() {
+        gitPollTask?.cancel()
+        gitPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshGitStatus()
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
+    }
+
+    /// Stops git status polling.
+    func stopGitStatusPolling() {
+        gitPollTask?.cancel()
+        gitPollTask = nil
     }
 
     // MARK: - Update Checking

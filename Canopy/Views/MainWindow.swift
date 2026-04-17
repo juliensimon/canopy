@@ -36,10 +36,20 @@ struct MainWindow: View {
                     }
                     .animation(.easeInOut(duration: 0.15), value: appState.activeSessionId)
 
-
+                    if appState.activeSession != nil {
+                        Divider()
+                        StatusBar()
+                    }
                 }
             }
             .navigationSplitViewStyle(.balanced)
+            .onAppear {
+                appState.startGitStatusPolling()
+            }
+            .onChange(of: appState.activeSessionId) { _, _ in
+                appState.activeGitStatus = nil
+                Task { await appState.refreshGitStatus() }
+            }
 
             // Command palette overlay
             if appState.showCommandPalette {
