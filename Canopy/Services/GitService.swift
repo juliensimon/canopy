@@ -216,14 +216,20 @@ struct GitService {
         return GitDiffStat.parse(shortstat: trimmed, changedFiles: files)
     }
 
-    /// Returns open PRs for the repo. If `branch` is provided, scopes to that branch only.
+    /// Returns open PRs for the repo.
+    /// By default, scopes to the current branch (`branch = "HEAD"`).
+    /// Pass `nil` to return open PRs across the entire repository, or pass a branch name
+    /// to scope to that branch only.
     /// Returns empty array on any error (gh not installed, not a GitHub repo, no auth).
     func openPRs(repoPath: String, branch: String? = "HEAD") async -> [GitPRInfo] {
         var args = ["pr", "list", "--json", "number,title,url,isDraft,headRefName", "--state", "open", "--limit", "10"]
         if let branch = branch {
             if branch == "HEAD" {
                 guard let current = try? await currentBranch(repoPath: repoPath) else { return [] }
-                args += ["--head", current]
+                // Detached HEAD returns literal "HEAD" — skip filtering
+                if current != "HEAD" {
+                    args += ["--head", current]
+                }
             } else {
                 args += ["--head", branch]
             }

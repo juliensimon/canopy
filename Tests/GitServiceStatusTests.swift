@@ -114,7 +114,7 @@ struct GitServiceStatusTests {
             let stat = await git.diffStat(repoPath: repo)
             #expect(stat != nil)
             #expect(stat!.deletions > 0)
-            #expect(stat!.insertions == 0 || stat!.insertions == 0)
+            #expect(stat!.insertions == 0)
         }
     }
 
@@ -385,11 +385,11 @@ struct GitServiceStatusTests {
         #expect(prs[0].headBranch == "")
     }
 
-    // MARK: - openPRs: gh CLI not available
+    // MARK: - openPRs: gh lookup fails for local/non-GitHub repos
 
-    @Test func openPRsReturnsEmptyWhenGHNotAvailable() async throws {
+    @Test func openPRsReturnsEmptyWhenRepoHasNoGitHubRemote() async throws {
         try await withTempRepo { repo in
-            // This repo has no GitHub remote, so gh will fail
+            // This repo has no GitHub remote/configuration, so gh-based PR lookup will fail
             let prs = await git.openPRs(repoPath: repo)
             #expect(prs.isEmpty)
         }
