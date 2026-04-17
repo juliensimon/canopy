@@ -16,6 +16,8 @@ struct SettingsView: View {
     @State private var sbxFlags: String
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
+    @State private var ghPath: String
+    @State private var sbxPath: String
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -27,6 +29,8 @@ struct SettingsView: View {
         self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
         self._useSandbox = State(initialValue: settings.useSandbox)
         self._sbxFlags = State(initialValue: settings.sbxFlags)
+        self._ghPath = State(initialValue: settings.ghPath)
+        self._sbxPath = State(initialValue: settings.sbxPath)
     }
 
     var body: some View {
@@ -187,6 +191,44 @@ struct SettingsView: View {
                         Label("Terminal", systemImage: "terminal")
                     }
 
+                    // CLI Tools section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("GitHub CLI (gh)")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                HStack {
+                                    TextField("/opt/homebrew/bin/gh", text: $ghPath)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(size: 12, design: .monospaced))
+                                    cliStatusDot(ghPath)
+                                }
+                                Text("Used for PR status indicators. Auto-detected from Homebrew.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Sandbox CLI (sbx)")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                HStack {
+                                    TextField("/opt/homebrew/bin/sbx", text: $sbxPath)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(size: 12, design: .monospaced))
+                                    cliStatusDot(sbxPath)
+                                }
+                                Text("Used for sandboxed sessions.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .padding(4)
+                    } label: {
+                        Label("CLI Tools", systemImage: "wrench")
+                    }
+
                     // Updates section
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
@@ -269,6 +311,13 @@ struct SettingsView: View {
         }
     }
 
+    private func cliStatusDot(_ path: String) -> some View {
+        Circle()
+            .fill(FileManager.default.isExecutableFile(atPath: path) ? Color.green : Color.red)
+            .frame(width: 8, height: 8)
+            .help(FileManager.default.isExecutableFile(atPath: path) ? "Found" : "Not found at this path")
+    }
+
     private func save() {
         var settings = appState.settings
         settings.autoStartClaude = autoStartClaude
@@ -280,6 +329,8 @@ struct SettingsView: View {
         settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         settings.useSandbox = useSandbox
         settings.sbxFlags = sbxFlags
+        settings.ghPath = ghPath
+        settings.sbxPath = sbxPath
         settings.save()
         appState.settings = settings
         dismiss()

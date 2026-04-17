@@ -31,6 +31,12 @@ struct CanopySettings: Codable {
     /// Additional flags passed to `sbx run` (e.g. "--memory 8g").
     var sbxFlags: String
 
+    /// Path to the GitHub CLI (`gh`). Used for PR status in the status bar.
+    var ghPath: String
+
+    /// Path to the sandbox CLI (`sbx`). Used for sandboxed sessions.
+    var sbxPath: String
+
     var ideName: String {
         ((idePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
@@ -39,7 +45,7 @@ struct CanopySettings: Codable {
         ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true, useSandbox: Bool = false, sbxFlags: String = "") {
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true, useSandbox: Bool = false, sbxFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil) {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
@@ -49,6 +55,18 @@ struct CanopySettings: Codable {
         self.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         self.useSandbox = useSandbox
         self.sbxFlags = sbxFlags
+        self.ghPath = ghPath ?? Self.detectCLI("gh")
+        self.sbxPath = sbxPath ?? Self.detectCLI("sbx")
+    }
+
+    /// Detects a CLI tool by checking common Homebrew and system paths.
+    private static func detectCLI(_ name: String) -> String {
+        let candidates = [
+            "/opt/homebrew/bin/\(name)",
+            "/usr/local/bin/\(name)",
+            "/usr/bin/\(name)"
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/usr/bin/\(name)"
     }
 
     init(from decoder: Decoder) throws {
@@ -62,6 +80,8 @@ struct CanopySettings: Codable {
         checkForUpdatesOnLaunch = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdatesOnLaunch) ?? true
         useSandbox = try container.decodeIfPresent(Bool.self, forKey: .useSandbox) ?? false
         sbxFlags = try container.decodeIfPresent(String.self, forKey: .sbxFlags) ?? ""
+        ghPath = try container.decodeIfPresent(String.self, forKey: .ghPath) ?? Self.detectCLI("gh")
+        sbxPath = try container.decodeIfPresent(String.self, forKey: .sbxPath) ?? Self.detectCLI("sbx")
     }
 
     /// The full command sent to the terminal when auto-starting.
