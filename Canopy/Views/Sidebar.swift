@@ -141,10 +141,14 @@ struct Sidebar: View {
         let color = projectColorFor(session)
 
         HStack(spacing: 6) {
+            let diff = appState.sessionDiffStats[session.id]
+            let ahead = appState.sessionCommitsAhead[session.id]
+            let prs = appState.sessionPRCount[session.id]
+            let sandboxed = isSandboxed(session)
             if let ts = appState.terminalSessions[session.id] {
-                LiveSessionRow(session: session, terminalSession: ts, projectColor: color, isSandboxed: isSandboxed(session))
+                LiveSessionRow(session: session, terminalSession: ts, projectColor: color, diffStat: diff, commitsAhead: ahead, prCount: prs, isSandboxed: sandboxed)
             } else {
-                SidebarSessionRow(session: session, projectColor: color, isSandboxed: isSandboxed(session))
+                SidebarSessionRow(session: session, projectColor: color, diffStat: diff, commitsAhead: ahead, prCount: prs, isSandboxed: sandboxed)
             }
 
             Spacer()
@@ -432,6 +436,9 @@ struct LiveSessionRow: View {
     let session: SessionInfo
     @ObservedObject var terminalSession: TerminalSession
     var projectColor: Color = .gray
+    var diffStat: GitDiffStat?
+    var commitsAhead: Int?
+    var prCount: Int?
     var isSandboxed: Bool = false
 
     var body: some View {
@@ -439,6 +446,9 @@ struct LiveSessionRow: View {
             session: session,
             activity: terminalSession.activity,
             projectColor: projectColor,
+            diffStat: diffStat,
+            commitsAhead: commitsAhead,
+            prCount: prCount,
             isSandboxed: isSandboxed
         )
     }
@@ -450,6 +460,9 @@ struct SidebarSessionRow: View {
     let session: SessionInfo
     var activity: SessionActivity = .idle
     var projectColor: Color = .gray
+    var diffStat: GitDiffStat?
+    var commitsAhead: Int?
+    var prCount: Int?
     var isSandboxed: Bool = false
 
     var body: some View {
@@ -466,28 +479,75 @@ struct SidebarSessionRow: View {
                         Image(systemName: "shield.lefthalf.filled")
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
-                            .help("Running in Docker Sandbox")
+                            .tooltip("Running in Docker Sandbox")
                     }
                 }
-                Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundColor(session.isWorktreeSession ? projectColor.opacity(0.7) : .gray)
-                    .lineLimit(1)
+
+                // Subtitle: branch (if different from name) + git indicators
+                if branchSubtitle != nil || hasGitInfo {
+                    HStack(spacing: 4) {
+                        if let branch = branchSubtitle {
+                            Text(branch)
+                                .font(.system(size: 10))
+                                .foregroundColor(session.isWorktreeSession ? projectColor.opacity(0.7) : .gray)
+                                .lineLimit(1)
+                        }
+
+                        if hasGitInfo {
+                            if branchSubtitle != nil { Spacer(minLength: 2) }
+
+                            if let count = prCount, count > 0 {
+                                HStack(spacing: 1) {
+                                    Image(systemName: "arrow.triangle.pull")
+                                        .font(.system(size: 7))
+                                    Text("\(count)")
+                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                }
+                                .foregroundStyle(.secondary)
+                                .tooltip("\(count) open PR\(count == 1 ? "" : "s")")
+                            }
+
+                            if let ahead = commitsAhead, ahead > 0 {
+                                HStack(spacing: 1) {
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 7, weight: .bold))
+                                    Text("\(ahead)")
+                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                }
+                                .foregroundStyle(.secondary)
+                                .tooltip("\(ahead) commit\(ahead == 1 ? "" : "s") ahead of base branch")
+                            }
+
+                            if let diff = diffStat, !diff.isClean {
+                                HStack(spacing: 2) {
+                                    if diff.insertions > 0 {
+                                        Text("+\(diff.insertions)")
+                                            .foregroundStyle(.green)
+                                    }
+                                    if diff.deletions > 0 {
+                                        Text("−\(diff.deletions)")
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .tooltip("\(diff.filesChanged) file\(diff.filesChanged == 1 ? "" : "s") changed\(diff.changedFiles.isEmpty ? "" : ":\n" + diff.changedFiles.joined(separator: "\n"))")
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding(.vertical, 2)
     }
 
-    private var subtitle: String {
-        if let branch = session.branchName {
-            return branch
-        }
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        var path = session.workingDirectory
-        if path.hasPrefix(home) {
-            path = "~" + path.dropFirst(home.count)
-        }
-        return path
+    private var hasGitInfo: Bool {
+        (commitsAhead ?? 0) > 0 || !(diffStat?.isClean ?? true) || (prCount ?? 0) > 0
+    }
+
+    /// Branch name only when it differs from session name. No path — it's redundant.
+    private var branchSubtitle: String? {
+        guard let branch = session.branchName, branch != session.name else { return nil }
+        return branch
     }
 }
 

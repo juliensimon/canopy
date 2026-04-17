@@ -143,6 +143,43 @@ struct GitStatusPollingTests {
         #expect(state.activeGitStatus?.diffStat?.isClean == false)
     }
 
+    // MARK: - All-session diff stats
+
+    @Test @MainActor func refreshAllSessionDiffStats() async throws {
+        let repo1 = try makeTempRepo()
+        let repo2 = try makeTempRepo()
+        defer { try? fm.removeItem(atPath: repo1); try? fm.removeItem(atPath: repo2) }
+
+        let state = AppState()
+        state.createSession(name: "clean", directory: repo1)
+        state.createSession(name: "dirty", directory: repo2)
+
+        try "changed".write(toFile: "\(repo2)/file.txt", atomically: true, encoding: .utf8)
+
+        await state.refreshAllSessionDiffStats()
+
+        let cleanId = state.sessions[0].id
+        let dirtyId = state.sessions[1].id
+
+        #expect(state.sessionDiffStats[cleanId] != nil)
+        #expect(state.sessionDiffStats[cleanId]?.isClean == true)
+        #expect(state.sessionDiffStats[dirtyId] != nil)
+        #expect(state.sessionDiffStats[dirtyId]?.isClean == false)
+    }
+
+    @Test @MainActor func refreshAllSessionDiffStatsSkipsNonGit() async {
+        let tempDir = NSTemporaryDirectory() + "canopy-nongitall-\(UUID().uuidString)"
+        try? fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: tempDir) }
+
+        let state = AppState()
+        state.createSession(name: "nongit", directory: tempDir)
+
+        await state.refreshAllSessionDiffStats()
+
+        #expect(state.sessionDiffStats[state.sessions[0].id] == nil)
+    }
+
     // MARK: - Helpers
 
     @discardableResult

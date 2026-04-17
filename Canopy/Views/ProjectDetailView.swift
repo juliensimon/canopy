@@ -14,6 +14,8 @@ struct ProjectDetailView: View {
     @State private var worktreeToMerge: WorktreeInfo?
     @State private var deleteError: String?
     @State private var showNewWorktree = false
+    @State private var openPRs: [GitPRInfo] = []
+    @State private var worktreeDiffStats: [String: GitDiffStat] = [:]
     private let git = GitService()
 
     var projectSessions: [SessionInfo] {
@@ -65,6 +67,11 @@ struct ProjectDetailView: View {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.red)
+                }
+
+                // Pull requests
+                if !isLoading {
+                    pullRequestsSection
                 }
 
                 // Configuration
@@ -195,6 +202,62 @@ struct ProjectDetailView: View {
         }
     }
 
+    // MARK: - Pull Requests
+
+    @ViewBuilder
+    private var pullRequestsSection: some View {
+        if !openPRs.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("Pull Requests", icon: "arrow.triangle.pull")
+
+                ForEach(openPRs) { pr in
+                    Button(action: {
+                        if let url = URL(string: pr.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            Text("#\(pr.number)")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 50, alignment: .leading)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(pr.title)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
+                                Text(pr.headBranch)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if pr.isDraft {
+                                Text("draft")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.secondary.opacity(0.15))
+                                    .cornerRadius(3)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .tooltip(pr.url)
+                }
+            }
+        }
+    }
+
     // MARK: - Configuration
 
     private var configSection: some View {
@@ -252,6 +315,30 @@ struct ProjectDetailView: View {
                             .padding(.vertical, 1)
                             .background(Color.secondary.opacity(0.15))
                             .cornerRadius(3)
+                    }
+                    // Inline diff stat
+                    if let diff = worktreeDiffStats[wt.path] {
+                        if diff.isClean {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.green)
+                                .tooltip("Working tree clean")
+                        } else {
+                            HStack(spacing: 2) {
+                                if diff.insertions > 0 {
+                                    Text("+\(diff.insertions)")
+                                        .foregroundStyle(.green)
+                                }
+                                if diff.deletions > 0 {
+                                    Text("−\(diff.deletions)")
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tooltip(diff.changedFiles.isEmpty
+                                ? "\(diff.filesChanged) file\(diff.filesChanged == 1 ? "" : "s") changed"
+                                : diff.changedFiles.joined(separator: "\n"))
+                        }
                     }
                 }
                 HStack(spacing: 4) {
@@ -402,10 +489,12 @@ struct ProjectDetailView: View {
             async let w = git.listWorktrees(repoPath: project.repositoryPath)
             async let b = git.listBranches(repoPath: project.repositoryPath)
             async let c = git.currentBranch(repoPath: project.repositoryPath)
+            async let p = git.openPRs(repoPath: project.repositoryPath, branch: nil)
 
             var wts = try await w
             branches = try await b
             currentBranch = try await c
+            openPRs = await p
 
             // Resolve base branches for non-main worktrees
             for i in wts.indices {
@@ -414,6 +503,21 @@ struct ProjectDetailView: View {
                 }
             }
             worktrees = wts
+
+            // Fetch diff stats for each worktree in parallel
+            await withTaskGroup(of: (String, GitDiffStat?).self) { group in
+                for wt in wts {
+                    group.addTask {
+                        let stat = await git.diffStat(repoPath: wt.path)
+                        return (wt.path, stat)
+                    }
+                }
+                for await (path, stat) in group {
+                    if let stat = stat {
+                        worktreeDiffStats[path] = stat
+                    }
+                }
+            }
         } catch {
             // Silently handle — repo might not be accessible
         }

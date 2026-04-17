@@ -48,7 +48,11 @@ struct MainWindow: View {
             }
             .onChange(of: appState.activeSessionId) { _, _ in
                 appState.activeGitStatus = nil
-                Task { await appState.refreshGitStatus() }
+                Task {
+                    await appState.refreshGitStatus()
+                    await appState.refreshAllSessionDiffStats()
+                    await appState.refreshAllSessionPRCounts()
+                }
             }
 
             // Command palette overlay

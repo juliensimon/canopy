@@ -194,6 +194,15 @@ struct GitService {
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Returns the common git directory (stable across worktrees of the same repo).
+    func gitCommonDir(path: String) async throws -> String {
+        let output = try await run(["rev-parse", "--git-common-dir"], in: path)
+        let raw = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        // --git-common-dir may return a relative path; resolve it
+        if raw.hasPrefix("/") { return raw }
+        return (path as NSString).appendingPathComponent(raw)
+    }
+
     // MARK: - Diff & Push Status
 
     /// Returns a summary of uncommitted changes (staged + unstaged) vs HEAD.

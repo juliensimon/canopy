@@ -65,6 +65,15 @@ final class AppState: ObservableObject {
     /// Git status for the currently active session.
     @Published var activeGitStatus: GitStatusInfo?
 
+    /// Git diff stats per session, keyed by session ID. Used by sidebar rows.
+    @Published var sessionDiffStats: [UUID: GitDiffStat] = [:]
+
+    /// Commits ahead of upstream per session, keyed by session ID.
+    @Published var sessionCommitsAhead: [UUID: Int] = [:]
+
+    /// Open PR count per session, keyed by session ID. Used by sidebar rows.
+    @Published var sessionPRCount: [UUID: Int] = [:]
+
     /// Cached PR data per repo path, to avoid hitting gh CLI every poll cycle.
     private var cachedPRsByRepo: [String: [GitPRInfo]] = [:]
     private var lastPRRefreshByRepo: [String: Date] = [:]
@@ -213,7 +222,6 @@ final class AppState: ObservableObject {
             activeGitStatus = nil
             return
         }
-        let sessionId = session.id
         let path = session.workingDirectory
         guard await git.isGitRepo(path: path) else {
             activeGitStatus = nil
@@ -234,22 +242,82 @@ final class AppState: ObservableObject {
             prs = cachedPRsByRepo[path] ?? []
         }
 
-        // Guard against stale results if session changed during async work
-        guard activeSessionId == sessionId else { return }
-
         activeGitStatus = GitStatusInfo(
             diffStat: diff, commitsAhead: ahead,
             openPRs: prs, changedFiles: diff?.changedFiles ?? []
         )
     }
 
-    /// Starts periodic git status polling.
+    /// Refreshes diff stats and commits-ahead for all sessions (sidebar indicators).
+    func refreshAllSessionDiffStats() async {
+        for session in sessions {
+            let path = session.workingDirectory
+            guard await git.isGitRepo(path: path) else {
+                sessionDiffStats.removeValue(forKey: session.id)
+                sessionCommitsAhead.removeValue(forKey: session.id)
+                continue
+            }
+            if let diff = await git.diffStat(repoPath: path) {
+                sessionDiffStats[session.id] = diff
+            } else {
+                sessionDiffStats.removeValue(forKey: session.id)
+            }
+            if let ahead = await git.commitsAhead(repoPath: path), ahead > 0 {
+                sessionCommitsAhead[session.id] = ahead
+            } else {
+                sessionCommitsAhead.removeValue(forKey: session.id)
+            }
+        }
+    }
+
+    /// Refreshes PR counts for all sessions by fetching once per unique repo.
+    /// Uses git-common-dir to dedupe worktrees sharing the same underlying repo.
+    private var lastSessionPRRefresh: Date = .distantPast
+
+    func refreshAllSessionPRCounts(force: Bool = false) async {
+        guard force || Date().timeIntervalSince(lastSessionPRRefresh) > 60 else { return }
+        lastSessionPRRefresh = Date()
+
+        // Group sessions by common git dir (dedupes worktrees from same repo)
+        var repoSessions: [String: [(UUID, String?)]] = [:]
+        for session in sessions {
+            let path = session.workingDirectory
+            guard await git.isGitRepo(path: path) else { continue }
+            let commonDir = (try? await git.gitCommonDir(path: path)) ?? path
+            var branch = session.branchName
+            if branch == nil {
+                branch = try? await git.currentBranch(repoPath: path)
+            }
+            repoSessions[commonDir, default: []].append((session.id, branch))
+        }
+
+        // Rebuild from scratch to clear stale entries
+        var updatedPRCount: [UUID: Int] = [:]
+        for (_, sessionsInRepo) in repoSessions {
+            // Use the first session's path to run gh (any worktree will do)
+            guard let firstSessionId = sessionsInRepo.first?.0,
+                  let firstSession = sessions.first(where: { $0.id == firstSessionId }) else { continue }
+            let allPRs = await git.openPRs(repoPath: firstSession.workingDirectory, branch: nil)
+            for (sessionId, branch) in sessionsInRepo {
+                guard let branch = branch else { continue }
+                let count = allPRs.filter { $0.headBranch == branch }.count
+                if count > 0 {
+                    updatedPRCount[sessionId] = count
+                }
+            }
+        }
+        sessionPRCount = updatedPRCount
+    }
+
+    /// Starts periodic git status polling for all sessions.
     func startGitStatusPolling() {
         gitPollTask?.cancel()
         gitPollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refreshGitStatus()
+                await self.refreshAllSessionDiffStats()
+                await self.refreshAllSessionPRCounts()
                 try? await Task.sleep(for: .seconds(10))
             }
         }
