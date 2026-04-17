@@ -120,6 +120,29 @@ struct AppStateSelectionTests {
         #expect(state.terminalSessions[info.id] == nil)
     }
 
+    /// Sidebar per-session git dicts must be cleaned up when a session
+    /// closes. Otherwise entries grow unbounded over the app's lifetime
+    /// and any future code iterating the dicts will see dead UUIDs.
+    @Test @MainActor func closeSessionClearsSidebarGitDicts() {
+        let state = AppState()
+        state.settings.confirmBeforeClosing = false
+        state.createSession(name: "Test", directory: "/tmp")
+        let id = state.sessions[0].id
+
+        // Simulate what the pollers would populate.
+        state.sessionDiffStats[id] = GitDiffStat(
+            filesChanged: 1, insertions: 3, deletions: 0, changedFiles: ["x"]
+        )
+        state.sessionCommitsAhead[id] = 2
+        state.sessionPRCount[id] = 1
+
+        state.closeSession(id: id)
+
+        #expect(state.sessionDiffStats[id] == nil)
+        #expect(state.sessionCommitsAhead[id] == nil)
+        #expect(state.sessionPRCount[id] == nil)
+    }
+
     // MARK: - Session Naming
 
     @Test @MainActor func createSessionDefaultsToSessionNumber() {

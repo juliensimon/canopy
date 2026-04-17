@@ -562,6 +562,9 @@ final class AppState: ObservableObject {
         terminalSessions[id]?.stop()
         terminalSessions.removeValue(forKey: id)
         closeSplitTerminal(for: id)
+        sessionDiffStats.removeValue(forKey: id)
+        sessionCommitsAhead.removeValue(forKey: id)
+        sessionPRCount.removeValue(forKey: id)
         withAnimation(.easeOut(duration: 0.25)) {
             sessions.removeAll { $0.id == id }
             if activeSessionId == id {
