@@ -5,6 +5,22 @@ import Foundation
 @Suite("AppState")
 struct AppStateTests {
 
+    // MARK: - Session-selection safety
+
+    /// `selectSession(id)` is reachable from notification callbacks (stale
+    /// banner for a closed session) and in-process observers on other
+    /// AppState instances. It must no-op when the id isn't in `sessions`;
+    /// otherwise activeSessionId points at a ghost and the UI breaks.
+    @Test @MainActor func selectSessionIgnoresUnknownSessionId() {
+        let state = AppState()
+        state.createSession(name: "real", directory: "/tmp")
+        let originalId = state.activeSessionId
+
+        state.selectSession(UUID())  // not in state.sessions
+
+        #expect(state.activeSessionId == originalId)
+    }
+
     // MARK: - Session Management
 
     @Test @MainActor func createSession() {

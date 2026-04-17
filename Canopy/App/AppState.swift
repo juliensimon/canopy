@@ -169,7 +169,10 @@ final class AppState: ObservableObject {
     }
 
     /// When selecting a session, clear the project selection (and vice versa).
+    /// No-op when `id` does not match a live session (stale notification
+    /// for a closed session, or observer on a different AppState instance).
     func selectSession(_ id: UUID) {
+        guard sessions.contains(where: { $0.id == id }) else { return }
         activeSessionId = id
         selectedProjectId = nil
         showActivity = false
