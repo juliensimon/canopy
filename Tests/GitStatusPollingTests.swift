@@ -118,6 +118,40 @@ struct GitStatusPollingTests {
         #expect(state.activeGitStatus?.diffStat?.isClean == false)
     }
 
+    /// Regression: `refreshGitStatus` must not overwrite `activeGitStatus`
+    /// with data from a session that was active when the refresh started but
+    /// was switched away from before the git operations completed. Without
+    /// the stale-session guard, the 10s poller racing with a tab switch
+    /// writes the *previous* session's git state onto the new selection.
+    @Test @MainActor func refreshGitStatusDoesNotOverwriteAfterSessionSwitch() async throws {
+        let repo = try makeTempRepo()
+        defer { try? fm.removeItem(atPath: repo) }
+        let tempDir = NSTemporaryDirectory() + "canopy-pollrace-\(UUID().uuidString)"
+        try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: tempDir) }
+
+        let state = AppState()
+        state.createSession(name: "git-session", directory: repo)
+        state.createSession(name: "plain-session", directory: tempDir)
+
+        // Activate the git session and kick off a refresh. The async git
+        // operations suspend; before they resume, we switch to the non-git
+        // session. The guard must prevent the in-flight refresh from
+        // writing the git-session's status onto the plain-session.
+        state.activeSessionId = state.sessions[0].id
+        let refresh = Task { @MainActor in await state.refreshGitStatus() }
+        // Yield so the refresh task actually starts and captures the git
+        // session before we swap the selection. Without this, the task
+        // begins after the swap and reads the already-updated selection,
+        // which wouldn't exercise the stale-write race at all.
+        await Task.yield()
+        state.activeSessionId = state.sessions[1].id
+        await refresh.value
+
+        #expect(state.activeGitStatus == nil,
+                "Stale git status wrote over fresh non-git selection")
+    }
+
     @Test @MainActor func refreshGitStatusInWorktree() async throws {
         let repo = try makeTempRepo()
         defer { try? fm.removeItem(atPath: repo) }

@@ -222,8 +222,10 @@ final class AppState: ObservableObject {
             activeGitStatus = nil
             return
         }
+        let sessionId = session.id
         let path = session.workingDirectory
         guard await git.isGitRepo(path: path) else {
+            guard activeSessionId == sessionId else { return }
             activeGitStatus = nil
             return
         }
@@ -241,6 +243,9 @@ final class AppState: ObservableObject {
         } else {
             prs = cachedPRsByRepo[path] ?? []
         }
+
+        // Guard against stale results if the session changed during async work.
+        guard activeSessionId == sessionId else { return }
 
         activeGitStatus = GitStatusInfo(
             diffStat: diff, commitsAhead: ahead,
