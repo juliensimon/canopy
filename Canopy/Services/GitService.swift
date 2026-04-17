@@ -194,6 +194,59 @@ struct GitService {
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Diff & Push Status
+
+    /// Returns a summary of uncommitted changes (staged + unstaged) vs HEAD.
+    /// Returns nil if the directory is not a git repo or has no commits yet.
+    func diffStat(repoPath: String) async -> GitDiffStat? {
+        guard let shortstat = try? await run(["diff", "--shortstat", "HEAD"], in: repoPath) else {
+            return nil
+        }
+        let nameOnly = (try? await run(["diff", "--name-only", "HEAD"], in: repoPath)) ?? ""
+        let files = nameOnly
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        let trimmed = shortstat.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return GitDiffStat(filesChanged: 0, insertions: 0, deletions: 0, changedFiles: [])
+        }
+
+        return GitDiffStat.parse(shortstat: trimmed, changedFiles: files)
+    }
+
+    /// Returns open PRs for the repo. If `branch` is provided, scopes to that branch only.
+    /// Returns empty array on any error (gh not installed, not a GitHub repo, no auth).
+    func openPRs(repoPath: String, branch: String? = "HEAD") async -> [GitPRInfo] {
+        var args = ["pr", "list", "--json", "number,title,url,isDraft,headRefName", "--state", "open", "--limit", "10"]
+        if let branch = branch {
+            if branch == "HEAD" {
+                guard let current = try? await currentBranch(repoPath: repoPath) else { return [] }
+                args += ["--head", current]
+            } else {
+                args += ["--head", branch]
+            }
+        }
+        guard let output = try? await runGH(args, in: repoPath) else { return [] }
+        return GitPRInfo.parseGHJSON(output)
+    }
+
+    /// Returns how many commits HEAD is ahead of its upstream or base branch.
+    /// Tries upstream first (pushed branches). Falls back to base branch detection
+    /// (main/master/develop) for unpushed feature branches and worktrees.
+    func commitsAhead(repoPath: String) async -> Int? {
+        if let output = try? await run(
+            ["rev-list", "--count", "@{upstream}..HEAD"], in: repoPath
+        ), let count = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return count
+        }
+        guard let branch = try? await currentBranch(repoPath: repoPath) else { return nil }
+        guard let base = await baseBranch(for: branch, repoPath: repoPath) else { return nil }
+        if branch == base { return nil }
+        return try? await commitCount(from: branch, to: base, repoPath: repoPath)
+    }
+
     // MARK: - File Operations for Worktree Setup
 
     /// Copies files from the main repo to a worktree.
@@ -289,6 +342,45 @@ struct GitService {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    /// Resolves the `gh` CLI path, checking common Homebrew and system locations.
+    private static let ghPath: String? = {
+        let candidates = [
+            "/opt/homebrew/bin/gh",
+            "/usr/local/bin/gh",
+            "/usr/bin/gh"
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }()
+
+    /// Runs a `gh` CLI command and returns stdout. Throws on non-zero exit.
+    @discardableResult
+    private func runGH(_ args: [String], in directory: String) async throws -> String {
+        guard let ghPath = GitService.ghPath else {
+            throw GitError.commandFailed("gh CLI not found")
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ghPath)
+        process.arguments = args
+        process.currentDirectoryURL = URL(fileURLWithPath: directory)
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        try process.run()
+        process.waitUntilExit()
+
+        if process.terminationStatus != 0 {
+            let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+            let errStr = String(data: errData, encoding: .utf8) ?? "Unknown error"
+            throw GitError.commandFailed("gh \(args.joined(separator: " ")): \(errStr)")
+        }
+
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
     /// Parses `git worktree list --porcelain` output into structured data.
     private func parseWorktreeList(_ output: String) -> [WorktreeInfo] {
         var worktrees: [WorktreeInfo] = []
@@ -347,6 +439,67 @@ struct BranchInfo: Identifiable {
 enum MergeResult {
     case success(commitCount: Int)
     case conflict(files: [String])
+}
+
+struct GitStatusInfo {
+    let diffStat: GitDiffStat?
+    let commitsAhead: Int?
+    let openPRs: [GitPRInfo]
+    let changedFiles: [String]
+}
+
+struct GitPRInfo: Identifiable {
+    let number: Int
+    let title: String
+    let url: String
+    let isDraft: Bool
+    let headBranch: String
+    var id: Int { number }
+
+    /// Parses JSON output from `gh pr list --json number,title,url,isDraft,headRefName`.
+    static func parseGHJSON(_ json: String) -> [GitPRInfo] {
+        guard !json.isEmpty,
+              let data = json.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+        return array.compactMap { dict in
+            guard let number = dict["number"] as? Int,
+                  let title = dict["title"] as? String,
+                  let url = dict["url"] as? String else {
+                return nil
+            }
+            return GitPRInfo(
+                number: number, title: title, url: url,
+                isDraft: dict["isDraft"] as? Bool ?? false,
+                headBranch: dict["headRefName"] as? String ?? ""
+            )
+        }
+    }
+}
+
+struct GitDiffStat {
+    let filesChanged: Int
+    let insertions: Int
+    let deletions: Int
+    let changedFiles: [String]
+    var isClean: Bool { filesChanged == 0 && insertions == 0 && deletions == 0 }
+
+    /// Parses `git diff --shortstat` output.
+    static func parse(shortstat: String, changedFiles: [String]) -> GitDiffStat {
+        var files = 0, ins = 0, del = 0
+        let components = shortstat.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        for component in components {
+            if component.contains("file") {
+                files = Int(component.split(separator: " ").first ?? "") ?? 0
+            } else if component.contains("insertion") {
+                ins = Int(component.split(separator: " ").first ?? "") ?? 0
+            } else if component.contains("deletion") {
+                del = Int(component.split(separator: " ").first ?? "") ?? 0
+            }
+        }
+        return GitDiffStat(filesChanged: files, insertions: ins, deletions: del, changedFiles: changedFiles)
+    }
 }
 
 enum GitError: LocalizedError {
