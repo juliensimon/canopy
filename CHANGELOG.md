@@ -7,13 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-04-17
+
 ### Added
+- Git awareness. A polled status bar at the bottom of the window shows the
+  active session's modified-file count with insertion/deletion totals,
+  commits ahead of upstream, and open pull-request count (with draft split),
+  each with a hover tooltip for the full file list, push status, or PR
+  titles. Sidebar session rows mirror the same data in compact form so
+  every worktree's state is visible at once. (#8, #9, #10)
+- Project detail view now lists every open pull request for the repository,
+  pulled via `gh pr list`. (#10)
 - Docker Sandbox support: optionally run Claude Code inside a `sbx` microVM
   for hard process isolation. Configurable globally and per-project with a
   toggle and optional `sbx run` flags. Canopy validates that Docker Desktop
   and `sbx` are installed before enabling. Session resume is automatically
   disabled in sandbox mode (session files are ephemeral). A shield icon in
   the sidebar indicates sandboxed sessions.
+- Settings: `gh` and `sbx` CLI path overrides with auto-detection of the
+  common Homebrew locations. Leave blank to use `PATH`; set explicitly for
+  non-standard installs. (#11)
+
+### Fixed
+- Activity view: `<synthetic>` Claude Code harness entries (emitted for API
+  errors and "No response requested." sentinels) were being counted as
+  real model calls, polluting the per-model breakdown and session-day
+  attribution. Filter them at parse time and bump the activity cache
+  version so existing caches are invalidated on upgrade.
+- Sidebar git data would occasionally display the previous session's
+  diffstat/ahead/PR counts immediately after a tab switch. The 10-second
+  git-status poller now guards against stamping stale data onto the
+  newly-active session. (#12)
+- Closing a session no longer leaks its per-session git entries
+  (`sessionDiffStats`, `sessionCommitsAhead`, `sessionPRCount`). (#12)
+- `selectSession` is now a no-op when called with an unknown session id,
+  so stale notification callbacks (e.g. clicking a banner for a session
+  that was closed in the meantime) can't clobber the active selection. (#12)
+- `performOpenOrSelectSession` now guards `NSApp.activate` against a nil
+  `NSApp`, which kept the app from crashing in test harnesses that post
+  the `.canopySelectSession` notification without a running `NSApplication`.
+
+### Internal
+- New characterization tests around `AppState.refreshAllSessionPRCounts`
+  cover the 60-second throttle, the `force:` override, the empty-session
+  early exit, and commits-ahead tracking. (#12)
+- Terminal output pipeline and notification routing now have direct test
+  coverage.
+- CI uploads coverage reports to Codecov; SwiftUI views are excluded from
+  the coverage report.
+- `.worktrees/` is now gitignored so local isolation worktrees don't
+  pollute `git status`.
 
 ## [0.9.2] - 2026-04-14
 
