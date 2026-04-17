@@ -140,10 +140,14 @@ struct GitStatusPollingTests {
         // writing the git-session's status onto the plain-session.
         state.activeSessionId = state.sessions[0].id
         let refresh = Task { @MainActor in await state.refreshGitStatus() }
-        // Yield so the refresh task actually starts and captures the git
-        // session before we swap the selection. Without this, the task
-        // begins after the swap and reads the already-updated selection,
-        // which wouldn't exercise the stale-write race at all.
+        // MainActor is cooperative: both this test and the refresh task are
+        // MainActor-isolated, so tasks run FIFO to their next suspension.
+        // `await Task.yield()` lets the refresh task run its synchronous
+        // prefix (capture `activeSession`, read `sessionId`, `path`) up to
+        // its first real suspension at `await git.isGitRepo` (GitService is
+        // non-isolated, so that await hops off the main actor). By the time
+        // control returns here, the refresh has already captured the git
+        // session — now we can swap `activeSessionId` to exercise the race.
         await Task.yield()
         state.activeSessionId = state.sessions[1].id
         await refresh.value
