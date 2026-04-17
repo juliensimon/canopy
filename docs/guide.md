@@ -113,11 +113,11 @@ When your feature is done:
 2. Right-click the session in the sidebar > **Merge & Finish**
    (or close the session, then click the **Merge** button on the worktree row in the project detail view)
 
-2. **Phase 1**: Confirm the target branch and review the commit count. Click **Merge & Finish**.
+3. **Phase 1**: Confirm the target branch and review the commit count. Click **Merge & Finish**.
    - Canopy checks for uncommitted changes and already-merged branches
    - If there are merge conflicts, Canopy aborts and lists the conflicting files
 
-3. **Phase 2**: After a successful merge, choose what to clean up:
+4. **Phase 2**: After a successful merge, choose what to clean up:
    - Delete the worktree directory
    - Delete the feature branch
 
@@ -172,6 +172,21 @@ Shown when you click a project header in the sidebar. Displays:
 - All worktrees with status, base branch, and action buttons (Open, Merge, Delete)
 - "Open All" to resume all inactive worktrees
 - Worktree configuration summary
+- Open pull requests for the repository, pulled via `gh pr list`
+
+### Status bar and git awareness
+
+A thin status bar runs along the bottom of the window. For the active session it shows the session name and working directory, plus three git pills driven by a 10-second poller:
+
+- **Changes** — modified-file count with `+insertions` / `−deletions`, hover for the full file list
+- **Commits ahead** — how many commits your branch has that the upstream doesn't
+- **Pull requests** — open PR count (with draft count in parentheses), hover for titles and numbers
+
+The right side of the status bar shows an activity strip: one dot per session, green if Claude is currently producing output, gray if idle.
+
+The sidebar mirrors the same data per session in compact form: a `+N / −N` diffstat, an up-arrow count for commits-ahead, and a pull-request pill if any. This lets you scan the state of every worktree without switching tabs.
+
+Pull request data comes from `gh pr list`. If `gh` is not installed, the PR pills simply don't appear — everything else keeps working. Install with `brew install gh` and authenticate with `gh auth login`.
 
 ### Settings
 
@@ -185,6 +200,8 @@ Shown when you click a project header in the sidebar. Displays:
 | Sandbox flags | *(empty)* | Additional flags passed to `sbx run` (e.g., `--memory 8g`) |
 | Confirm before closing | On | Ask before closing a session |
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |
+| `gh` CLI path | *auto-detected* | Used for open PR data. Leave blank to use `PATH` lookup; override if Homebrew is in a non-standard location. |
+| `sbx` CLI path | *auto-detected* | Used when Docker Sandbox is enabled. Same auto-detect/override behavior as `gh`. |
 
 Per-project overrides for auto-start, Claude flags, and sandbox mode are available in the project edit sheet.
 

@@ -12,8 +12,8 @@
   - Detect agent spawn/complete from terminal output patterns
 
 ## Phase 4: Command Palette & Search
-- [ ] Cmd+K command palette (fuzzy-match sessions, projects, branches, actions)
-- [ ] Terminal output search (Cmd+F)
+- [x] Cmd+K command palette (fuzzy-match sessions, projects, branches, actions)
+- [x] Terminal output search (Cmd+F)
 - [ ] Menu bar extra showing active session count
 
 ## Phase 5: Session UX
@@ -32,6 +32,6 @@
 
 ## Polish
 - [ ] Onboarding flow for new users
-- [ ] App icon
-- [ ] Homebrew cask distribution
-- [ ] Notarization for Gatekeeper
+- [x] App icon
+- [x] Homebrew cask distribution
+- [x] Notarization for Gatekeeper

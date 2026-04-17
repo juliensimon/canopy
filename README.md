@@ -196,6 +196,20 @@ git branch -d feat/whatever
 
 Click any project in the sidebar to see every worktree, its branch, its status, and a one-click button to open, merge, or delete it. "Open All" resumes every inactive worktree at once with their prior Claude sessions — the fastest way to get back into a multi-branch project after a weekend away.
 
+The project view also lists every open pull request for the repository, pulled via `gh pr list` — so you can see at a glance which of your worktrees already have a PR in flight and which are still local.
+
+---
+
+### 🔀 Git awareness — always-visible repo state
+
+Canopy polls `git` and `gh` every 10 seconds so you never have to drop into a shell to check the state of the current worktree. You see:
+
+- **Status bar** at the bottom of the window, for the active session: modified files with `+` / `−` line counts, commits ahead of the upstream, and open pull request count (with draft split). Hover any pill for a full tooltip — file list, push status, PR titles.
+- **Sidebar session rows** show a compact `+N / −N` diffstat and an up-arrow count for commits-ahead, so you can scan all your worktrees at once.
+- **Project detail view** lists every open PR with title, number, author, and draft status.
+
+Requires `gh` to be installed for the PR data (`brew install gh`). Path is auto-detected; override in Settings if needed.
+
 ---
 
 ## Keyboard shortcuts
@@ -212,7 +226,7 @@ Click any project in the sidebar to see every worktree, its branch, its status, 
 | `Cmd+Shift+S` | Cycle tab sort mode |
 | `Cmd+1`–`Cmd+9` | Jump to tab N |
 | `Cmd+,` | Settings |
-| `Cmd+?` | Keyboard shortcuts reference |
+| `Cmd+?` | Help |
 
 ---
 
