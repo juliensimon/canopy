@@ -7,18 +7,21 @@ import Testing
 /// Each TerminalViewController installs its own NSEvent local monitor; when a
 /// split terminal is open, two monitors fire for every keypress. The policy
 /// decides whether *this* controller's monitor should handle Shift+Return
-/// (send CSI u to its own terminal view) or defer to another monitor.
+/// (send CSI u to its own terminal view) or defer to another monitor / let
+/// the event reach a focused text field.
 ///
 /// Regression context: Before the fix, the Shift+Return branch ran
 /// unconditionally — so whichever monitor fired last stole focus and routed
-/// CSI u to the wrong pane. See GitHub issue #13.
+/// CSI u to the wrong pane, and typing Shift+Enter inside a sheet's text
+/// field would also hijack focus to the terminal. See GitHub issue #13.
 @Suite("TerminalViewController Shift+Return policy")
 struct TerminalKeyPolicyTests {
 
     @Test func handlesWhenOwnTerminalIsFocused() {
         let decision = TerminalViewController.shouldHandleShiftReturn(
             isFirstResponderSelf: true,
-            firstResponderIsOtherTerminal: false
+            firstResponderIsOtherTerminal: false,
+            firstResponderIsTextInput: false
         )
         #expect(decision == true)
     }
@@ -29,18 +32,32 @@ struct TerminalKeyPolicyTests {
         // terminal.
         let decision = TerminalViewController.shouldHandleShiftReturn(
             isFirstResponderSelf: false,
-            firstResponderIsOtherTerminal: true
+            firstResponderIsOtherTerminal: true,
+            firstResponderIsTextInput: false
         )
         #expect(decision == false)
     }
 
-    @Test func handlesWhenNoTerminalIsFocused() {
-        // SwiftUI or a sheet may have grabbed focus; one monitor must still
-        // handle Shift+Return to steal focus back, otherwise the keystroke is
-        // lost entirely.
+    @Test func defersWhenTextFieldOrSheetIsFocused() {
+        // Shift+Return inside an NSTextField/NSTextView (e.g. Add Project
+        // sheet, Settings) must reach that control, not hijack focus to a
+        // hidden terminal.
         let decision = TerminalViewController.shouldHandleShiftReturn(
             isFirstResponderSelf: false,
-            firstResponderIsOtherTerminal: false
+            firstResponderIsOtherTerminal: false,
+            firstResponderIsTextInput: true
+        )
+        #expect(decision == false)
+    }
+
+    @Test func handlesWhenNoRelevantResponder() {
+        // SwiftUI or a plain container may have grabbed focus; one monitor
+        // must still handle Shift+Return to steal focus back, otherwise the
+        // keystroke is lost entirely.
+        let decision = TerminalViewController.shouldHandleShiftReturn(
+            isFirstResponderSelf: false,
+            firstResponderIsOtherTerminal: false,
+            firstResponderIsTextInput: false
         )
         #expect(decision == true)
     }
