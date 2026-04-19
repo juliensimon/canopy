@@ -105,6 +105,16 @@ final class TerminalViewController: NSViewController {
             if event.type == .keyDown,
                event.keyCode == 0x24,  // kVK_Return
                event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.shift) {
+                // Defer when another terminal is focused (split pane: #13) or
+                // when a text field/sheet has focus (don't hijack input the
+                // user intends for an NSTextField/NSTextView).
+                let responder = window.firstResponder
+                let handle = TerminalViewController.shouldHandleShiftReturn(
+                    isFirstResponderSelf: responder === tv,
+                    firstResponderIsOtherTerminal: responder !== tv && responder is LocalProcessTerminalView,
+                    firstResponderIsTextInput: responder is NSTextView || responder is NSTextField
+                )
+                if !handle { return event }
                 window.makeFirstResponder(tv)
                 // CSI u: ESC [ 1 3 ; 2 u  (13 = CR codepoint, 2 = 1+shift)
                 tv.send([0x1b, 0x5b, 0x31, 0x33, 0x3b, 0x32, 0x75])
@@ -215,4 +225,22 @@ final class TerminalViewController: NSViewController {
     }
 
     // Monitor cleanup is handled in viewWillDisappear
+
+    /// Decides whether this controller's monitor should handle a Shift+Return
+    /// keypress. Pure so it can be unit-tested without an NSWindow/NSEvent.
+    /// Returns true when this controller's terminal is focused, or when no
+    /// terminal and no text input is focused (SwiftUI stole focus — grab it
+    /// back). Returns false when another terminal is focused (its own monitor
+    /// will handle it) or when a text field/sheet is focused (don't hijack
+    /// input intended for that control).
+    nonisolated static func shouldHandleShiftReturn(
+        isFirstResponderSelf: Bool,
+        firstResponderIsOtherTerminal: Bool,
+        firstResponderIsTextInput: Bool
+    ) -> Bool {
+        if isFirstResponderSelf { return true }
+        if firstResponderIsOtherTerminal { return false }
+        if firstResponderIsTextInput { return false }
+        return true
+    }
 }
