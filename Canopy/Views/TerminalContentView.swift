@@ -105,6 +105,15 @@ final class TerminalViewController: NSViewController {
             if event.type == .keyDown,
                event.keyCode == 0x24,  // kVK_Return
                event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.shift) {
+                // In split mode each controller installs its own monitor;
+                // without this guard both fire and the last one wins, stealing
+                // focus and routing CSI u to the wrong pane. (issue #13)
+                let responder = window.firstResponder
+                let handle = TerminalViewController.shouldHandleShiftReturn(
+                    isFirstResponderSelf: responder === tv,
+                    firstResponderIsOtherTerminal: responder !== tv && responder is LocalProcessTerminalView
+                )
+                if !handle { return event }
                 window.makeFirstResponder(tv)
                 // CSI u: ESC [ 1 3 ; 2 u  (13 = CR codepoint, 2 = 1+shift)
                 tv.send([0x1b, 0x5b, 0x31, 0x33, 0x3b, 0x32, 0x75])
@@ -215,4 +224,18 @@ final class TerminalViewController: NSViewController {
     }
 
     // Monitor cleanup is handled in viewWillDisappear
+
+    /// Decides whether this controller's monitor should handle a Shift+Return
+    /// keypress. Pure so it can be unit-tested without an NSWindow/NSEvent.
+    /// Returns true when this controller's terminal is focused, or when no
+    /// terminal is focused (SwiftUI stole focus — grab it back). Returns
+    /// false when another terminal is focused — let its monitor handle it.
+    static func shouldHandleShiftReturn(
+        isFirstResponderSelf: Bool,
+        firstResponderIsOtherTerminal: Bool
+    ) -> Bool {
+        if isFirstResponderSelf { return true }
+        if firstResponderIsOtherTerminal { return false }
+        return true
+    }
 }
