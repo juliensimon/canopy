@@ -230,7 +230,7 @@ final class TerminalViewController: NSViewController {
     /// Returns true when this controller's terminal is focused, or when no
     /// terminal is focused (SwiftUI stole focus — grab it back). Returns
     /// false when another terminal is focused — let its monitor handle it.
-    static func shouldHandleShiftReturn(
+    nonisolated static func shouldHandleShiftReturn(
         isFirstResponderSelf: Bool,
         firstResponderIsOtherTerminal: Bool
     ) -> Bool {
