@@ -34,4 +34,39 @@ struct PromptLibraryTests {
         #expect(decoded[0].title == "A")
         #expect(decoded[1].isStarred == true)
     }
+
+    // MARK: - resolvePrompt
+
+    @Test func resolveBranch() {
+        #expect(resolvePrompt("Fix {{branch}}", branchName: "main", projectName: nil, dir: "") == "Fix main")
+    }
+
+    @Test func resolveProject() {
+        #expect(resolvePrompt("In {{project}}", branchName: nil, projectName: "MyApp", dir: "") == "In MyApp")
+    }
+
+    @Test func resolveDir() {
+        #expect(resolvePrompt("At {{dir}}", branchName: nil, projectName: nil, dir: "canopy") == "At canopy")
+    }
+
+    @Test func resolveAllThree() {
+        let result = resolvePrompt("{{branch}} in {{project}} at {{dir}}", branchName: "feat/x", projectName: "App", dir: "src")
+        #expect(result == "feat/x in App at src")
+    }
+
+    @Test func resolveNilBranchBecomesEmpty() {
+        #expect(resolvePrompt("{{branch}}", branchName: nil, projectName: nil, dir: "") == "")
+    }
+
+    @Test func resolveNilProjectBecomesEmpty() {
+        #expect(resolvePrompt("{{project}}", branchName: nil, projectName: nil, dir: "") == "")
+    }
+
+    @Test func unknownTokenLeftAlone() {
+        #expect(resolvePrompt("{{unknown}}", branchName: nil, projectName: nil, dir: "") == "{{unknown}}")
+    }
+
+    @Test func plainTextUnchanged() {
+        #expect(resolvePrompt("Just text", branchName: "main", projectName: "App", dir: "src") == "Just text")
+    }
 }
