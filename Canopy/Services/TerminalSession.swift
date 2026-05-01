@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import SwiftTerm
 
 /// Manages one terminal session: a pseudo-terminal connected to a shell process.
@@ -81,7 +82,21 @@ final class TerminalSession: ObservableObject {
     }
 
     func sendCommand(_ command: String) {
-        send(text: command + "\n")
+        guard let view = terminalView else { return }
+        let fd = view.process.childfd
+        guard fd >= 0 else { return }
+        // Write text first, then Enter after a delay so Claude Code's event loop
+        // reads them as two separate read() batches. If they arrive together the
+        // \r is treated as a soft newline (Shift+Enter) rather than submit.
+        Array(command.utf8).withUnsafeBytes { ptr in
+            _ = Darwin.write(fd, ptr.baseAddress!, ptr.count)
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            [UInt8(0x0D)].withUnsafeBytes { ptr in
+                _ = Darwin.write(fd, ptr.baseAddress!, ptr.count)
+            }
+        }
     }
 
     /// Returns the full session output as plain text with ANSI escape codes stripped.

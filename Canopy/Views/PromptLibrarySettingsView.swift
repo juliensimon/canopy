@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PromptLibrarySettingsView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) var dismiss
     @State private var selectedId: UUID?
     @State private var editTitle = ""
     @State private var editBody = ""
@@ -21,10 +22,15 @@ struct PromptLibrarySettingsView: View {
             Divider()
 
             HStack {
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Add Prompt") { addPrompt() }
-                    .padding(8)
+                Button(action: addPrompt) {
+                    Image(systemName: "plus")
+                }
+                .help("Add prompt")
             }
+            .padding(8)
         }
         .onChange(of: selectedId) { _, newId in
             guard let id = newId,
@@ -45,7 +51,7 @@ struct PromptLibrarySettingsView: View {
             Text("No prompts yet")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Click \"Add Prompt\" to create your first reusable prompt.")
+            Text("Click + to create your first reusable prompt.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

@@ -216,6 +216,7 @@ struct Sidebar: View {
             } else {
                 ForEach(starred) { prompt in
                     Button(prompt.title) { sendPrompt(prompt, to: session) }
+                        .help(prompt.body)
                 }
                 Divider()
             }
