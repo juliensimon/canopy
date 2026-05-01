@@ -16,6 +16,7 @@ struct Sidebar: View {
     @State private var infoSession: SessionInfo?
     @State private var projectToClose: Project?
     @State private var mergeSession: SessionInfo?
+    @State private var promptPickerSession: SessionInfo?
 
     private var plainSessions: [SessionInfo] {
         appState.orderedSessions.filter { $0.projectId == nil }
@@ -132,6 +133,10 @@ struct Sidebar: View {
                 .environmentObject(appState)
             }
         }
+        .sheet(item: $promptPickerSession) { session in
+            PromptPickerSheet(session: session)
+                .environmentObject(appState)
+        }
     }
 
     // MARK: - Session Row
@@ -195,6 +200,26 @@ struct Sidebar: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(branch, forType: .string)
             }
+        }
+
+        Divider()
+
+        Menu("Send Prompt") {
+            let starred = appState.prompts.filter(\.isStarred)
+            if appState.prompts.isEmpty {
+                Button("No prompts yet — add in Settings") { }
+                    .disabled(true)
+            } else if starred.isEmpty {
+                Button("No starred prompts") { }
+                    .disabled(true)
+                Divider()
+            } else {
+                ForEach(starred) { prompt in
+                    Button(prompt.title) { sendPrompt(prompt, to: session) }
+                }
+                Divider()
+            }
+            Button("Browse All…") { promptPickerSession = session }
         }
 
         Divider()
@@ -356,6 +381,18 @@ struct Sidebar: View {
             withApplicationAt: URL(fileURLWithPath: appState.settings.terminalPath),
             configuration: NSWorkspace.OpenConfiguration()
         )
+    }
+
+    private func sendPrompt(_ prompt: SavedPrompt, to session: SessionInfo) {
+        let project = appState.projects.first(where: { $0.id == session.projectId })
+        let dir = (session.workingDirectory as NSString).lastPathComponent
+        let resolved = resolvePrompt(
+            prompt.body,
+            branchName: session.branchName,
+            projectName: project?.name,
+            dir: dir
+        )
+        appState.terminalSessions[session.id]?.sendCommand(resolved)
     }
 
     private var emptyState: some View {
