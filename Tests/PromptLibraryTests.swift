@@ -69,4 +69,29 @@ struct PromptLibraryTests {
     @Test func plainTextUnchanged() {
         #expect(resolvePrompt("Just text", branchName: "main", projectName: "App", dir: "src") == "Just text")
     }
+
+    // MARK: - AppState persistence
+
+    @Test @MainActor func loadPromptsReturnsEmptyWhenFileAbsent() {
+        let tmpDir = NSTemporaryDirectory() + UUID().uuidString
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
+        state.loadPrompts()
+        #expect(state.prompts.isEmpty)
+    }
+
+    @Test @MainActor func saveAndLoadPromptsRoundTrip() {
+        let tmpDir = NSTemporaryDirectory() + UUID().uuidString
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+        let state = AppState(configDir: tmpDir)
+        state.prompts = [SavedPrompt(title: "Hello", body: "{{branch}}", isStarred: true, sortOrder: 0)]
+        state.savePrompts()
+
+        let state2 = AppState(configDir: tmpDir)
+        state2.loadPrompts()
+        #expect(state2.prompts.count == 1)
+        #expect(state2.prompts[0].title == "Hello")
+        #expect(state2.prompts[0].body == "{{branch}}")
+        #expect(state2.prompts[0].isStarred == true)
+    }
 }

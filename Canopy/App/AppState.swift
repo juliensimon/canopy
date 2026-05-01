@@ -34,6 +34,9 @@ final class AppState: ObservableObject {
     /// App settings (auto-start claude, flags, etc.)
     @Published var settings = CanopySettings.load()
 
+    /// Saved prompts for the prompt library.
+    @Published var prompts: [SavedPrompt] = []
+
     /// UI triggers for sheets
     @Published var showNewWorktreeSheet = false
     /// When set, the worktree sheet preselects this project
@@ -672,6 +675,25 @@ final class AppState: ObservableObject {
     private var sessionsFilePath: String {
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         return (configDir as NSString).appendingPathComponent("sessions.json")
+    }
+
+    private var promptsFilePath: String {
+        try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+        return (configDir as NSString).appendingPathComponent("prompts.json")
+    }
+
+    func loadPrompts() {
+        let path = promptsFilePath
+        guard let data = FileManager.default.contents(atPath: path),
+              let decoded = try? JSONDecoder().decode([SavedPrompt].self, from: data) else {
+            return
+        }
+        prompts = decoded
+    }
+
+    func savePrompts() {
+        guard let data = try? JSONEncoder().encode(prompts) else { return }
+        FileManager.default.createFile(atPath: promptsFilePath, contents: data)
     }
 
     func saveSessions() {

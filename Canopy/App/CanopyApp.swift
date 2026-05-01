@@ -36,6 +36,7 @@ struct CanopyApp: App {
                 .task {
                     appState.loadProjects()
                     appState.loadSessions()
+                    appState.loadPrompts()
                     appState.preloadActivityData()
                     await appState.checkForUpdatesIfNeeded()
                 }
