@@ -1,0 +1,18 @@
+coverage:
+  precision: 2
+  round: down
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+
+ignore:
+  - "Canopy/Views/**"
+  - "Canopy/App/CanopyApp.swift"
+  - "Canopy/App/BuildInfo.swift"
