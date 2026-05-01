@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-05-01
+
+### Added
+- Prompt Library: save and reuse prompts across Claude Code sessions. Create,
+  edit, star, and reorder prompts in Settings → Prompt Library. Right-click a
+  session to send a starred prompt directly or browse all via the picker sheet.
+  Template variables `{{branch}}`, `{{project}}`, and `{{dir}}` are resolved at
+  send time. Prompts persisted to `~/.config/canopy/prompts.json`. (#15)
+- Secret scanning: pre-commit hook via `gitleaks` and CI workflow
+  `.github/workflows/secret-scan.yml` on every push/PR to prevent credential
+  leaks. (#13)
+
+### Fixed
+- Shift+Enter dropped input when a split pane was open. (#14)
+- Sending a prompt via the Prompt Library now correctly submits in Claude Code
+  (text and carriage return sent as separate pty `read()` batches via a 100 ms
+  delay, preventing soft-newline misinterpretation).
+- `BuildInfo.swift` generation escaped double quotes in commit messages to avoid
+  Swift parse errors on revert commits.
+
 ## [0.9.3] - 2026-04-17
 
 ### Added

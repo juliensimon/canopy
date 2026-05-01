@@ -274,7 +274,7 @@ All configuration lives in `~/.config/canopy/`:
 - **Copy full session output**: Right-click a session > Copy Session Output. Useful for sharing Claude's work.
 - **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off. Note: sandbox sessions are not resumable -- the session data lives inside the ephemeral microVM and is discarded when the sandbox stops.
 - **Worktree base directory**: By default, worktrees are created at `../canopy-worktrees/<project>/` (as siblings of your repo). Override this per-project if you prefer a different location.
-- **Quick rebuild**: Run `bash scripts/bundle.sh` then `open build/Canopy.app`.
+- **Quick rebuild**: Run `bash scripts/bundle.sh` then `open /Applications/Canopy.app`.
 
 ## Further reading
 
