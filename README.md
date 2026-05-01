@@ -65,6 +65,7 @@ Every Canopy feature exists because I was tired of doing something manually. Eac
 | Wonder which of your branches are merged and safe to delete | Project view lists every worktree with status and a one-click **Merge & Finish** |
 | `git checkout main && git pull && git merge feat/… && git worktree remove … && git branch -d …` | Right-click → **Merge & Finish** — two panels, one button |
 | Squint at `ls ~/.claude/projects/` trying to guess how many tokens you've burned this week | Open **Activity** — token counts, session history, 12-week heatmap |
+| Type out the same "write tests", "review security", "update docs" prompt for the tenth time | Save it once in the **Prompt Library** — one right-click to fire it at any session |
 
 None of these are big problems on their own. All of them are papercuts. Canopy is a tool for people who notice papercuts.
 
@@ -212,6 +213,26 @@ Requires `gh` to be installed for the PR data (`brew install gh`). Path is auto-
 
 ---
 
+### 📋 Prompt Library — reusable prompts, one right-click away
+
+Build a library of prompts you use repeatedly — "write tests for this", "check for security issues", "update the README" — and fire them at any session without retyping.
+
+**Sending a prompt:** Right-click any session → **Send Prompt**. Starred prompts appear inline in the submenu for instant access. Click **Browse All…** to search the full library.
+
+**Managing the library:** Open **Settings → Prompt Library**. Add, edit, reorder (drag-and-drop), star, and delete prompts. All changes save immediately.
+
+**Template variables** are substituted at send time:
+
+| Variable | Resolves to |
+|---|---|
+| `{{branch}}` | Current git branch of the session |
+| `{{project}}` | Project name |
+| `{{dir}}` | Working directory name (last path component) |
+
+A prompt like `"Review {{branch}} for correctness and add tests"` becomes `"Review feat/auth for correctness and add tests"` when sent to that session.
+
+---
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -264,6 +285,7 @@ All configuration lives in `~/.config/canopy/`:
 - `projects.json` — project list and per-project config
 - `projects.backup.json` — automatic backup created on every launch
 - `sessions.json` — persisted sessions, restored on app restart
+- `prompts.json` — saved prompt library
 
 ---
 

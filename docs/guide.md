@@ -149,6 +149,7 @@ Right-click context menus are available on both session rows and project headers
 - Rename
 - Copy Session Output / Working Directory / Branch Name
 - Open in IDE / Terminal / Finder
+- **Send Prompt** — fire a saved prompt at this session (see [Prompt Library](#prompt-library))
 - Merge & Finish (worktree sessions)
 - Session Info
 - Close
@@ -187,6 +188,38 @@ The right side of the status bar shows an activity strip: one dot per session, g
 The sidebar mirrors the same data per session in compact form: a `+N / −N` diffstat, an up-arrow count for commits-ahead, and a pull-request pill if any. This lets you scan the state of every worktree without switching tabs.
 
 Pull request data comes from `gh pr list`. If `gh` is not installed, the PR pills simply don't appear — everything else keeps working. Install with `brew install gh` and authenticate with `gh auth login`.
+
+### Prompt Library
+
+The Prompt Library lets you save prompts you use repeatedly and fire them at any session from the right-click context menu.
+
+**Sending a prompt:**
+
+Right-click a session → **Send Prompt**. The submenu shows your starred prompts at the top for quick access. **Browse All…** opens a searchable picker over the full library — type a few letters to filter by title or content, click to send.
+
+**Managing prompts** (`Cmd+,` → **Prompt Library** tab):
+
+- **Add**: Click `+` at the bottom of the list.
+- **Edit**: Select a row — a title field and body editor appear below the list.
+- **Star**: Click the star icon on a row. Starred prompts appear in the right-click submenu without opening the picker.
+- **Reorder**: Drag rows to rearrange.
+- **Delete**: Hover a row and click the trash icon, or swipe left.
+
+All changes save immediately.
+
+**Template variables** are substituted at send time:
+
+| Variable | Resolves to |
+|---|---|
+| `{{branch}}` | Current git branch of the session |
+| `{{project}}` | Project name |
+| `{{dir}}` | Working directory name (last path component) |
+
+Example: a prompt saved as `"Review {{branch}} — check for edge cases and write tests"` becomes `"Review feat/login — check for edge cases and write tests"` when sent to that session.
+
+Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across all projects and sessions.
+
+---
 
 ### Settings
 
@@ -233,6 +266,7 @@ All configuration lives in `~/.config/canopy/`:
 | `projects.json` | Project list and per-project config |
 | `projects.backup.json` | Automatic backup (created on every launch) |
 | `sessions.json` | Persisted sessions, restored on app restart |
+| `prompts.json` | Saved prompt library |
 
 ## Tips
 
