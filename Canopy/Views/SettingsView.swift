@@ -34,12 +34,19 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Settings")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.bottom, 16)
+        TabView {
+            generalTab
+                .tabItem { Label("General", systemImage: "gear") }
+            PromptLibrarySettingsView()
+                .tabItem { Label("Prompt Library", systemImage: "text.book.closed") }
+        }
+        .padding(20)
+        .frame(width: 500)
+        .frame(minHeight: 480, idealHeight: 540)
+    }
 
+    private var generalTab: some View {
+        VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Claude Code section
@@ -75,9 +82,7 @@ struct SettingsView: View {
                                 Toggle("Run in Docker Sandbox (sbx)", isOn: Binding(
                                     get: { useSandbox },
                                     set: { newValue in
-                                        if newValue {
-                                            verifySandbox()
-                                        } else {
+                                        if newValue { verifySandbox() } else {
                                             useSandbox = false
                                             sandboxStatus = nil
                                         }
@@ -259,9 +264,6 @@ struct SettingsView: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(20)
-        .frame(width: 460)
-        .frame(minHeight: 340, idealHeight: 400)
     }
 
     private var previewCommand: String {
