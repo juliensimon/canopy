@@ -24,7 +24,7 @@ ARCHIVE="build/${APP_NAME}.xcarchive"
 # Generate build info from git
 GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DATE=$(git log -1 --format=%ci 2>/dev/null || echo "unknown")
-GIT_MSG=$(git log -1 --format=%s 2>/dev/null || echo "unknown")
+GIT_MSG=$(git log -1 --format=%s 2>/dev/null | sed 's/"/\\"/g' || echo "unknown")
 BUILD_DATE=$(date "+%Y-%m-%d %H:%M")
 
 cat > Canopy/App/BuildInfo.swift << BUILDINFO
