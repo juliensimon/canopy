@@ -8,25 +8,23 @@ struct PromptLibraryTests {
     @Test func savedPromptHasExpectedDefaults() {
         let p = SavedPrompt(title: "T", body: "B")
         #expect(p.isStarred == false)
-        #expect(p.sortOrder == 0)
     }
 
     @Test func savedPromptCodableRoundTrip() throws {
         let id = UUID()
-        let p = SavedPrompt(id: id, title: "My Prompt", body: "Do {{branch}}", isStarred: true, sortOrder: 3)
+        let p = SavedPrompt(id: id, title: "My Prompt", body: "Do {{branch}}", isStarred: true)
         let data = try JSONEncoder().encode(p)
         let decoded = try JSONDecoder().decode(SavedPrompt.self, from: data)
         #expect(decoded.id == id)
         #expect(decoded.title == "My Prompt")
         #expect(decoded.body == "Do {{branch}}")
         #expect(decoded.isStarred == true)
-        #expect(decoded.sortOrder == 3)
     }
 
     @Test func savedPromptArrayCodableRoundTrip() throws {
         let prompts = [
             SavedPrompt(title: "A", body: "Body A"),
-            SavedPrompt(title: "B", body: "Body B", isStarred: true, sortOrder: 1)
+            SavedPrompt(title: "B", body: "Body B", isStarred: true)
         ]
         let data = try JSONEncoder().encode(prompts)
         let decoded = try JSONDecoder().decode([SavedPrompt].self, from: data)
@@ -84,7 +82,7 @@ struct PromptLibraryTests {
         let tmpDir = NSTemporaryDirectory() + UUID().uuidString
         defer { try? FileManager.default.removeItem(atPath: tmpDir) }
         let state = AppState(configDir: tmpDir)
-        state.prompts = [SavedPrompt(title: "Hello", body: "{{branch}}", isStarred: true, sortOrder: 0)]
+        state.prompts = [SavedPrompt(title: "Hello", body: "{{branch}}", isStarred: true)]
         state.savePrompts()
 
         let state2 = AppState(configDir: tmpDir)

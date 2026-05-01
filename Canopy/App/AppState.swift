@@ -696,6 +696,18 @@ final class AppState: ObservableObject {
         FileManager.default.createFile(atPath: promptsFilePath, contents: data)
     }
 
+    func sendPrompt(_ prompt: SavedPrompt, to session: SessionInfo) {
+        let project = projects.first(where: { $0.id == session.projectId })
+        let dir = (session.workingDirectory as NSString).lastPathComponent
+        let resolved = resolvePrompt(
+            prompt.body,
+            branchName: session.branchName,
+            projectName: project?.name,
+            dir: dir
+        )
+        terminalSessions[session.id]?.sendCommand(resolved)
+    }
+
     func saveSessions() {
         guard !isTerminating else { return }
         guard let data = try? JSONEncoder().encode(sessions) else { return }

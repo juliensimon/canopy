@@ -215,7 +215,7 @@ struct Sidebar: View {
                 Divider()
             } else {
                 ForEach(starred) { prompt in
-                    Button(prompt.title) { sendPrompt(prompt, to: session) }
+                    Button(prompt.title.isEmpty ? "Untitled" : prompt.title) { sendPrompt(prompt, to: session) }
                         .help(prompt.body)
                 }
                 Divider()
@@ -385,15 +385,7 @@ struct Sidebar: View {
     }
 
     private func sendPrompt(_ prompt: SavedPrompt, to session: SessionInfo) {
-        let project = appState.projects.first(where: { $0.id == session.projectId })
-        let dir = (session.workingDirectory as NSString).lastPathComponent
-        let resolved = resolvePrompt(
-            prompt.body,
-            branchName: session.branchName,
-            projectName: project?.name,
-            dir: dir
-        )
-        appState.terminalSessions[session.id]?.sendCommand(resolved)
+        appState.sendPrompt(prompt, to: session)
     }
 
     private var emptyState: some View {

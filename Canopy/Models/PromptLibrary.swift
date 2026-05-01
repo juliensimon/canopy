@@ -5,7 +5,6 @@ struct SavedPrompt: Codable, Identifiable {
     var title: String
     var body: String
     var isStarred: Bool = false
-    var sortOrder: Int = 0
 }
 
 func resolvePrompt(_ body: String, branchName: String?, projectName: String?, dir: String) -> String {

@@ -85,16 +85,32 @@ final class TerminalSession: ObservableObject {
         guard let view = terminalView else { return }
         let fd = view.process.childfd
         guard fd >= 0 else { return }
+        let bytes = Array(command.utf8)
+        guard !bytes.isEmpty else { return }
         // Write text first, then Enter after a delay so Claude Code's event loop
         // reads them as two separate read() batches. If they arrive together the
         // \r is treated as a soft newline (Shift+Enter) rather than submit.
-        Array(command.utf8).withUnsafeBytes { ptr in
-            _ = Darwin.write(fd, ptr.baseAddress!, ptr.count)
-        }
+        writeAll(fd: fd, bytes: bytes)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(100))
-            [UInt8(0x0D)].withUnsafeBytes { ptr in
-                _ = Darwin.write(fd, ptr.baseAddress!, ptr.count)
+            // Re-check the view is still alive and on the same fd before writing Enter.
+            guard terminalView?.process.childfd == fd else { return }
+            writeAll(fd: fd, bytes: [0x0D])
+        }
+    }
+
+    private func writeAll(fd: Int32, bytes: [UInt8]) {
+        var slice = bytes[...]
+        while !slice.isEmpty {
+            let n = slice.withUnsafeBytes { ptr in
+                Darwin.write(fd, ptr.baseAddress!, ptr.count)
+            }
+            if n > 0 {
+                slice = slice.dropFirst(n)
+            } else if n == -1 && (Darwin.errno == EINTR || Darwin.errno == EAGAIN) {
+                continue
+            } else {
+                break
             }
         }
     }

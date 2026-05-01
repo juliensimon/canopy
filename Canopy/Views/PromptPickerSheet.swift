@@ -65,15 +65,7 @@ struct PromptPickerSheet: View {
     }
 
     private func send(_ prompt: SavedPrompt) {
-        let project = appState.projects.first(where: { $0.id == session.projectId })
-        let dir = (session.workingDirectory as NSString).lastPathComponent
-        let resolved = resolvePrompt(
-            prompt.body,
-            branchName: session.branchName,
-            projectName: project?.name,
-            dir: dir
-        )
-        appState.terminalSessions[session.id]?.sendCommand(resolved)
+        appState.sendPrompt(prompt, to: session)
         dismiss()
     }
 }
