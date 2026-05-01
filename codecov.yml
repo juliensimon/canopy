@@ -9,8 +9,7 @@ coverage:
         threshold: 2%
     patch:
       default:
-        target: auto
-        threshold: 5%
+        target: 60%
 
 ignore:
   - "Canopy/Views/**"
