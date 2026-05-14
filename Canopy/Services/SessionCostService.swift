@@ -56,21 +56,10 @@ enum SessionCostService {
         return usage
     }
 
-    /// Returns the Claude project directory for a given working directory.
-    static func claudeProjectDir(for directory: String) -> String {
-        let expanded = (directory as NSString).expandingTildeInPath
-        let resolved = (expanded as NSString).resolvingSymlinksInPath
-        let encoded = resolved
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
-        let home = NSHomeDirectory()
-        return "\(home)/.claude/projects/\(encoded)"
-    }
-
     /// Load token usage for a specific Claude session, only counting entries after `since`.
     static func loadUsage(for workingDirectory: String, sessionId: String?, since: Date? = nil) -> TokenUsage {
         guard let sessionId, !sessionId.isEmpty else { return TokenUsage() }
-        let projectDir = claudeProjectDir(for: workingDirectory)
+        let projectDir = ClaudeSessionFinder.projectDirectory(for: workingDirectory)
         let path = (projectDir as NSString).appendingPathComponent("\(sessionId).jsonl")
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             return TokenUsage()

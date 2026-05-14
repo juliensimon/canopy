@@ -16,7 +16,12 @@ targets:
     type: application
     platform: macOS
     sources:
-      - Canopy
+      - path: Canopy
+        # claude-mem writes <claude-mem-context> markers as CLAUDE.md inside
+        # source subdirectories. xcodegen would otherwise sweep them all into
+        # the .app's Resources, collide on filename, and fail the archive.
+        excludes:
+          - "**/CLAUDE.md"
       - path: Resources
         buildPhase: resources
     settings:

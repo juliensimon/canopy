@@ -147,7 +147,8 @@ Right-click context menus are available on both session rows and project headers
 
 **Session context menu:**
 - Rename
-- Copy Session Output / Working Directory / Branch Name
+- **Show Transcript…** — open a scrollable view of the conversation
+- Copy Working Directory / Branch Name
 - Open in IDE / Terminal / Finder
 - **Send Prompt** — fire a saved prompt at this session (see [Prompt Library](#prompt-library))
 - Merge & Finish (worktree sessions)
@@ -271,7 +272,8 @@ All configuration lives in `~/.config/canopy/`:
 ## Tips
 
 - **Text selection in the terminal**: Hold `Option` while dragging. Claude Code enables mouse reporting which captures normal clicks -- `Option` bypasses it.
-- **Copy full session output**: Right-click a session > Copy Session Output. Useful for sharing Claude's work.
+- **Show Transcript**: Right-click a session > Show Transcript… for a clean scrollable view of the conversation. When Claude Code is running, Canopy reads the structured JSONL session log (`~/.claude/projects/...`) and renders user/assistant turns with markdown formatting. The Copy button (⌘⇧C) puts the formatted markdown on the clipboard -- handy for pasting into PR descriptions or notes.
+- **Scrolling with `CLAUDE_CODE_NO_FLICKER=1`**: That flag puts Claude Code into the alternate screen buffer (DECSET 1049), which has no scrollback by terminal protocol design. The live viewport intentionally can't scroll back in that mode -- use Show Transcript to read history, or `Cmd+F` to search.
 - **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off. Note: sandbox sessions are not resumable -- the session data lives inside the ephemeral microVM and is discarded when the sandbox stops.
 - **Worktree base directory**: By default, worktrees are created at `../canopy-worktrees/<project>/` (as siblings of your repo). Override this per-project if you prefer a different location.
 - **Quick rebuild**: Run `bash scripts/bundle.sh` then `open /Applications/Canopy.app`.

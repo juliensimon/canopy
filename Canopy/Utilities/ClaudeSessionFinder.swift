@@ -1,17 +1,34 @@
 import Foundation
 
-/// Finds Claude Code session IDs stored on disk.
+/// Finds Claude Code session IDs stored on disk and resolves the on-disk
+/// project directory Claude Code uses to namespace its session logs.
 ///
 /// Claude Code stores session transcripts as JSONL files in:
 ///   ~/.claude/projects/{encoded-path}/{session-uuid}.jsonl
 ///
-/// The path encoding replaces "/" with "-" and prepends "-".
-/// e.g. /Users/julien/my-project → -Users-julien-my-project
+/// The path encoding replaces both "/" and "." with "-".
+/// e.g. /Users/julien/my.project → -Users-julien-my-project
+///
+/// This is the single source of truth for the encoding — `SessionCostService`
+/// and `ClaudeTranscriptLoader` route through here. If Claude Code ever
+/// changes the encoding, fix it once.
 enum ClaudeSessionFinder {
+
+    /// Returns the on-disk directory where Claude Code stores JSONL session
+    /// logs for the given working directory.
+    static func projectDirectory(for directory: String) -> String {
+        let expanded = (directory as NSString).expandingTildeInPath
+        let resolved = (expanded as NSString).resolvingSymlinksInPath
+        let encoded = resolved
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+        let home = NSHomeDirectory()
+        return "\(home)/.claude/projects/\(encoded)"
+    }
 
     /// Returns the most recent Claude session ID for the given working directory.
     static func findLatestSessionId(for directory: String) -> String? {
-        let projectDir = claudeProjectDir(for: directory)
+        let projectDir = projectDirectory(for: directory)
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: projectDir) else { return nil }
@@ -39,17 +56,5 @@ enum ClaudeSessionFinder {
         } catch {
             return nil
         }
-    }
-
-    /// Returns the Claude project directory for a given working directory.
-    /// Claude encodes paths by replacing both "/" and "." with "-".
-    private static func claudeProjectDir(for directory: String) -> String {
-        let expanded = (directory as NSString).expandingTildeInPath
-        let resolved = (expanded as NSString).resolvingSymlinksInPath
-        let encoded = resolved
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
-        let home = NSHomeDirectory()
-        return "\(home)/.claude/projects/\(encoded)"
     }
 }

@@ -14,6 +14,7 @@ struct Sidebar: View {
     @State private var renameSession: SessionInfo?
     @State private var renameText = ""
     @State private var infoSession: SessionInfo?
+    @State private var transcriptSession: SessionInfo?
     @State private var projectToClose: Project?
     @State private var mergeSession: SessionInfo?
     @State private var promptPickerSession: SessionInfo?
@@ -92,6 +93,13 @@ struct Sidebar: View {
                 openedAt: appState.terminalSessions[session.id]?.openedAt
             )
             .environmentObject(appState)
+        }
+        .sheet(item: $transcriptSession) { session in
+            if let terminalSession = appState.terminalSessions[session.id] {
+                TranscriptSheet(session: terminalSession, sessionInfo: session)
+            } else {
+                noTranscriptAvailable(for: session)
+            }
         }
         .alert("Close Project?", isPresented: Binding(
             get: { projectToClose != nil },
@@ -186,9 +194,10 @@ struct Sidebar: View {
             renameSession = session
         }
 
-        Button("Copy Session Output") {
-            appState.terminalSessions[session.id]?.copyFullSessionToClipboard()
+        Button("Show Transcript…") {
+            transcriptSession = session
         }
+        .disabled(appState.terminalSessions[session.id] == nil)
 
         Button("Copy Working Directory") {
             NSPasteboard.general.clearContents()
@@ -259,6 +268,25 @@ struct Sidebar: View {
         Button("Close", role: .destructive) {
             appState.closeSession(id: session.id)
         }
+    }
+
+    // MARK: - Transcript fallback
+
+    @ViewBuilder
+    private func noTranscriptAvailable(for session: SessionInfo) -> some View {
+        VStack(spacing: 12) {
+            Text("No transcript available")
+                .font(.headline)
+            Text("\(session.name) has no active terminal session, so there is no captured output to show.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Done") { transcriptSession = nil }
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding(24)
+        .frame(width: 360)
     }
 
     // MARK: - Project Section

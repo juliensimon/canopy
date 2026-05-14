@@ -127,7 +127,6 @@ struct SessionTab: View {
     let onSelect: () -> Void
     let onClose: () -> Void
     var projectColor: Color = .gray
-    var onCopySession: (@MainActor () -> Void)?
 
     @State private var isHovering = false
 
@@ -143,17 +142,9 @@ struct SessionTab: View {
                 .font(.system(size: 11, weight: isActive ? .semibold : .regular))
                 .lineLimit(1)
 
-            // Copy + Close buttons (visible on hover or when active)
+            // Close button (visible on hover or when active). Copy lives in
+            // the Show Transcript sheet — see Sidebar context menu.
             if isHovering || isActive {
-                Button(action: { onCopySession?() }) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .frame(width: 14, height: 14)
-                .help("Copy session output")
-
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 8, weight: .bold))
@@ -208,8 +199,7 @@ struct LiveSessionTab: View {
             activity: terminalSession.activity,
             onSelect: onSelect,
             onClose: onClose,
-            projectColor: projectColor,
-            onCopySession: { terminalSession.copyFullSessionToClipboard() }
+            projectColor: projectColor
         )
     }
 }

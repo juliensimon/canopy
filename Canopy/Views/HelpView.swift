@@ -73,8 +73,10 @@ struct HelpView: View {
                             "Search sessions by name, branch, project, or anything that appeared in the terminal. Selecting a match that came from terminal content jumps to the session and highlights the results inline.")
                     concept("Text selection",
                             "Hold ⌥ Option while dragging to select text when Claude Code is running. Claude uses mouse reporting which hijacks normal selection — Option bypasses it.")
-                    concept("Copy session output",
-                            "Right-click a session → Copy Session Output to copy the full terminal history to the clipboard.")
+                    concept("Show transcript",
+                            "Right-click a session → Show Transcript… for a scrollable read-only view of the conversation. When Claude Code is running, Canopy reads the structured JSONL session log and renders user/assistant turns with markdown formatting — much cleaner than the raw terminal output. Falls back to the raw 500 KB capture for plain (non-Claude) sessions. The footer's Copy button (⌘⇧C) puts the formatted markdown on your clipboard.")
+                    concept("Why the live terminal doesn't scroll with NO_FLICKER",
+                            "CLAUDE_CODE_NO_FLICKER=1 switches Claude Code into the alternate screen buffer (DECSET 1049), which has no scrollback by terminal protocol design. The live viewport intentionally can't scroll back through past conversation in that mode — use Show Transcript to read history, or Cmd+F to search.")
                 }
 
                 // Concepts
