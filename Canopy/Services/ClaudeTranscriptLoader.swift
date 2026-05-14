@@ -49,11 +49,12 @@ enum ClaudeTranscriptLoader {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         guard let text = String(data: data, encoding: .utf8) else { return [] }
         var messages: [TranscriptMessage] = []
-        for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: true).enumerated() {
-            guard let lineData = String(line).data(using: .utf8),
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            let lineString = String(line)
+            guard let lineData = lineString.data(using: .utf8),
                   let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
             else { continue }
-            if let message = parseEntry(obj, lineIndex: index) {
+            if let message = parseEntry(obj, line: lineString) {
                 messages.append(message)
             }
         }
@@ -89,21 +90,17 @@ enum ClaudeTranscriptLoader {
         return lines.joined(separator: "\n")
     }
 
-    /// Mirrors Claude Code's filesystem layout. Both "/" and "." in the
-    /// working directory become "-", matching `ClaudeSessionFinder`.
+    /// Returns the on-disk JSONL path for a (working directory, session id)
+    /// pair. Routes through `ClaudeSessionFinder.projectDirectory(for:)` to
+    /// share the one path-encoding implementation.
     static func sessionFilePath(workingDirectory: String, sessionId: String) -> String {
-        let expanded = (workingDirectory as NSString).expandingTildeInPath
-        let resolved = (expanded as NSString).resolvingSymlinksInPath
-        let encoded = resolved
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
-        let home = NSHomeDirectory()
-        return "\(home)/.claude/projects/\(encoded)/\(sessionId).jsonl"
+        let projectDir = ClaudeSessionFinder.projectDirectory(for: workingDirectory)
+        return (projectDir as NSString).appendingPathComponent("\(sessionId).jsonl")
     }
 
     // MARK: - Private
 
-    private static func parseEntry(_ obj: [String: Any], lineIndex: Int) -> TranscriptMessage? {
+    private static func parseEntry(_ obj: [String: Any], line: String) -> TranscriptMessage? {
         guard let type = obj["type"] as? String,
               type == "user" || type == "assistant"
         else { return nil }
@@ -117,8 +114,30 @@ enum ClaudeTranscriptLoader {
 
         let blocks = extractBlocks(from: message["content"])
         guard !blocks.isEmpty else { return nil }
-        let id = (obj["uuid"] as? String) ?? "line-\(lineIndex)"
+        // Prefer the JSONL `uuid`; fall back to a content-derived FNV-1a hash.
+        // A positional `line-N` id would shift if Claude Code ever inserted a
+        // blank line (theoretical today, but the content hash is stable
+        // regardless of file position).
+        let id: String
+        if let uuid = obj["uuid"] as? String, !uuid.isEmpty {
+            id = uuid
+        } else {
+            id = "synth-" + fnv1a(line)
+        }
         return TranscriptMessage(id: id, role: role, blocks: blocks)
+    }
+
+    /// Deterministic 64-bit FNV-1a hash for synthetic ids. Stable across
+    /// processes (unlike Swift's `hashValue`, which is randomized per run),
+    /// so two parses of the same content produce the same hash even after a
+    /// relaunch.
+    private static func fnv1a(_ s: String) -> String {
+        var h: UInt64 = 0xcbf29ce484222325
+        for b in s.utf8 {
+            h ^= UInt64(b)
+            h = h &* 0x100000001b3
+        }
+        return String(h, radix: 16)
     }
 
     private static func extractBlocks(from content: Any?) -> [TranscriptMessage.Block] {

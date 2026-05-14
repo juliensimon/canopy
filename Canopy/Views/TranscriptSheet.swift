@@ -22,6 +22,35 @@ struct TranscriptSheet: View {
     /// When on, the view auto-scrolls to the latest message as new content
     /// streams in. Turn off to read older content without being yanked down.
     @State private var autoTail = true
+    /// Monotonic counter bumped on every successful reparse. The scroll-tail
+    /// onChange keys on this rather than `messages.count` so auto-tail fires
+    /// for *any* content change — including in-place edits to the last
+    /// message (same uuid, more text) that a count-only key would miss.
+    @State private var dataVersion = 0
+
+    init(session: TerminalSession, sessionInfo: SessionInfo) {
+        self.session = session
+        self.sessionInfo = sessionInfo
+        // Resolve the JSONL path eagerly so subtitleText/statusLabel don't
+        // flash "raw terminal output" for one frame before the polling task
+        // overwrites them on first .onAppear.
+        let initialPath = Self.computeJSONLPath(for: sessionInfo)
+        self._jsonlPath = State(initialValue: initialPath)
+    }
+
+    /// Locates the JSONL for this session. Only uses
+    /// `sessionInfo.claudeSessionId` — does NOT fall back to the most-
+    /// recently-modified JSONL in the project directory, which would
+    /// silently render an unrelated `claude` run if the user launched one
+    /// in the same cwd outside Canopy.
+    private static func computeJSONLPath(for sessionInfo: SessionInfo) -> String? {
+        guard let sessionId = sessionInfo.claudeSessionId else { return nil }
+        let path = ClaudeTranscriptLoader.sessionFilePath(
+            workingDirectory: sessionInfo.workingDirectory,
+            sessionId: sessionId
+        )
+        return FileManager.default.fileExists(atPath: path) ? path : nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -101,7 +130,7 @@ struct TranscriptSheet: View {
             .onAppear {
                 if autoTail { scrollToBottom(proxy) }
             }
-            .onChange(of: messages.count) { _, _ in
+            .onChange(of: dataVersion) { _, _ in
                 guard autoTail else { return }
                 scrollToBottom(proxy)
             }
@@ -232,26 +261,27 @@ struct TranscriptSheet: View {
     /// 500 ms is the gap Claude Code typically writes at, so we follow new
     /// turns within one tick without burning CPU between them.
     private func startPolling() {
-        resolveAndReload()
+        // .onAppear can fire multiple times for the same view instance
+        // (re-renders of the sheet host); cancel any prior loop before
+        // starting a new one or we'd leak concurrent file-system polls.
+        pollTask?.cancel()
         pollTask = Task { @MainActor in
+            await reloadIfChanged()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
-                resolveAndReload()
+                await reloadIfChanged()
             }
         }
     }
 
-    private func resolveAndReload() {
-        // Path can change mid-sheet only if claudeSessionId is set after open;
-        // recompute each tick is cheap.
-        let path = jsonlPath ?? currentJSONLPath()
-        if jsonlPath == nil, path != nil { jsonlPath = path }
-        guard let path else {
-            // Plain (non-Claude) session — nothing to poll; fallback view drives off
-            // TerminalSession's @Published activity, which already triggers re-renders.
-            return
-        }
+    /// Check mtime on @MainActor (cheap stat), then hop to a detached task
+    /// for the read+parse so a multi-MB JSONL doesn't block UI. Only commit
+    /// `lastModifiedTime` and bump `dataVersion` on parse success — otherwise
+    /// the next tick would short-circuit on mtime equality and the error
+    /// state would stick until Claude wrote another byte.
+    private func reloadIfChanged() async {
+        guard let path = jsonlPath else { return }
         let fm = FileManager.default
         guard let attrs = try? fm.attributesOfItem(atPath: path),
               let mtime = attrs[.modificationDate] as? Date
@@ -261,24 +291,23 @@ struct TranscriptSheet: View {
             return
         }
         if lastModifiedTime == mtime { return }
-        lastModifiedTime = mtime
-        do {
-            messages = try ClaudeTranscriptLoader.load(path: path)
-            loadError = nil
-        } catch {
-            loadError = error.localizedDescription
-        }
-    }
 
-    private func currentJSONLPath() -> String? {
-        let sessionId = sessionInfo.claudeSessionId
-            ?? ClaudeSessionFinder.findLatestSessionId(for: sessionInfo.workingDirectory)
-        guard let sessionId else { return nil }
-        let path = ClaudeTranscriptLoader.sessionFilePath(
-            workingDirectory: sessionInfo.workingDirectory,
-            sessionId: sessionId
-        )
-        return FileManager.default.fileExists(atPath: path) ? path : nil
+        let result: Result<[TranscriptMessage], Error> = await Task.detached {
+            do { return .success(try ClaudeTranscriptLoader.load(path: path)) }
+            catch { return .failure(error) }
+        }.value
+
+        switch result {
+        case .success(let parsed):
+            messages = parsed
+            loadError = nil
+            lastModifiedTime = mtime
+            dataVersion &+= 1
+        case .failure(let error):
+            loadError = error.localizedDescription
+            // Deliberately NOT updating lastModifiedTime — we want the next
+            // tick to retry rather than sit on the error until mtime changes.
+        }
     }
 }
 

@@ -73,7 +73,9 @@ struct SessionCostServiceTests {
     }
 
     @Test func claudeProjectDirEncoding() {
-        let dir = SessionCostService.claudeProjectDir(for: "/Users/julien/my-project")
+        // SessionCostService routes through ClaudeSessionFinder.projectDirectory
+        // (the single source of truth for Claude Code's path encoding).
+        let dir = ClaudeSessionFinder.projectDirectory(for: "/Users/julien/my-project")
         let home = NSHomeDirectory()
         #expect(dir == "\(home)/.claude/projects/-Users-julien-my-project")
     }

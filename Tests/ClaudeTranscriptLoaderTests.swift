@@ -264,13 +264,31 @@ struct ClaudeTranscriptLoaderTests {
     }
 
     @Test func messagesWithoutUUIDStillGetStableIDs() throws {
-        // Synthetic id derived from line offset — same file, same ids.
+        // Synthetic id derived from FNV-1a content hash — same file, same ids.
         let path = tempJSONL([userTextLine("a"), assistantTextLine("b")])
         defer { try? FileManager.default.removeItem(atPath: path) }
         let first = try ClaudeTranscriptLoader.load(path: path)
         let second = try ClaudeTranscriptLoader.load(path: path)
         #expect(first.map(\.id) == second.map(\.id))
         #expect(first.count == 2)
+    }
+
+    /// Regression for the synthetic-id fragility called out in PR #17 review:
+    /// `enumerated()` over `split(omittingEmptySubsequences: true)` would
+    /// silently renumber every subsequent entry when a blank line was inserted
+    /// earlier in the file. The FNV-1a content hash is position-independent.
+    @Test func syntheticIDsAreStableWhenBlankLinesAreInserted() throws {
+        let lineA = userTextLine("a")
+        let lineB = assistantTextLine("b")
+        let withoutBlank = tempJSONL([lineA, lineB])
+        let withBlank = tempJSONL([lineA, "", "", lineB])
+        defer {
+            try? FileManager.default.removeItem(atPath: withoutBlank)
+            try? FileManager.default.removeItem(atPath: withBlank)
+        }
+        let baseline = try ClaudeTranscriptLoader.load(path: withoutBlank)
+        let interrupted = try ClaudeTranscriptLoader.load(path: withBlank)
+        #expect(baseline.map(\.id) == interrupted.map(\.id))
     }
 
     // MARK: - Path resolution
