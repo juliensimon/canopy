@@ -56,6 +56,25 @@ struct TerminalSessionOutputTests {
         #expect(session.getFullText() == "red")
     }
 
+    /// Regression guard for the Transcript sheet (issue #16): when Claude Code
+    /// runs with `CLAUDE_CODE_NO_FLICKER=1` it enters the alternate screen
+    /// buffer and emits a salvo of CSI private-mode toggles around its rendered
+    /// frames. The Transcript view relies on `getFullText()` returning only the
+    /// printable payload so users can read their conversation even though the
+    /// live terminal viewport cannot scroll in alt-screen mode.
+    @Test @MainActor func getFullTextStripsNoFlickerToggleSequences() {
+        let session = TerminalSession(id: UUID(), workingDirectory: "/tmp")
+        let raw =
+            "\u{1b}[?1049h" +                                  // alt-screen on
+            "\u{1b}[?2026h" +                                  // begin sync update
+            "\u{1b}[?1000h\u{1b}[?1002h\u{1b}[?1006h" +        // mouse reporting
+            "hello from claude\n" +
+            "\u{1b}[?2026l" +                                  // end sync update
+            "\u{1b}[?1049l"                                    // alt-screen off
+        session.handleOutputData(Data(raw.utf8))
+        #expect(session.getFullText() == "hello from claude\n")
+    }
+
     @Test @MainActor func handleOutputRingBufferTrimsOldest() {
         let session = TerminalSession(id: UUID(), workingDirectory: "/tmp")
         // Push well past the 500k cap with a distinctive head and tail.

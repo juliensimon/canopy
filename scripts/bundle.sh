@@ -39,17 +39,38 @@ enum BuildInfo {
 BUILDINFO
 
 echo "Building with Xcode (Release)..."
-xcodebuild \
-    -project "$PROJECT" \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -derivedDataPath "$DERIVED_DATA" \
-    -archivePath "$ARCHIVE" \
-    MARKETING_VERSION="${VERSION_STR}" \
-    archive \
-    | xcpretty 2>/dev/null || cat
+# Preserve the archive command's exit status across the pipe. Without
+# pipefail-aware checking, a failed `xcodebuild archive` whose output went
+# through `xcpretty` would silently fall through and we'd install a stale
+# .xcarchive from a previous run.
+set -o pipefail
+if command -v xcpretty >/dev/null 2>&1; then
+    xcodebuild \
+        -project "$PROJECT" \
+        -scheme "$SCHEME" \
+        -configuration Release \
+        -derivedDataPath "$DERIVED_DATA" \
+        -archivePath "$ARCHIVE" \
+        MARKETING_VERSION="${VERSION_STR}" \
+        archive \
+        | xcpretty
+else
+    xcodebuild \
+        -project "$PROJECT" \
+        -scheme "$SCHEME" \
+        -configuration Release \
+        -derivedDataPath "$DERIVED_DATA" \
+        -archivePath "$ARCHIVE" \
+        MARKETING_VERSION="${VERSION_STR}" \
+        archive
+fi
 
 APP_PATH="${ARCHIVE}/Products/Applications/${APP_NAME}.app"
+
+if [[ ! -d "$APP_PATH" ]]; then
+    echo "ERROR: archive did not produce ${APP_PATH}; refusing to install a stale build." >&2
+    exit 1
+fi
 
 echo "Installing to /Applications..."
 rm -rf "/Applications/${APP_NAME}.app"

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-05-14
+
+### Added
+- **Show Transcript** view: right-click a session > Show Transcript… for a
+  scrollable read-only view of the conversation. When the session is a Claude
+  Code session, Canopy reads its structured JSONL session log and renders
+  user/assistant turns with markdown formatting (assistant text via
+  `AttributedString(markdown:)`, tool calls compacted to `🔧 ToolName — hint`
+  rows, tool results to `↳ truncated` lines). Falls back to the raw 500 KB
+  PTY capture for plain (non-Claude) sessions. Live-updates as the
+  conversation streams via a 500 ms mtime poll on the JSONL. Header has an
+  Auto-tail toggle -- on by default, turn off to read older history without
+  being yanked down. Copy button in the footer (⌘⇧C) puts the formatted
+  markdown on the clipboard. (#16)
+
+### Changed
+- Sidebar context menu: removed "Copy Session Output" -- the copy action now
+  lives in the Show Transcript sheet (it copies the rendered markdown view, or
+  the raw capture when no JSONL is available).
+- `scripts/bundle.sh`: archive failures no longer install a stale `.xcarchive`.
+  The previous `| xcpretty 2>/dev/null || cat` silently swallowed
+  `xcodebuild`'s non-zero exit, then `cp -r` happily copied an old archive.
+  Replaced with `set -o pipefail` + explicit existence check on the archive
+  output path before installing.
+- `project.yml` excludes `**/CLAUDE.md` from the Canopy sources -- prevents
+  `claude-mem`'s auto-generated `<claude-mem-context>` marker files in source
+  subdirectories from colliding in the .app's Resources bundle during archive.
+
 ## [0.9.4] - 2026-05-01
 
 ### Added

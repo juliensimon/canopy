@@ -21,7 +21,7 @@
 - [ ] Session notes — small text field per session for pinned context
 - [ ] Drag session between projects (reassign projectId)
 - [x] Split view — two terminals side-by-side
-- [ ] Export session transcript as clean markdown
+- [x] Export session transcript as clean markdown (Show Transcript sheet + Copy as markdown, #16)
 
 ## Phase 6: Advanced
 - [ ] Voice transcription via WhisperKit (local, on-device)
