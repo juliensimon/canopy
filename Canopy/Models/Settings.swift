@@ -67,7 +67,12 @@ enum SandboxBackend: String, Codable {
                     run += #" --volume "\#(resolved)":"\#(resolved)""#
                 }
             }
-            run += #" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig --workdir "$PWD""#
+            // .gitconfig is read-only: a sandboxed agent writing an alias or
+            // core.hooksPath there would execute on the HOST the next time
+            // the user runs git. The other mounts must stay writable
+            // (sessions land in ~/.claude; worktree commits write objects
+            // into the main repo's .git).
+            run += #" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig:ro --workdir "$PWD""#
             parts = [run]
             let extra = containerFlags.trimmingCharacters(in: .whitespaces)
             if !extra.isEmpty {
