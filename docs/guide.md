@@ -122,7 +122,7 @@ Things to know:
 
 Sandboxing limits what an autonomous agent can reach if it misbehaves (a bad command, a prompt injection from something it read, an over-eager cleanup). Be precise about the boundary:
 
-**Protected.** Everything that isn't mounted: your home directory and documents, `~/.ssh` keys, browser data, the macOS Keychain, other repositories, host processes, and system settings. Both backends are VMs, so isolation is at the hardware-virtualization level — there is no shared kernel with the host. `~/.gitconfig` is mounted read-only (a writable copy would let an agent plant a git alias or hook path that executes on the host the next time *you* run git).
+**Protected.** Everything that isn't mounted: your home directory and documents (apart from the few mounted paths listed below), `~/.ssh` keys, browser data, the macOS Keychain, other repositories, host processes, and system settings. Both backends are VMs, so isolation is at the hardware-virtualization level — there is no shared kernel with the host. `~/.gitconfig` is mounted read-only (a writable copy would let an agent plant a git alias or hook path that executes on the host the next time *you* run git).
 
 **Deliberately not protected — know what you're trusting:**
 
