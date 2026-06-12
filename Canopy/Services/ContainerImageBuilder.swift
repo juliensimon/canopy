@@ -47,11 +47,14 @@ struct ContainerImageBuilder {
         return result.exitCode == 0 ? .success : .failure(String(result.output.suffix(500)))
     }
 
-    /// Output accumulator usable from pipe/termination handler threads.
+    /// Output accumulator + completion state usable from pipe/termination
+    /// handler threads (Process and DispatchWorkItem aren't Sendable, so the
+    /// timeout coordinates through this box instead).
     private final class OutputBuffer: @unchecked Sendable {
         private let lock = NSLock()
         private var data = Data()
         private(set) var timedOut = false
+        private var finished = false
 
         func append(_ chunk: Data) {
             lock.lock(); defer { lock.unlock() }
@@ -61,10 +64,23 @@ struct ContainerImageBuilder {
             lock.lock(); defer { lock.unlock() }
             timedOut = true
         }
+        func markFinished() {
+            lock.lock(); defer { lock.unlock() }
+            finished = true
+        }
+        var isFinished: Bool {
+            lock.lock(); defer { lock.unlock() }
+            return finished
+        }
         var string: String {
             lock.lock(); defer { lock.unlock() }
             return String(data: data, encoding: .utf8) ?? ""
         }
+    }
+
+    private final class ProcessBox: @unchecked Sendable {
+        let process: Process
+        init(_ process: Process) { self.process = process }
     }
 
     /// Runs a command in a login shell, draining output WHILE it runs.
@@ -89,17 +105,17 @@ struct ContainerImageBuilder {
             }
         }
 
-        let timeoutWork = DispatchWorkItem {
-            if process.isRunning {
+        let box = ProcessBox(process)
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds) {
+            if !buffer.isFinished, box.process.isRunning {
                 buffer.markTimedOut()
-                process.terminate()
+                box.process.terminate()
             }
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds, execute: timeoutWork)
 
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { process in
-                timeoutWork.cancel()
+                buffer.markFinished()
                 pipe.fileHandleForReading.readabilityHandler = nil
                 if let remaining = try? pipe.fileHandleForReading.readToEnd() {
                     buffer.append(remaining)
@@ -111,7 +127,7 @@ struct ContainerImageBuilder {
                 try process.run()
             } catch {
                 process.terminationHandler = nil
-                timeoutWork.cancel()
+                buffer.markFinished()
                 continuation.resume(returning: (127, error.localizedDescription))
             }
         }
