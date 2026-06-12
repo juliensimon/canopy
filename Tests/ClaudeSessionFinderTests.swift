@@ -14,13 +14,7 @@ struct ClaudeSessionFinderTests {
         body: () throws -> Void
     ) throws {
         let fm = FileManager.default
-        // Claude encodes paths: "/" → "-", "." → "-"
-        let expanded = (directory as NSString).expandingTildeInPath
-        let resolved = (expanded as NSString).resolvingSymlinksInPath
-        let encoded = resolved
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
-        let projectDir = "\(NSHomeDirectory())/.claude/projects/\(encoded)"
+        let projectDir = ClaudeSessionFinder.projectDirectory(for: directory)
 
         try fm.createDirectory(atPath: projectDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: projectDir) }
@@ -34,6 +28,28 @@ struct ClaudeSessionFinderTests {
         }
 
         try body()
+    }
+
+    // MARK: - Encoding contract with Claude Code
+
+    @Test func encodesEveryNonAlphanumericLikeClaudeCode() {
+        // Claude Code 2.x encodes cwd with replace(/[^a-zA-Z0-9]/g, "-").
+        // Only handling "/" and "." (the old behavior) made Canopy look in a
+        // directory Claude never writes for paths containing _, spaces, etc.
+        // -- silently breaking resume, transcripts, and cost tracking.
+        let dir = ClaudeSessionFinder.projectDirectory(for: "/Users/x/my_proj.v2 (beta)")
+        #expect(dir.hasSuffix("/.claude/projects/-Users-x-my-proj-v2--beta-"))
+    }
+
+    @Test func resolvesTmpLikeClaudeCwd() throws {
+        // Claude's process.cwd() yields /private/tmp/... for /tmp paths;
+        // the encoding must match or the lookup misses.
+        let dir = "/tmp/canopy-enc-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+
+        let projectDir = ClaudeSessionFinder.projectDirectory(for: dir)
+        #expect(projectDir.contains("/.claude/projects/-private-tmp-canopy-enc-"))
     }
 
     // MARK: - Tests

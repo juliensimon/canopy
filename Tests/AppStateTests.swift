@@ -204,26 +204,44 @@ struct AppStateTests {
         #expect(state.sessions[2].name == "A")
     }
 
-    @Test @MainActor func moveSession() {
+    @Test @MainActor func movePlainSessions() {
         let state = AppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         state.createSession(name: "C", directory: "/tmp/c")
 
-        state.moveSession(from: IndexSet(integer: 2), to: 0)
+        state.movePlainSessions(from: IndexSet(integer: 2), to: 0)
 
         #expect(state.sessions.map(\.name) == ["C", "A", "B"])
     }
 
-    @Test @MainActor func moveSessionRevertsSortMode() {
+    @Test @MainActor func movePlainSessionsRevertsSortMode() {
         let state = AppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         state.tabSortMode = .name
 
-        state.moveSession(from: IndexSet(integer: 1), to: 0)
+        state.movePlainSessions(from: IndexSet(integer: 1), to: 0)
 
         #expect(state.tabSortMode == .manual)
+    }
+
+    @Test @MainActor func movePlainSessionsLeavesProjectSessionsInPlace() {
+        // The sidebar passes offsets into the FILTERED plain list; applying
+        // them to the full array used to move arbitrary project sessions.
+        let state = AppState()
+        let project = Project(name: "p", repositoryPath: "/tmp/p")
+        state.projects = [project]
+        var worktree = SessionInfo(name: "WT", workingDirectory: "/tmp/wt", projectId: project.id)
+        worktree.worktreePath = "/tmp/wt"
+        state.sessions = [worktree]
+        state.createSession(name: "P1", directory: "/tmp/p1")
+        state.createSession(name: "P2", directory: "/tmp/p2")
+
+        // Move plain index 1 (P2) above plain index 0 (P1)
+        state.movePlainSessions(from: IndexSet(integer: 1), to: 0)
+
+        #expect(state.sessions.map(\.name) == ["WT", "P2", "P1"])
     }
 
     @Test @MainActor func swapSessions() {

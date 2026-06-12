@@ -228,6 +228,16 @@ struct MergeWorktreeSheet: View {
                     return
                 }
 
+                // The merge checks out the target branch in the MAIN repo:
+                // uncommitted changes there would be dragged onto the target
+                // branch (or collide) with no warning.
+                let mainDirty = try await git.hasUncommittedChanges(repoPath: project.repositoryPath)
+                if mainDirty {
+                    errorMessage = "The main repository has uncommitted changes. Commit or stash them there first -- merging switches its checked-out branch."
+                    isMerging = false
+                    return
+                }
+
                 // Check if branch is already merged (0 commits ahead of target)
                 let ahead = try await git.commitCount(
                     from: branchName,
@@ -265,13 +275,6 @@ struct MergeWorktreeSheet: View {
         errorMessage = nil
 
         Task {
-            // Close session if active
-            if let sid = sessionId {
-                appState.performCloseSession(id: sid)
-            } else if let session = appState.sessions.first(where: { $0.worktreePath == worktreePath }) {
-                appState.performCloseSession(id: session.id)
-            }
-
             do {
                 if deleteWorktree {
                     try await git.removeWorktree(
@@ -282,6 +285,15 @@ struct MergeWorktreeSheet: View {
 
                 if deleteBranch {
                     try await git.deleteBranch(name: branchName, repoPath: project.repositoryPath)
+                }
+
+                // Close the session only after cleanup succeeded -- on a git
+                // failure the user keeps their tab instead of losing it and
+                // then seeing an error.
+                if let sid = sessionId {
+                    appState.performCloseSession(id: sid)
+                } else if let session = appState.sessions.first(where: { $0.worktreePath == worktreePath }) {
+                    appState.performCloseSession(id: session.id)
                 }
 
                 dismiss()

@@ -268,12 +268,17 @@ final class AppState: ObservableObject {
                 sessionCommitsAhead.removeValue(forKey: session.id)
                 continue
             }
-            if let diff = await git.diffStat(repoPath: path) {
+            let diff = await git.diffStat(repoPath: path)
+            let ahead = await git.commitsAhead(repoPath: path)
+            // The session may have been closed during the awaits above --
+            // writing then would resurrect its entries permanently.
+            guard sessions.contains(where: { $0.id == session.id }) else { continue }
+            if let diff {
                 sessionDiffStats[session.id] = diff
             } else {
                 sessionDiffStats.removeValue(forKey: session.id)
             }
-            if let ahead = await git.commitsAhead(repoPath: path), ahead > 0 {
+            if let ahead, ahead > 0 {
                 sessionCommitsAhead[session.id] = ahead
             } else {
                 sessionCommitsAhead.removeValue(forKey: session.id)
@@ -665,9 +670,25 @@ final class AppState: ObservableObject {
         sessions = result
     }
 
-    /// Moves sessions using IndexSet (for sidebar .onMove).
-    func moveSession(from source: IndexSet, to destination: Int) {
-        sessions.move(fromOffsets: source, toOffset: destination)
+    /// Reorders plain (non-project) sessions (sidebar .onMove).
+    /// `source`/`destination` are indices into the FILTERED plain-session
+    /// list -- applying them to the full array moved arbitrary other
+    /// sessions when project sessions interleave.
+    func movePlainSessions(from source: IndexSet, to destination: Int) {
+        var plain = sessions.filter { $0.projectId == nil }
+        plain.move(fromOffsets: source, toOffset: destination)
+
+        var result: [SessionInfo] = []
+        var plainIndex = 0
+        for session in sessions {
+            if session.projectId == nil {
+                result.append(plain[plainIndex])
+                plainIndex += 1
+            } else {
+                result.append(session)
+            }
+        }
+        sessions = result
         tabSortMode = .manual
     }
 
@@ -768,21 +789,36 @@ final class AppState: ObservableObject {
 
     func saveSessions() {
         guard !isTerminating else { return }
-        guard let data = try? JSONEncoder().encode(sessions) else { return }
-        FileManager.default.createFile(atPath: sessionsFilePath, contents: data)
+        guard let data = try? JSONEncoder().encode(sessions) else {
+            NSLog("Canopy: failed to encode sessions for persistence")
+            return
+        }
+        // Atomic: a crash mid-write must not corrupt the file (a corrupt
+        // file decodes as no sessions, and the next save makes that final).
+        do {
+            try data.write(to: URL(fileURLWithPath: sessionsFilePath), options: .atomic)
+        } catch {
+            NSLog("Canopy: failed to write %@ (%@)", sessionsFilePath, "\(error)")
+        }
     }
 
     /// Save sessions and mark as terminating so cleanup doesn't overwrite the file.
     func saveSessionsBeforeTermination() {
         guard let data = try? JSONEncoder().encode(sessions) else { return }
-        FileManager.default.createFile(atPath: sessionsFilePath, contents: data)
+        try? data.write(to: URL(fileURLWithPath: sessionsFilePath), options: .atomic)
         isTerminating = true
     }
 
     func loadSessions() {
         let path = sessionsFilePath
-        guard let data = FileManager.default.contents(atPath: path),
-              var decoded = try? JSONDecoder().decode([SessionInfo].self, from: data) else {
+        guard let data = FileManager.default.contents(atPath: path) else { return }
+        // Backup before decoding, like projects.json -- if this file is
+        // corrupt, the next save would otherwise overwrite it with [].
+        let backupPath = (path as NSString).deletingPathExtension + ".backup.json"
+        try? FileManager.default.removeItem(atPath: backupPath)
+        try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
+        guard var decoded = try? JSONDecoder().decode([SessionInfo].self, from: data) else {
+            NSLog("Canopy: sessions.json failed to decode; previous content kept at %@", backupPath)
             return
         }
         // Refresh Claude session IDs from disk

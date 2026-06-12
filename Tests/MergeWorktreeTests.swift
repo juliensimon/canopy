@@ -539,8 +539,10 @@ struct MergeWorktreeTests {
             switch result {
             case .success(let count):
                 #expect(count == 1)
+                // The repo was on feat/from-develop before the merge; the
+                // user's checkout must be restored, not left on the target.
                 let branch = try await git.currentBranch(repoPath: repo)
-                #expect(branch == "develop")
+                #expect(branch == "feat/from-develop")
             case .conflict:
                 Issue.record("Expected success")
             }

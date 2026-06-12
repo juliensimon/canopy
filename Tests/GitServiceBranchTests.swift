@@ -21,6 +21,62 @@ struct GitServiceBranchTests {
         try await body(repoPath)
     }
 
+    private func withTempRepo(defaultBranch: String, _ body: (String) async throws -> Void) async throws {
+        let repoPath = NSTemporaryDirectory() + "canopy-branch-\(UUID().uuidString)"
+        try fm.createDirectory(atPath: repoPath, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: repoPath) }
+
+        try shell("git init -b \(defaultBranch) && git config user.email 'test@test.com' && git config user.name 'Test'", in: repoPath)
+        try "hello".write(toFile: "\(repoPath)/file.txt", atomically: true, encoding: .utf8)
+        try shell("git add -A && git commit -m 'initial'", in: repoPath)
+
+        try await body(repoPath)
+    }
+
+    // MARK: - Unmerged detection on master-default repos
+
+    @Test func unmergedCommitsDetectedOnMasterDefaultRepo() async throws {
+        // The old hardcoded baseBranch: "main" default made rev-list fail on
+        // master-default repos, count as 0, and let users delete branches
+        // with unmerged work without any warning.
+        try await withTempRepo(defaultBranch: "master") { repo in
+            try shell("git checkout -b feature && echo x > f2.txt && git add -A && git commit -m 'work'", in: repo)
+            try shell("git checkout master", in: repo)
+
+            let unmerged = await git.branchHasUnmergedCommits(repoPath: repo, branch: "feature")
+            #expect(unmerged == true)
+        }
+    }
+
+    @Test func mergedBranchReportsNoUnmergedCommits() async throws {
+        try await withTempRepo(defaultBranch: "master") { repo in
+            try shell("git checkout -b feature && echo x > f2.txt && git add -A && git commit -m 'work'", in: repo)
+            try shell("git checkout master && git merge feature", in: repo)
+
+            let unmerged = await git.branchHasUnmergedCommits(repoPath: repo, branch: "feature")
+            #expect(unmerged == false)
+        }
+    }
+
+    // MARK: - mergeInto restores the original checkout
+
+    @Test func mergeIntoRestoresOriginalBranch() async throws {
+        // The merge checks out the target in the user's MAIN repo; leaving
+        // it switched silently changed what the user had checked out.
+        try await withTempRepo { repo in
+            try shell("git checkout -b feature && echo x > f2.txt && git add -A && git commit -m 'work'", in: repo)
+            try shell("git checkout -b elsewhere main", in: repo)
+
+            let result = try await git.mergeInto(target: "main", source: "feature", repoPath: repo)
+
+            if case .success = result {} else {
+                Issue.record("expected merge success, got \(result)")
+            }
+            let current = try await git.currentBranch(repoPath: repo)
+            #expect(current == "elsewhere")
+        }
+    }
+
     // MARK: - worktreeHasChanges
 
     @Test func cleanWorktreeHasNoChanges() async throws {
@@ -84,9 +140,10 @@ struct GitServiceBranchTests {
 
     @Test func unmergedWithNonexistentBase() async throws {
         try await withTempRepo { repo in
-            // If base doesn't exist, should return false (0 from error)
+            // A failed check must warn (true), not silently clear the way
+            // for deleting a branch whose merge state is unknown.
             let hasUnmerged = await git.branchHasUnmergedCommits(repoPath: repo, branch: "main", baseBranch: "nonexistent")
-            #expect(hasUnmerged == false)
+            #expect(hasUnmerged == true)
         }
     }
 

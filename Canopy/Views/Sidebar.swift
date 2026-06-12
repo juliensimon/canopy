@@ -55,7 +55,7 @@ struct Sidebar: View {
                                 sessionRow(session)
                             }
                             .onMove { source, destination in
-                                appState.moveSession(from: source, to: destination)
+                                appState.movePlainSessions(from: source, to: destination)
                             }
                         }
                     }
@@ -231,6 +231,9 @@ struct Sidebar: View {
             }
             Button("Browse All…") { promptPickerSession = session }
         }
+        // Prompts go to the live terminal; a session that was never
+        // displayed has none, and the send would silently no-op.
+        .disabled(appState.terminalSessions[session.id] == nil)
 
         Divider()
 

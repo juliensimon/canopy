@@ -163,6 +163,10 @@ final class TerminalSession: ObservableObject {
     }
 
     func stop() {
+        // Kill the child (shell + claude) -- without this the process keeps
+        // running (and an agent keeps working/spending) invisibly until the
+        // app quits: the pty master stays retained by the pending read.
+        terminalView?.terminate()
         terminalView = nil
         isRunning = false
     }

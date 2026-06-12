@@ -6,8 +6,9 @@ import Foundation
 /// Claude Code stores session transcripts as JSONL files in:
 ///   ~/.claude/projects/{encoded-path}/{session-uuid}.jsonl
 ///
-/// The path encoding replaces both "/" and "." with "-".
-/// e.g. /Users/julien/my.project → -Users-julien-my-project
+/// Claude Code 2.x encodes its resolved cwd with `[^a-zA-Z0-9]` → "-"
+/// (verified against the shipped binary), e.g.
+///   /Users/julien/my_proj.v2 → -Users-julien-my-proj-v2
 ///
 /// This is the single source of truth for the encoding — `SessionCostService`
 /// and `ClaudeTranscriptLoader` route through here. If Claude Code ever
@@ -18,10 +19,17 @@ enum ClaudeSessionFinder {
     /// logs for the given working directory.
     static func projectDirectory(for directory: String) -> String {
         let expanded = (directory as NSString).expandingTildeInPath
-        let resolved = (expanded as NSString).resolvingSymlinksInPath
-        let encoded = resolved
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ".", with: "-")
+        // realpath, not NSString.resolvingSymlinksInPath: Claude encodes
+        // process.cwd(), which is /private/tmp/... for /tmp paths.
+        let resolved = SandboxBackend.realResolvedPath(expanded)
+        let encoded = String(resolved.unicodeScalars.map { scalar -> Character in
+            switch scalar {
+            case "a"..."z", "A"..."Z", "0"..."9":
+                return Character(scalar)
+            default:
+                return "-"
+            }
+        })
         let home = NSHomeDirectory()
         return "\(home)/.claude/projects/\(encoded)"
     }

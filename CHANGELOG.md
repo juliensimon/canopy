@@ -32,6 +32,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sandboxBackend` (`off` / `dockerSbx` / `appleContainer`). Existing files
   migrate automatically on load; the legacy key is still read.
 
+### Fixed (pre-release app-wide audit)
+- **Closing a session now terminates its shell and claude process.** They
+  previously kept running (and an agent kept working/spending) invisibly
+  until the app quit.
+- **Session resume/transcripts/cost now work for paths with `_`, spaces,
+  and other special characters**: Canopy's encoding of Claude Code's
+  `~/.claude/projects/` directory names only handled `/` and `.`, while
+  Claude replaces every non-alphanumeric character -- so worktrees like
+  `fix_thing` silently lost resume and transcripts. `/tmp`-style paths now
+  resolve the way Claude's `process.cwd()` does.
+- **Merge & Finish** refuses to run when the main repository has
+  uncommitted changes (the merge switches its checked-out branch and would
+  drag them along), and it now restores the branch you had checked out
+  instead of leaving the repo on the merge target. Cleanup closes the
+  session only after the git operations succeed.
+- **The unmerged-commits warning before deleting a worktree now works on
+  master/develop repos** -- it was hardcoded to compare against `main` and
+  silently passed when that branch didn't exist. Unknown merge state now
+  warns instead of staying quiet.
+- sessions.json is written atomically and backed up on load (a crash
+  mid-write could previously corrupt it, and the next save erased all
+  sessions permanently).
+- Image build no longer hangs forever on builds with more than 64 KB of
+  output (the progress pipe was only drained after exit); builds also get
+  a 30-minute timeout. Settings save failures keep the sheet open with an
+  error instead of pretending success; a corrupt settings.json is backed
+  up to `settings.json.corrupt` before falling back to defaults.
+- Reordering plain sessions in the sidebar no longer moves the wrong
+  session when project sessions exist; Send Prompt is disabled for
+  sessions whose terminal hasn't been opened yet (it silently did
+  nothing); single quotes in Claude flags no longer break the sandbox
+  command; closed sessions no longer reappear in the git status bar.
+
 ### Fixed (Apple container hardening, from adversarial review + end-to-end probing)
 - **git now works in sandboxed worktree sessions**: the project's main
   repository is mounted alongside the worktree (a worktree's `.git` file

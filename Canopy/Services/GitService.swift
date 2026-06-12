@@ -61,9 +61,22 @@ struct GitService {
     }
 
     /// Checks if a branch has commits not merged into the base branch.
-    func branchHasUnmergedCommits(repoPath: String, branch: String, baseBranch: String = "main") async -> Bool {
-        let count = (try? await run(["rev-list", "--count", "\(baseBranch)..\(branch)"], in: repoPath))
-            .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
+    /// With no explicit base, detects it (main/master/develop/dev) -- the old
+    /// hardcoded "main" default made the check silently pass (rev-list fails,
+    /// count 0) on master-default repos, so users deleted unmerged work with
+    /// no warning. Failures count as "has unmerged commits": warn-side.
+    func branchHasUnmergedCommits(repoPath: String, branch: String, baseBranch explicitBase: String? = nil) async -> Bool {
+        var resolvedBase = explicitBase
+        if resolvedBase == nil {
+            resolvedBase = await baseBranch(for: branch, repoPath: repoPath)
+        }
+        guard let base = resolvedBase else {
+            return true
+        }
+        guard let count = (try? await run(["rev-list", "--count", "\(base)..\(branch)"], in: repoPath))
+            .flatMap({ Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) else {
+            return true
+        }
         return count > 0
     }
 
@@ -143,6 +156,16 @@ struct GitService {
         let baseOutput = try await run(["merge-base", target, source], in: repoPath)
         let mergeBase = baseOutput.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // The merge requires checking out target in the user's main repo;
+        // put their original branch back afterwards instead of silently
+        // leaving the checkout switched.
+        let originalBranch = (try? await currentBranch(repoPath: repoPath)) ?? ""
+        func restoreOriginalBranch() async {
+            if !originalBranch.isEmpty, originalBranch != "HEAD", originalBranch != target {
+                _ = try? await run(["checkout", originalBranch], in: repoPath)
+            }
+        }
+
         // Checkout target branch
         try await run(["checkout", target], in: repoPath)
 
@@ -159,15 +182,18 @@ struct GitService {
 
             if !files.isEmpty {
                 _ = try? await run(["merge", "--abort"], in: repoPath)
+                await restoreOriginalBranch()
                 return .conflict(files: files)
             }
             // Not a conflict — re-throw
+            await restoreOriginalBranch()
             throw error
         }
 
         // Count commits that were merged using merge-base
         let countOutput = try await run(["rev-list", "--count", "\(mergeBase)..\(target)"], in: repoPath)
         let count = Int(countOutput.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        await restoreOriginalBranch()
         return .success(commitCount: count)
     }
 
