@@ -430,18 +430,7 @@ struct ProjectDetailView: View {
 
     /// Creates a session in an existing worktree directory (no git worktree add).
     private func resumeWorktree(_ wt: WorktreeInfo) {
-        // Look up the most recent Claude session for this worktree
-        let sessionId = ClaudeSessionFinder.findLatestSessionId(for: wt.path)
-
-        let session = SessionInfo(
-            name: wt.branch ?? "session",
-            workingDirectory: wt.path,
-            projectId: project.id,
-            branchName: wt.branch,
-            worktreePath: wt.path,
-            claudeSessionId: sessionId
-        )
-        appState.sessions.append(session)
+        appState.openWorktreeSession(project: project, worktreePath: wt.path, branch: wt.branch)
     }
 
     // MARK: - Helpers

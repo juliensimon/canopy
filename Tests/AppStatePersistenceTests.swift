@@ -43,6 +43,39 @@ struct AppStatePersistenceTests {
         #expect(state.expandedProjects.contains(project.id))
     }
 
+    // MARK: - Reopen Existing Worktree
+
+    @Test @MainActor func openWorktreeSessionPersistsToDisk() {
+        // Reopening a worktree from the project detail view must survive an
+        // app restart -- this path used to append the session without saving.
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let state1 = AppState(configDir: tmpDir)
+        let project = Project(name: "test", repositoryPath: "/tmp/repo")
+        state1.projects = [project]
+        state1.openWorktreeSession(project: project, worktreePath: "/tmp/wt-x", branch: "feat/x")
+
+        #expect(state1.sessions.count == 1)
+        #expect(state1.sessions.first?.projectId == project.id)
+
+        let state2 = AppState(configDir: tmpDir)
+        state2.loadSessions()
+        #expect(state2.sessions.first?.worktreePath == "/tmp/wt-x")
+        #expect(state2.sessions.first?.branchName == "feat/x")
+    }
+
+    @Test @MainActor func openWorktreeSessionDefaultsNameWithoutBranch() {
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let state = AppState(configDir: tmpDir)
+        let project = Project(name: "test", repositoryPath: "/tmp/repo")
+        state.openWorktreeSession(project: project, worktreePath: "/tmp/wt-y", branch: nil)
+
+        #expect(state.sessions.first?.name == "session")
+    }
+
     // MARK: - Persistence Round-Trip
 
     @Test @MainActor func saveAndLoadProjects() {

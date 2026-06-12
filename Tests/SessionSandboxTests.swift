@@ -7,8 +7,13 @@ import Foundation
 @MainActor
 struct SessionSandboxTests {
 
+    /// Temp config dir so no test can touch the real ~/.config/canopy.
+    private func makeState() -> AppState {
+        AppState(configDir: NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)")
+    }
+
     @Test func sessionOverrideWinsOverProjectAndGlobal() {
-        let state = AppState()
+        let state = makeState()
         state.settings.sandboxBackend = .off
         let project = Project(name: "p", repositoryPath: "/tmp", sandboxBackend: .off)
         state.projects = [project]
@@ -22,7 +27,7 @@ struct SessionSandboxTests {
     }
 
     @Test func sessionWithoutOverrideFallsBackToProject() {
-        let state = AppState()
+        let state = makeState()
         state.settings.sandboxBackend = .off
         let project = Project(name: "p", repositoryPath: "/tmp", sandboxBackend: .dockerSbx)
         state.projects = [project]
@@ -32,7 +37,7 @@ struct SessionSandboxTests {
     }
 
     @Test func plainSessionFallsBackToGlobal() {
-        let state = AppState()
+        let state = makeState()
         state.settings.sandboxBackend = .appleContainer
         let session = SessionInfo(name: "s", workingDirectory: "/tmp")
 
@@ -42,7 +47,7 @@ struct SessionSandboxTests {
     @Test func claudeCommandUsesSessionBackendWithProjectFlags() {
         // The override changes only the backend; flags and image still
         // resolve through the normal project → global chain.
-        let state = AppState()
+        let state = makeState()
         state.settings.sandboxBackend = .off
         state.settings.containerImage = "global-image"
         let project = Project(name: "p", repositoryPath: "/tmp", claudeFlags: "--model haiku")
@@ -59,7 +64,7 @@ struct SessionSandboxTests {
     }
 
     @Test func claudeCommandWithoutOverrideMatchesProjectResolution() {
-        let state = AppState()
+        let state = makeState()
         state.settings.sandboxBackend = .dockerSbx
         let project = Project(name: "p", repositoryPath: "/tmp")
         state.projects = [project]

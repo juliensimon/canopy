@@ -467,6 +467,22 @@ final class AppState: ObservableObject {
     /// 3. Creates symlinks for heavy directories
     /// 4. Runs setup commands
     /// 5. Launches a terminal session in the worktree
+    /// Creates a session in an existing worktree directory (no git worktree
+    /// add), resuming the most recent Claude session found for it.
+    func openWorktreeSession(project: Project, worktreePath: String, branch: String?) {
+        let sessionId = ClaudeSessionFinder.findLatestSessionId(for: worktreePath)
+        let session = SessionInfo(
+            name: branch ?? "session",
+            workingDirectory: worktreePath,
+            projectId: project.id,
+            branchName: branch,
+            worktreePath: worktreePath,
+            claudeSessionId: sessionId
+        )
+        sessions.append(session)
+        saveSessions()
+    }
+
     /// Resolves the sandbox backend for a session:
     /// session override → project override → global setting.
     func sandboxBackend(for session: SessionInfo) -> SandboxBackend {
