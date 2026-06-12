@@ -90,8 +90,8 @@ struct CanopySettings: Codable {
     /// Additional flags passed to `sbx run` (e.g. "--memory 8g").
     var sbxFlags: String
 
-    /// OCI image used by the Apple container backend (e.g. "canopy-claude").
-    /// Must contain claude, node, and git -- see docs/guide.md for a recipe.
+    /// OCI image used by the Apple container backend. The default is built
+    /// in-app (Settings > Build Image) from `ContainerImageBuilder.dockerfile`.
     var containerImage: String
 
     /// Additional flags passed to `container run` (e.g. "--memory 8g --cpus 8").
@@ -114,7 +114,7 @@ struct CanopySettings: Codable {
         ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true, sandboxBackend: SandboxBackend = .off, sbxFlags: String = "", containerImage: String = "", containerFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil, containerPath: String? = nil) {
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true, sandboxBackend: SandboxBackend = .off, sbxFlags: String = "", containerImage: String = "canopy-claude", containerFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil, containerPath: String? = nil) {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
@@ -163,7 +163,7 @@ struct CanopySettings: Codable {
             sandboxBackend = useSandbox ? .dockerSbx : .off
         }
         sbxFlags = try container.decodeIfPresent(String.self, forKey: .sbxFlags) ?? ""
-        containerImage = try container.decodeIfPresent(String.self, forKey: .containerImage) ?? ""
+        containerImage = try container.decodeIfPresent(String.self, forKey: .containerImage) ?? "canopy-claude"
         containerFlags = try container.decodeIfPresent(String.self, forKey: .containerFlags) ?? ""
         ghPath = try container.decodeIfPresent(String.self, forKey: .ghPath) ?? Self.detectCLI("gh")
         sbxPath = try container.decodeIfPresent(String.self, forKey: .sbxPath) ?? Self.detectCLI("sbx")
@@ -183,22 +183,24 @@ struct CanopySettings: Codable {
 
     // MARK: - Persistence
 
-    private static var filePath: String {
+    /// The real config file. Tests pass an explicit path instead so they
+    /// never clobber the user's settings.
+    private static var defaultFilePath: String {
         let configDir = (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         return (configDir as NSString).appendingPathComponent("settings.json")
     }
 
-    static func load() -> CanopySettings {
-        guard let data = FileManager.default.contents(atPath: filePath),
+    static func load(from path: String = CanopySettings.defaultFilePath) -> CanopySettings {
+        guard let data = FileManager.default.contents(atPath: path),
               let decoded = try? JSONDecoder().decode(CanopySettings.self, from: data) else {
             return CanopySettings()
         }
         return decoded
     }
 
-    func save() {
+    func save(to path: String = CanopySettings.defaultFilePath) {
         guard let data = try? JSONEncoder().encode(self) else { return }
-        FileManager.default.createFile(atPath: Self.filePath, contents: data)
+        FileManager.default.createFile(atPath: path, contents: data)
     }
 }

@@ -16,8 +16,15 @@ struct SettingsTests {
         #expect(settings.terminalPath == "/System/Applications/Utilities/Terminal.app")
         #expect(settings.sandboxBackend == .off)
         #expect(settings.sbxFlags == "")
-        #expect(settings.containerImage == "")
+        #expect(settings.containerImage == "canopy-claude")
         #expect(settings.containerFlags == "")
+    }
+
+    @Test func containerImageDefaultsWhenMissingFromJSON() throws {
+        // Users who saved settings before the field existed get the default
+        // image, so the Apple container backend works without configuration.
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: "{}".data(using: .utf8)!)
+        #expect(decoded.containerImage == "canopy-claude")
     }
 
     // MARK: - Claude Command
@@ -258,18 +265,29 @@ struct SettingsTests {
 
     // MARK: - Persistence
 
-    @Test func saveAndLoad() {
+    // Persists to a temp path: tests must never touch the user's real
+    // ~/.config/canopy/settings.json (this test used to reset it to
+    // defaults on every run).
+    @Test func saveAndLoad() throws {
+        let dir = (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("canopy-settings-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let path = (dir as NSString).appendingPathComponent("settings.json")
+
         var settings = CanopySettings()
         settings.autoStartClaude = true
         settings.claudeFlags = "--model haiku"
-        settings.save()
+        settings.save(to: path)
 
-        let loaded = CanopySettings.load()
+        let loaded = CanopySettings.load(from: path)
         #expect(loaded.autoStartClaude == true)
         #expect(loaded.claudeFlags == "--model haiku")
+    }
 
-        // Reset to defaults
-        var reset = CanopySettings()
-        reset.save()
+    @Test func loadFromMissingPathReturnsDefaults() {
+        let loaded = CanopySettings.load(from: "/nonexistent/canopy/settings.json")
+        #expect(loaded.claudeFlags == "--permission-mode auto")
+        #expect(loaded.sandboxBackend == .off)
     }
 }

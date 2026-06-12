@@ -60,7 +60,7 @@ struct SandboxChecker {
     }
 
     /// Returns true if the given shell command exits 0 in a login shell.
-    private static func succeeds(_ command: String) async -> Bool {
+    static func succeeds(_ command: String) async -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: loginShell())
         process.arguments = ["-ilc", command]

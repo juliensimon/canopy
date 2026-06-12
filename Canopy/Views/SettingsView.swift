@@ -18,6 +18,9 @@ struct SettingsView: View {
     @State private var containerFlags: String
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
+    @State private var imageExists: Bool?
+    @State private var buildingImage = false
+    @State private var buildError: String?
     @State private var ghPath: String
     @State private var sbxPath: String
     @State private var containerPath: String
@@ -127,18 +130,46 @@ struct SettingsView: View {
                                         Text("Container image")
                                             .font(.subheadline)
                                             .fontWeight(.medium)
-                                        TextField("e.g. canopy-claude", text: $containerImage)
-                                            .textFieldStyle(.roundedBorder)
-                                            .font(.system(size: 12, design: .monospaced))
-                                        Text("OCI image with claude, node, and git installed. See the user guide for a Dockerfile recipe.")
+                                        HStack {
+                                            TextField("canopy-claude", text: $containerImage)
+                                                .textFieldStyle(.roundedBorder)
+                                                .font(.system(size: 12, design: .monospaced))
+                                                .onChange(of: containerImage) { _, _ in
+                                                    imageExists = nil
+                                                    buildError = nil
+                                                }
+                                            Button(buildingImage ? "Building…" : "Build Image") {
+                                                buildImage()
+                                            }
+                                            .disabled(buildingImage || containerImage.trimmingCharacters(in: .whitespaces).isEmpty)
+                                        }
+                                        Text("OCI image with claude, node, and git installed. Build Image creates it from Canopy's built-in recipe (a few minutes on first build).")
                                             .font(.caption)
                                             .foregroundStyle(.tertiary)
                                         if containerImage.trimmingCharacters(in: .whitespaces).isEmpty {
                                             Text("An image is required to start sandboxed sessions.")
                                                 .font(.caption)
                                                 .foregroundStyle(.red)
+                                        } else if buildingImage {
+                                            Text("Building image -- this can take a few minutes…")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        } else if let error = buildError {
+                                            Text("Build failed: \(error)")
+                                                .font(.caption)
+                                                .foregroundStyle(.red)
+                                                .lineLimit(6)
+                                        } else if imageExists == false {
+                                            Text("Image not found locally. Click Build Image to create it.")
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        } else if imageExists == true {
+                                            Text("Image found locally.")
+                                                .font(.caption)
+                                                .foregroundStyle(.green)
                                         }
                                     }
+                                    .task(id: sandboxBackend) { await refreshImageStatus() }
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("Container flags")
                                             .font(.subheadline)
@@ -330,6 +361,33 @@ struct SettingsView: View {
             containerImage: containerImage,
             containerFlags: containerFlags
         )
+    }
+
+    private func refreshImageStatus() async {
+        let image = containerImage
+        let exists = await ContainerImageBuilder.imageExists(image)
+        if containerImage == image {
+            imageExists = exists
+        }
+    }
+
+    private func buildImage() {
+        buildingImage = true
+        buildError = nil
+        let tag = containerImage.trimmingCharacters(in: .whitespaces)
+        Task.detached(priority: .utility) {
+            let result = await ContainerImageBuilder.build(tag: tag)
+            await MainActor.run {
+                buildingImage = false
+                switch result {
+                case .success:
+                    imageExists = true
+                case .failure(let output):
+                    buildError = output
+                    imageExists = false
+                }
+            }
+        }
     }
 
     private func verifySandbox(_ backend: SandboxBackend) {

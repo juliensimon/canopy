@@ -64,18 +64,20 @@ Canopy can optionally run Claude Code inside a sandbox for hard process isolatio
 
 **Apple container** runs Claude inside a lightweight VM using Apple's open-source [container](https://github.com/apple/container) runtime -- no Docker Desktop needed. Requires macOS 26+ on Apple silicon, and the runtime must be started once per boot with `container system start`.
 
-Unlike sbx, `container` is a generic runtime, so you supply the image. Build one once with `container build --tag canopy-claude --file Dockerfile .` from a Dockerfile like:
+Unlike sbx, `container` is a generic runtime, so an image is needed. The image name defaults to `canopy-claude`; click **Build Image** in Settings to create it from Canopy's built-in recipe (takes a few minutes on first build):
 
 ```dockerfile
 FROM node:22-slim
 RUN apt-get update && apt-get install -y git ripgrep curl ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN npm install -g @anthropic-ai/claude-code
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/root/.local/bin:$PATH"
 ```
 
-then enter `canopy-claude` as the container image in Settings. Canopy launches sessions with the worktree mounted at its host path and `~/.claude` mounted from the host:
+Claude Code is installed with the native installer (not npm) on purpose: your host `~/.claude.json` is mounted into the container and declares a native install, so `/doctor` inside the sandbox expects a binary at `/root/.local/bin/claude`. You can also point the image field at any custom image with claude, node, and git installed. Canopy launches sessions with the worktree mounted at its host path and `~/.claude` mounted from the host:
 
 - **Session resume works** -- session files persist on the host via the `~/.claude` mount
 - **One-time login**: macOS stores Claude OAuth credentials in the Keychain, which the Linux container can't read. Run `/login` inside the first sandboxed session; the credentials land in the mounted `~/.claude` and persist for all later sessions
+- **MCP servers**: because your host config is mounted, MCP servers launched via `npx` work (the image includes node), but servers pointing at macOS binaries or apps won't resolve inside the Linux VM
 - Add resource flags like `--memory 8g --cpus 8` in the "Container flags" setting (defaults are 1 GB / 4 CPUs)
 
 In both modes:
@@ -251,7 +253,7 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 | Claude flags | `--permission-mode auto` | Flags passed to the `claude` command |
 | Sandbox | Off | Backend for isolated sessions: Docker Sandbox (`sbx`, requires Docker Desktop) or Apple container (requires macOS 26+, Apple silicon) |
 | Sandbox flags | *(empty)* | Additional flags passed to `sbx run` (e.g., `--memory 8g`) |
-| Container image | *(empty)* | OCI image used by the Apple container backend (see [Sandbox modes](#sandbox-modes)) |
+| Container image | `canopy-claude` | OCI image used by the Apple container backend; **Build Image** creates it from the built-in recipe (see [Sandbox modes](#sandbox-modes)) |
 | Container flags | *(empty)* | Additional flags passed to `container run` (e.g., `--memory 8g --cpus 8`) |
 | Confirm before closing | On | Ask before closing a session |
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |

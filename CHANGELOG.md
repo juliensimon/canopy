@@ -15,10 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silicon) with no Docker Desktop dependency. The worktree is mounted at its
   host path and `~/.claude` is mounted from the host, so session resume, Show
   Transcript, and activity tracking work in sandboxed sessions (unlike sbx).
-  You supply the OCI image -- the user guide includes a Dockerfile recipe.
-  Settings gain Container image / Container flags fields (global and
-  per-project) plus a `container` CLI path row; Canopy validates the CLI is
-  installed and the runtime is started before enabling the backend.
+  The image defaults to `canopy-claude` and a **Build Image** button in
+  Settings creates it from Canopy's built-in recipe (native Claude Code
+  install, so `/doctor` is clean against the mounted host config). Settings
+  gain Container image / Container flags fields (global and per-project)
+  plus a `container` CLI path row; Canopy validates the CLI is installed,
+  the runtime is started, and whether the image exists locally.
 
 ### Changed
 - Settings/projects persistence: `useSandbox` (bool) is superseded by
