@@ -118,6 +118,21 @@ Things to know:
 - **Home-directory sessions are blocked**: a sandboxed session can't run in `~` (or above it) -- that mount would overlap the `~/.claude` mounts, which the runtime can't handle. Use a project directory, or turn the sandbox off for that session
 - **Terminal rendering**: Canopy passes `TERM`, `COLORTERM`, and a UTF-8 locale into the VM and waits for the VM's terminal to pick up the real window size before starting claude -- without this, output renders garbled
 
+#### What sandboxing does — and doesn't — protect against
+
+Sandboxing limits what an autonomous agent can reach if it misbehaves (a bad command, a prompt injection from something it read, an over-eager cleanup). Be precise about the boundary:
+
+**Protected.** Everything that isn't mounted: your home directory and documents, `~/.ssh` keys, browser data, the macOS Keychain, other repositories, host processes, and system settings. Both backends are VMs, so isolation is at the hardware-virtualization level — there is no shared kernel with the host. `~/.gitconfig` is mounted read-only (a writable copy would let an agent plant a git alias or hook path that executes on the host the next time *you* run git).
+
+**Deliberately not protected — know what you're trusting:**
+
+- **The worktree itself** is writable by design. Code the agent writes there runs with full host privileges the moment *you* build or execute it. Sandboxing buys you a review checkpoint, not a guarantee about the code's contents.
+- **The project's main repository** is mounted writable in worktree sessions (git requires it: a worktree's commits write into the main repo's `.git`). The agent can therefore touch other branches and `.git` contents — including `.git/hooks`, which execute on the host when you run git there. Review hooks if a sandboxed session did something you didn't expect.
+- **Claude's own state** (`~/.claude`, `~/.claude.json`) is writable — that's what makes login persistence and session resume work. An agent could in principle alter its own configuration; if a sandboxed session behaved oddly, `~/.claude/settings.json` and `~/.claude.json` are worth a glance.
+- **Outbound network is unrestricted** (Claude needs its API). Anything the agent can read — your repo's code and any secrets in it or in copied `.env` files — it can also transmit. Sandboxing is not an exfiltration barrier.
+
+In short: sandboxing protects *your machine* from the agent. It does not protect *the project it's working on*, and it doesn't replace reviewing what the agent did.
+
 #### In both modes
 
 - **A shield icon** appears next to the session name in the sidebar (hover to see which backend)
