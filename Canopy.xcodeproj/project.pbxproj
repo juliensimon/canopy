@@ -75,6 +75,7 @@
 		D9227BD1898EF4FE74C4125D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F43DF5D5450E527968F656AF /* Assets.xcassets */; };
 		DAB3402FE894C41A5A2D75C7 /* CanopyLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = F9715E211F7F3C1E0B155E9B /* CanopyLogo.png */; };
 		DCC63E6C6208E9ECCA4DAF7E /* CommandPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC4F2B628227B82EA88FC92 /* CommandPaletteTests.swift */; };
+		DCEC5FF914987D48A89E3D81 /* SessionSandboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E948527D5D146F27269411E /* SessionSandboxTests.swift */; };
 		E73A6C51EDB818ECA20D8A25 /* GitStatusPollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357D44B70B337CBEA901EFC2 /* GitStatusPollingTests.swift */; };
 		E9221CF570EFEDB632B60747 /* AppStateSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACD793440D91EF9CE9D003D /* AppStateSelectionTests.swift */; };
 		EA5203931771989D35C133F1 /* ActivityDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D482C3938E22482339DC13E5 /* ActivityDot.swift */; };
@@ -100,6 +101,7 @@
 /* Begin PBXFileReference section */
 		028C5B5137B3ECE6C957B6EC /* AddProjectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProjectSheet.swift; sourceTree = "<group>"; };
 		051E40D7278741B7C4B2DACC /* GitServiceBranchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitServiceBranchTests.swift; sourceTree = "<group>"; };
+		0E948527D5D146F27269411E /* SessionSandboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSandboxTests.swift; sourceTree = "<group>"; };
 		0ECA322FF097B59B49F68737 /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
 		16DF06DA3F5EC110B202E67A /* ProjectColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectColor.swift; sourceTree = "<group>"; };
 		1B64F1A3B9D1A7D162DFE72B /* ClaudeTranscriptLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTranscriptLoader.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				71B9ED338BECE4C5A45CEF2F /* PromptLibraryTests.swift */,
 				850B26424BF5B827D9AC5AB2 /* SandboxCheckerTests.swift */,
 				4B876C5FDA76283957B8E9C5 /* SessionCostServiceTests.swift */,
+				0E948527D5D146F27269411E /* SessionSandboxTests.swift */,
 				EB57402CEF34C579AE3ED054 /* SettingsEdgeCaseTests.swift */,
 				2104528AB64BB407CE23FBDE /* SettingsTests.swift */,
 				97282B824EEE8B84522D0A67 /* TerminalKeyPolicyTests.swift */,
@@ -525,6 +528,7 @@
 				5095CCFA8207BB832FE7702F /* PromptLibraryTests.swift in Sources */,
 				257BE9FBDC281CB300ADD349 /* SandboxCheckerTests.swift in Sources */,
 				7403E7DA09BC3CAD7004D877 /* SessionCostServiceTests.swift in Sources */,
+				DCEC5FF914987D48A89E3D81 /* SessionSandboxTests.swift in Sources */,
 				47572C3FF5F7C52C77D0B4C5 /* SettingsEdgeCaseTests.swift in Sources */,
 				CEF733D3EB0A67115C18B758 /* SettingsTests.swift in Sources */,
 				ECE0473E69F211CFA3DB65AA /* TerminalKeyPolicyTests.swift in Sources */,

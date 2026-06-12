@@ -184,10 +184,8 @@ struct SessionView: View {
                 let shouldStart = project?.shouldAutoStartClaude(globalSettings: appState.settings)
                     ?? appState.settings.autoStartClaude
                 if shouldStart {
-                    let backend = project?.resolvedSandboxBackend(globalSettings: appState.settings)
-                        ?? appState.settings.sandboxBackend
-                    var command = project?.resolvedClaudeCommand(globalSettings: appState.settings)
-                        ?? appState.settings.claudeCommand
+                    let backend = appState.sandboxBackend(for: session)
+                    var command = appState.claudeCommand(for: session)
                     // Resume a specific Claude session if we have its ID.
                     // Skipped for sbx -- its session files live inside the
                     // ephemeral microVM. The Apple container backend mounts

@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus a `container` CLI path row; Canopy validates the CLI is installed,
   the runtime is started, and whether the image exists locally.
 
+- **Per-session sandbox override**: the New Worktree Session sheet gains a
+  Sandbox picker (Use project default / Off / Docker Sandbox / Apple
+  container) that applies to that session only. Resolution order is
+  session → project → global.
+
 ### Changed
 - Settings/projects persistence: `useSandbox` (bool) is superseded by
   `sandboxBackend` (`off` / `dockerSbx` / `appleContainer`). Existing files

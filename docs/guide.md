@@ -84,7 +84,7 @@ In both modes:
 - **A shield icon** appears next to the session name in the sidebar (hover to see which backend)
 - **The split terminal** still opens a host shell (not sandboxed), which is useful for inspecting the real filesystem
 
-Canopy validates the required tools are installed before enabling a backend.
+The backend can be set globally (Settings), per project (project edit sheet), or per session: the New Worktree Session sheet has a Sandbox picker that overrides both for that session only. Canopy validates the required tools are installed before enabling a backend.
 
 ## Workflows
 
@@ -99,6 +99,7 @@ Canopy validates the required tools are installed before enabling a backend.
    - Pick your project
    - Select a base branch (Canopy auto-detects `main`, `master`, `develop`, or `dev`)
    - Name your feature branch (e.g., `feat/user-auth`)
+   - Optionally pick a sandbox just for this session (defaults to the project/global setting -- see [Sandbox modes](#sandbox-modes))
 
 3. Canopy will:
    - Run `git worktree add` with your branch

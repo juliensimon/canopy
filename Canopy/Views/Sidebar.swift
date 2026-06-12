@@ -389,11 +389,7 @@ struct Sidebar: View {
     // MARK: - Helpers
 
     private func sandboxBackend(_ session: SessionInfo) -> SandboxBackend {
-        if let projectId = session.projectId,
-           let project = appState.projects.first(where: { $0.id == projectId }) {
-            return project.resolvedSandboxBackend(globalSettings: appState.settings)
-        }
-        return appState.settings.sandboxBackend
+        appState.sandboxBackend(for: session)
     }
 
     private func projectColorFor(_ session: SessionInfo) -> Color {

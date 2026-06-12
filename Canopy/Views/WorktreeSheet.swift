@@ -14,6 +14,9 @@ struct WorktreeSheet: View {
     @State private var branchName = ""
     @State private var baseBranch = ""
     @State private var branches: [BranchInfo] = []
+    @State private var sandboxOverride: SandboxBackend?
+    @State private var sandboxStatus: SandboxChecker.Status?
+    @State private var checkingSandbox = false
     @State private var errorMessage: String?
     @State private var isCreating = false
 
@@ -42,7 +45,7 @@ struct WorktreeSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 450, height: 380)
+        .frame(width: 450, height: 460)
         .onAppear {
             if let preId = preselectedProjectId {
                 selectedProjectId = preId
@@ -125,6 +128,44 @@ struct WorktreeSheet: View {
                     .fontWeight(.medium)
                 TextField("feat/my-feature", text: $branchName)
                     .textFieldStyle(.roundedBorder)
+            }
+
+            // Per-session sandbox override
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Sandbox")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Picker("", selection: Binding(
+                    get: { sandboxOverride },
+                    set: { newValue in
+                        guard let backend = newValue, backend != .off else {
+                            sandboxOverride = newValue
+                            sandboxStatus = nil
+                            return
+                        }
+                        checkingSandbox = true
+                        Task.detached(priority: .utility) {
+                            let status = await SandboxChecker.check(backend: backend)
+                            await MainActor.run {
+                                sandboxStatus = status
+                                sandboxOverride = status == .available ? backend : nil
+                                checkingSandbox = false
+                            }
+                        }
+                    }
+                )) {
+                    Text("Use project default").tag(SandboxBackend?.none)
+                    Text("Off").tag(SandboxBackend?.some(.off))
+                    Text("Docker Sandbox (sbx)").tag(SandboxBackend?.some(.dockerSbx))
+                    Text("Apple container").tag(SandboxBackend?.some(.appleContainer))
+                }
+                .labelsHidden()
+                .disabled(checkingSandbox)
+                if let status = sandboxStatus, status != .available {
+                    Text(SandboxBackendUI.warning(for: status))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
 
             // Config summary
@@ -215,7 +256,8 @@ struct WorktreeSheet: View {
                 try await appState.createWorktreeSession(
                     project: project,
                     branchName: branchName,
-                    baseBranch: baseBranch
+                    baseBranch: baseBranch,
+                    sandboxBackend: sandboxOverride
                 )
                 await MainActor.run { dismiss() }
             } catch {

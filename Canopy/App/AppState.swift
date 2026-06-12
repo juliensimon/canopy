@@ -467,10 +467,36 @@ final class AppState: ObservableObject {
     /// 3. Creates symlinks for heavy directories
     /// 4. Runs setup commands
     /// 5. Launches a terminal session in the worktree
+    /// Resolves the sandbox backend for a session:
+    /// session override → project override → global setting.
+    func sandboxBackend(for session: SessionInfo) -> SandboxBackend {
+        if let override = session.sandboxBackend {
+            return override
+        }
+        if let project = projects.first(where: { $0.id == session.projectId }) {
+            return project.resolvedSandboxBackend(globalSettings: settings)
+        }
+        return settings.sandboxBackend
+    }
+
+    /// Builds the claude command for a session. The backend comes from the
+    /// per-session resolution above; flags and image resolve through the
+    /// normal project → global chain.
+    func claudeCommand(for session: SessionInfo) -> String {
+        let project = projects.first { $0.id == session.projectId }
+        return sandboxBackend(for: session).claudeCommand(
+            claudeFlags: project?.claudeFlags ?? settings.claudeFlags,
+            sbxFlags: project?.sbxFlags ?? settings.sbxFlags,
+            containerImage: project?.containerImage ?? settings.containerImage,
+            containerFlags: project?.containerFlags ?? settings.containerFlags
+        )
+    }
+
     func createWorktreeSession(
         project: Project,
         branchName: String,
-        baseBranch: String
+        baseBranch: String,
+        sandboxBackend: SandboxBackend? = nil
     ) async throws {
         worktreeSetupInProgress = true
         worktreeSetupStatus = "Creating worktree..."
@@ -531,7 +557,8 @@ final class AppState: ObservableObject {
                 workingDirectory: worktreePath,
                 projectId: project.id,
                 branchName: branchName,
-                worktreePath: worktreePath
+                worktreePath: worktreePath,
+                sandboxBackend: sandboxBackend
             )
             withAnimation(.easeOut(duration: 0.25)) {
                 if tabSortMode == .manual {
@@ -800,6 +827,10 @@ struct SessionInfo: Identifiable, Codable {
     /// When set, Claude is started with `--resume <id>`.
     var claudeSessionId: String?
 
+    /// Per-session sandbox override chosen at creation time.
+    /// nil = inherit the project/global setting.
+    var sandboxBackend: SandboxBackend?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -808,6 +839,7 @@ struct SessionInfo: Identifiable, Codable {
         branchName: String? = nil,
         worktreePath: String? = nil,
         claudeSessionId: String? = nil,
+        sandboxBackend: SandboxBackend? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -817,6 +849,7 @@ struct SessionInfo: Identifiable, Codable {
         self.branchName = branchName
         self.worktreePath = worktreePath
         self.claudeSessionId = claudeSessionId
+        self.sandboxBackend = sandboxBackend
         self.createdAt = createdAt
     }
 }
