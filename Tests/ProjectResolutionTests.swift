@@ -228,6 +228,54 @@ struct ProjectResolutionTests {
         #expect(settings.claudeCommand == "sbx run claude --")
     }
 
+    // MARK: - Override Sheet Seeding
+
+    @Test func overrideDefaultsSeedFromGlobalsWhenProjectHasNoOverrides() {
+        // Enabling "Override global Claude settings" must start from the
+        // EFFECTIVE values. Seeding autoStart=false / flags="" used to write
+        // unintended overrides that silently disabled claude auto-start when
+        // the user only wanted to change the sandbox backend.
+        var settings = CanopySettings()
+        settings.autoStartClaude = true
+        settings.claudeFlags = "--permission-mode auto"
+        settings.sandboxBackend = .dockerSbx
+        settings.sbxFlags = "--memory 8g"
+        let project = Project(name: "p", repositoryPath: "/tmp")
+
+        let seeds = ClaudeOverrideDefaults(project: project, settings: settings)
+        #expect(seeds.autoStartClaude == true)
+        #expect(seeds.claudeFlags == "--permission-mode auto")
+        #expect(seeds.sandboxBackend == .dockerSbx)
+        #expect(seeds.sbxFlags == "--memory 8g")
+    }
+
+    @Test func overrideDefaultsKeepExistingProjectOverrides() {
+        var settings = CanopySettings()
+        settings.autoStartClaude = true
+        let project = Project(
+            name: "p", repositoryPath: "/tmp",
+            autoStartClaude: false,
+            claudeFlags: "--model haiku",
+            sandboxBackend: .appleContainer
+        )
+
+        let seeds = ClaudeOverrideDefaults(project: project, settings: settings)
+        #expect(seeds.autoStartClaude == false)
+        #expect(seeds.claudeFlags == "--model haiku")
+        #expect(seeds.sandboxBackend == .appleContainer)
+    }
+
+    @Test func overrideDefaultsForNewProjectUseGlobals() {
+        var settings = CanopySettings()
+        settings.autoStartClaude = false
+        settings.claudeFlags = "--verbose"
+
+        let seeds = ClaudeOverrideDefaults(project: nil, settings: settings)
+        #expect(seeds.autoStartClaude == false)
+        #expect(seeds.claudeFlags == "--verbose")
+        #expect(seeds.sandboxBackend == .off)
+    }
+
     // MARK: - Forward-Compatible Decoding
 
     @Test func decodesWithMissingOptionalFields() throws {

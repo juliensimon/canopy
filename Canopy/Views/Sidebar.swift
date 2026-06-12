@@ -77,7 +77,7 @@ struct Sidebar: View {
         }
         .frame(minWidth: 180, idealWidth: 220, maxWidth: 280)
         .sheet(isPresented: $appState.showAddProjectSheet) {
-            AddProjectSheet()
+            AddProjectSheet(settings: appState.settings)
         }
         .sheet(isPresented: $appState.showNewWorktreeSheet, onDismiss: {
             appState.worktreeSheetProjectId = nil
@@ -85,7 +85,7 @@ struct Sidebar: View {
             WorktreeSheet(preselectedProjectId: appState.worktreeSheetProjectId)
         }
         .sheet(item: $editingProject) { project in
-            EditProjectSheet(project: project)
+            EditProjectSheet(project: project, settings: appState.settings)
         }
         .sheet(item: $infoSession) { session in
             SessionInfoSheet(

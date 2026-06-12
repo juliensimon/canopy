@@ -22,7 +22,7 @@ struct EditProjectSheet: View {
     @State private var checkingSandbox = false
     @State private var selectedColorIndex: Int
 
-    init(project: Project) {
+    init(project: Project, settings: CanopySettings) {
         self.project = project
         self._projectName = State(initialValue: project.name)
         self._filesToCopy = State(initialValue: project.filesToCopy.joined(separator: ", "))
@@ -32,10 +32,13 @@ struct EditProjectSheet: View {
             project.autoStartClaude != nil || project.claudeFlags != nil
             || project.sandboxBackend != nil || project.sbxFlags != nil
             || project.containerImage != nil || project.containerFlags != nil)
-        self._autoStartClaude = State(initialValue: project.autoStartClaude ?? false)
-        self._claudeFlags = State(initialValue: project.claudeFlags ?? "")
-        self._sandboxBackend = State(initialValue: project.sandboxBackend ?? .off)
-        self._sbxFlags = State(initialValue: project.sbxFlags ?? "")
+        // Seed from effective values so enabling the override changes
+        // nothing until the user actually changes a field.
+        let seeds = ClaudeOverrideDefaults(project: project, settings: settings)
+        self._autoStartClaude = State(initialValue: seeds.autoStartClaude)
+        self._claudeFlags = State(initialValue: seeds.claudeFlags)
+        self._sandboxBackend = State(initialValue: seeds.sandboxBackend)
+        self._sbxFlags = State(initialValue: seeds.sbxFlags)
         self._containerImage = State(initialValue: project.containerImage ?? "")
         self._containerFlags = State(initialValue: project.containerFlags ?? "")
         self._selectedColorIndex = State(initialValue: project.colorIndex ?? 0)

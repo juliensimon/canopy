@@ -13,12 +13,22 @@ struct AddProjectSheet: View {
     @State private var symlinkPaths = ""
     @State private var setupCommands = ""
     @State private var overrideClaude = false
-    @State private var autoStartClaude = false
-    @State private var claudeFlags = ""
-    @State private var sandboxBackend = SandboxBackend.off
-    @State private var sbxFlags = ""
+    @State private var autoStartClaude: Bool
+    @State private var claudeFlags: String
+    @State private var sandboxBackend: SandboxBackend
+    @State private var sbxFlags: String
     @State private var containerImage = ""
     @State private var containerFlags = ""
+
+    init(settings: CanopySettings) {
+        // Seed from the global values so enabling the override changes
+        // nothing until the user actually changes a field.
+        let seeds = ClaudeOverrideDefaults(project: nil, settings: settings)
+        self._autoStartClaude = State(initialValue: seeds.autoStartClaude)
+        self._claudeFlags = State(initialValue: seeds.claudeFlags)
+        self._sandboxBackend = State(initialValue: seeds.sandboxBackend)
+        self._sbxFlags = State(initialValue: seeds.sbxFlags)
+    }
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
     @State private var isValidRepo = false

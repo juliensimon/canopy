@@ -132,3 +132,22 @@ struct Project: Identifiable, Codable {
         )
     }
 }
+
+/// Seed values for the "Override global Claude settings" section of the
+/// project sheets. Must be the EFFECTIVE values (project override if set,
+/// else global): seeding hardcoded false/"" used to write unintended
+/// overrides that silently disabled claude auto-start when the user only
+/// wanted to change one setting.
+struct ClaudeOverrideDefaults {
+    let autoStartClaude: Bool
+    let claudeFlags: String
+    let sandboxBackend: SandboxBackend
+    let sbxFlags: String
+
+    init(project: Project?, settings: CanopySettings) {
+        autoStartClaude = project?.autoStartClaude ?? settings.autoStartClaude
+        claudeFlags = project?.claudeFlags ?? settings.claudeFlags
+        sandboxBackend = project?.sandboxBackend ?? settings.sandboxBackend
+        sbxFlags = project?.sbxFlags ?? settings.sbxFlags
+    }
+}
