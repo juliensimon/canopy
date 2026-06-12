@@ -66,6 +66,8 @@ Every Canopy feature exists because I was tired of doing something manually. Eac
 | `git checkout main && git pull && git merge feat/… && git worktree remove … && git branch -d …` | Right-click → **Merge & Finish** — two panels, one button |
 | Squint at `ls ~/.claude/projects/` trying to guess how many tokens you've burned this week | Open **Activity** — token counts, session history, 12-week heatmap |
 | Type out the same "write tests", "review security", "update docs" prompt for the tenth time | Save it once in the **Prompt Library** — one right-click to fire it at any session |
+| Scroll a flickering terminal trying to re-read what Claude said ten minutes ago | Right-click → **Show Transcript** — the conversation as clean markdown, live-updating |
+| Worry about what an autonomous agent might touch outside the repo | Pick a **sandbox** — per session, per project, or globally — and Claude runs in a VM with just your worktree mounted |
 
 None of these are big problems on their own. All of them are papercuts. Canopy is a tool for people who notice papercuts.
 
@@ -145,6 +147,12 @@ If you have more than four or five sessions open, this is the fastest way to nav
 `Cmd+F` inside any session opens an incremental search over the terminal output. Matches highlight as you type. Return jumps to the next match. Shift-return jumps to the previous one. Escape closes the search.
 
 This is a small feature that turns out to matter a lot: when Claude produces a 400-line plan and you need to jump to the part about "database migration," you used to scroll. Now you don't.
+
+---
+
+### 📜 Show Transcript — read the conversation, not the terminal
+
+Right-click any session → **Show Transcript…** for a clean, scrollable, read-only view of the whole conversation. When Claude Code is running, Canopy reads its structured JSONL session log and renders user/assistant turns with markdown formatting — tool calls compacted to one-line summaries instead of walls of raw output. It live-updates as Claude streams, with an auto-tail toggle so you can read history without being yanked back down. The Copy button (`Cmd+Shift+C`) puts the formatted markdown on your clipboard — handy for PR descriptions and notes.
 
 ---
 
@@ -283,6 +291,7 @@ All configuration lives in `~/.config/canopy/`:
 - `projects.json` — project list and per-project config
 - `projects.backup.json` — automatic backup created on every launch
 - `sessions.json` — persisted sessions, restored on app restart
+- `sessions.backup.json` — automatic backup created on every launch
 - `prompts.json` — saved prompt library
 
 ---
