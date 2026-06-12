@@ -218,7 +218,7 @@ struct WorktreeSheet: View {
                 Spacer()
                 Button("Create Session") { createWorktree() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(selectedProject == nil || branchName.isEmpty || baseBranch.isEmpty || isCreating)
+                    .disabled(selectedProject == nil || branchName.isEmpty || baseBranch.isEmpty || isCreating || checkingSandbox)
             }
         }
     }

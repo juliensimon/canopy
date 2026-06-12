@@ -68,6 +68,7 @@
 		C03B5B8ACB810576799B8653 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB4608E6506BCC0DD38B91D /* AppStateTests.swift */; };
 		C20B1FD7CDB479CD9E788FA3 /* ProjectColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1E52AC47F359BF1AE8577B /* ProjectColorTests.swift */; };
 		C49ACE7BADCCFCA5978031B6 /* CanopyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA12AC586A4E8219DE7BF6A /* CanopyApp.swift */; };
+		C727214786425B7141AE52A6 /* ContainerSandboxE2ETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC067F40D9AF4F8D67CBC04 /* ContainerSandboxE2ETests.swift */; };
 		CAF1AB1BC545E41239724272 /* TerminalSessionOutputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B8F8AE3E1C9ADB56FB3F2C /* TerminalSessionOutputTests.swift */; };
 		CEF733D3EB0A67115C18B758 /* SettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2104528AB64BB407CE23FBDE /* SettingsTests.swift */; };
 		D25D5684810B60D6B03D8100 /* GitServiceStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8815ACE4151F62175FCCC17 /* GitServiceStatusTests.swift */; };
@@ -105,6 +106,7 @@
 		0ECA322FF097B59B49F68737 /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
 		16DF06DA3F5EC110B202E67A /* ProjectColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectColor.swift; sourceTree = "<group>"; };
 		1B64F1A3B9D1A7D162DFE72B /* ClaudeTranscriptLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTranscriptLoader.swift; sourceTree = "<group>"; };
+		1DC067F40D9AF4F8D67CBC04 /* ContainerSandboxE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerSandboxE2ETests.swift; sourceTree = "<group>"; };
 		2104528AB64BB407CE23FBDE /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
 		211150E144900E5C953921DB /* canopy-logo.svg */ = {isa = PBXFileReference; path = "canopy-logo.svg"; sourceTree = "<group>"; };
 		22E1669D32944FC23A8BA7E8 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
@@ -306,6 +308,7 @@
 				D2C77430DB7DAF98B328FF59 /* ClaudeTranscriptLoaderTests.swift */,
 				3BC4F2B628227B82EA88FC92 /* CommandPaletteTests.swift */,
 				C81FDDD6955C0F98872E602B /* ContainerImageBuilderTests.swift */,
+				1DC067F40D9AF4F8D67CBC04 /* ContainerSandboxE2ETests.swift */,
 				051E40D7278741B7C4B2DACC /* GitServiceBranchTests.swift */,
 				FCCD73E1AAF4DB1313798423 /* GitServiceEdgeCaseTests.swift */,
 				D8815ACE4151F62175FCCC17 /* GitServiceStatusTests.swift */,
@@ -514,6 +517,7 @@
 				5D863827233D39FB0F204643 /* ClaudeTranscriptLoaderTests.swift in Sources */,
 				DCC63E6C6208E9ECCA4DAF7E /* CommandPaletteTests.swift in Sources */,
 				7D893C4E9CB4191632B869A6 /* ContainerImageBuilderTests.swift in Sources */,
+				C727214786425B7141AE52A6 /* ContainerSandboxE2ETests.swift in Sources */,
 				857F6B3E6BECD31A0EF8A30F /* GitServiceBranchTests.swift in Sources */,
 				A99747F00CB618221698BADC /* GitServiceEdgeCaseTests.swift in Sources */,
 				D25D5684810B60D6B03D8100 /* GitServiceStatusTests.swift in Sources */,

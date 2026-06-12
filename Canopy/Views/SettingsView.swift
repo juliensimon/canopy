@@ -350,6 +350,9 @@ struct SettingsView: View {
                 Spacer()
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
+                    // While a backend check is in flight the picker state is
+                    // stale; saving then would persist the old backend.
+                    .disabled(checkingSandbox)
             }
         }
     }

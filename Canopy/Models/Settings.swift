@@ -20,15 +20,33 @@ enum SandboxBackend: String, Codable {
     /// - `.dockerSbx`: `sbx run [sbx-flags] claude -- [claude-flags]`.
     ///   The `--` is always included so flags appended later (like `--resume`)
     ///   are passed to claude, not to sbx.
-    /// - `.appleContainer`: `container run ... [container-flags] <image> claude [claude-flags]`.
+    /// - `.appleContainer`: host-side guards, then
+    ///   `container run ... [container-flags] <image> sh -c '<settle>; exec claude [claude-flags] "$@"' claude`.
     ///   `"$PWD"` / `"$HOME"` are expanded by the shell the command is typed
     ///   into, which already runs in the worktree. The worktree is mounted at
     ///   its host path so session JSONLs land in the same
     ///   `~/.claude/projects/<munged-cwd>` directory as unsandboxed runs.
-    ///   With an empty image the command still targets `container run` --
-    ///   it fails loudly rather than silently dropping isolation.
-    func claudeCommand(claudeFlags: String, sbxFlags: String, containerImage: String, containerFlags: String) -> String {
+    ///   Details that exist for a reason:
+    ///   - The guards create `~/.claude`/`~/.claude.json` so the mounts don't
+    ///     fail on machines that never ran claude on the host.
+    ///   - `--env`: the runtime forces TERM=xterm and strips COLORTERM/LANG,
+    ///     degrading Claude Code's renderer; slim images only ship C.UTF-8.
+    ///     DISABLE_AUTOUPDATER stops claude re-downloading updates into the
+    ///     ephemeral container layer on every session.
+    ///   - The sh wrapper waits (max 5s) for the container PTY to receive a
+    ///     real window size: it briefly reads 0x0 at startup, which made
+    ///     claude lay out for 80 columns and garble the terminal. Its `"$@"`
+    ///     forwards externally appended args (`--resume`) to claude; the
+    ///     trailing `claude` word is $0.
+    ///   - With an empty image the command still targets `container run` --
+    ///     it fails loudly rather than silently dropping isolation.
+    /// `extraMountPaths`: additional host paths mounted at themselves.
+    /// Used to mount the project's MAIN repository into worktree sessions --
+    /// a worktree's `.git` file points at the main repo, so without that
+    /// mount every git operation inside the container fails.
+    func claudeCommand(claudeFlags: String, sbxFlags: String, containerImage: String, containerFlags: String, extraMountPaths: [String] = []) -> String {
         var parts: [String]
+        let flags = claudeFlags.trimmingCharacters(in: .whitespaces)
         switch self {
         case .off:
             parts = ["claude"]
@@ -40,7 +58,17 @@ enum SandboxBackend: String, Codable {
             }
             parts.append("claude --")
         case .appleContainer:
-            parts = [#"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD""#]
+            var run = #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --volume "$PWD":"$PWD""#
+            for path in extraMountPaths {
+                // Mount the path git recorded: macOS /tmp-style symlinks must
+                // resolve or the in-container path won't match .git contents.
+                let resolved = Self.realResolvedPath(path)
+                if !resolved.isEmpty {
+                    run += #" --volume "\#(resolved)":"\#(resolved)""#
+                }
+            }
+            run += #" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig --workdir "$PWD""#
+            parts = [run]
             let extra = containerFlags.trimmingCharacters(in: .whitespaces)
             if !extra.isEmpty {
                 parts.append(extra)
@@ -49,13 +77,35 @@ enum SandboxBackend: String, Codable {
             if !image.isEmpty {
                 parts.append(image)
             }
-            parts.append("claude")
+            let claudeInvocation = flags.isEmpty ? "claude" : "claude \(flags)"
+            parts.append(#"sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec \#(claudeInvocation) "$@"' claude"#)
+            return parts.joined(separator: " ")
         }
-        let flags = claudeFlags.trimmingCharacters(in: .whitespaces)
         if !flags.isEmpty {
             parts.append(flags)
         }
         return parts.joined(separator: " ")
+    }
+
+    /// Whether a sandboxed container session may run in this directory.
+    /// Mounting $HOME (or an ancestor of it) overlaps the ~/.claude state
+    /// mounts: observed to silently drop the workdir mount -- claude sees an
+    /// empty project -- or hang the VM unkillably.
+    static func isUnsafeContainerWorkingDirectory(_ path: String, home: String = NSHomeDirectory()) -> Bool {
+        let resolved = realResolvedPath(path)
+        let resolvedHome = realResolvedPath(home)
+        if resolved == "/" { return true }
+        return resolved == resolvedHome || resolvedHome.hasPrefix(resolved + "/")
+    }
+
+    /// realpath(3): resolves symlinks the way git records paths (e.g.
+    /// /tmp -> /private/tmp). NSString.resolvingSymlinksInPath is unsuitable
+    /// here -- it strips the /private prefix instead of adding it. Returns
+    /// the input unchanged when the path doesn't exist.
+    static func realResolvedPath(_ path: String) -> String {
+        guard let resolved = realpath(path, nil) else { return path }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 }
 
@@ -155,8 +205,11 @@ struct CanopySettings: Codable {
         terminalPath = try container.decodeIfPresent(String.self, forKey: .terminalPath) ?? "/System/Applications/Utilities/Terminal.app"
         notifyOnFinish = try container.decodeIfPresent(Bool.self, forKey: .notifyOnFinish) ?? true
         checkForUpdatesOnLaunch = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdatesOnLaunch) ?? true
-        if let backend = try container.decodeIfPresent(SandboxBackend.self, forKey: .sandboxBackend) {
-            sandboxBackend = backend
+        if let raw = try container.decodeIfPresent(String.self, forKey: .sandboxBackend) {
+            // Tolerant of unknown rawValues (config written by a newer
+            // version): throwing here would fail the whole-file decode and
+            // load()'s fallback would silently factory-reset all settings.
+            sandboxBackend = SandboxBackend(rawValue: raw) ?? .off
         } else {
             let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
             let useSandbox = try legacy.decodeIfPresent(Bool.self, forKey: .useSandbox) ?? false

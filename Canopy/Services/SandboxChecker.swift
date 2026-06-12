@@ -11,6 +11,7 @@ struct SandboxChecker {
         case missingSbx
         case missingContainer
         case containerSystemStopped
+        case missingKernel
     }
 
     /// Checks that the given backend's tools are installed and ready.
@@ -25,6 +26,10 @@ struct SandboxChecker {
             // The runtime daemon must be started once per boot
             // (`container system start`) before containers can run.
             guard await succeeds("container system status") else { return .containerSystemStopped }
+            // `system status` exits 0 even when no default Linux kernel is
+            // installed, but `container run` then fails. The kernel symlink
+            // lives in the runtime's app root.
+            guard await succeeds(#"test -e "$HOME/Library/Application Support/com.apple.container/kernels/default.kernel-arm64""#) else { return .missingKernel }
             return .available
         }
     }

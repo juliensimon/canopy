@@ -59,8 +59,9 @@ struct SessionSandboxTests {
         )
 
         let command = state.claudeCommand(for: session)
-        #expect(command.hasPrefix("container run"))
-        #expect(command.hasSuffix("global-image claude --model haiku"))
+        #expect(command.contains("container run"))
+        #expect(command.contains(" global-image sh -c"))
+        #expect(command.contains(#"exec claude --model haiku "$@""#))
     }
 
     @Test func claudeCommandWithoutOverrideMatchesProjectResolution() {
@@ -72,6 +73,50 @@ struct SessionSandboxTests {
 
         #expect(state.claudeCommand(for: session)
             == project.resolvedClaudeCommand(globalSettings: state.settings))
+    }
+
+    @Test func worktreeSessionMountsMainRepository() {
+        // A worktree's .git file points at the main repo: without this
+        // mount, every git command inside the container fails.
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/canopy-worktrees/repo/feat",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/canopy-worktrees/repo/feat",
+            sandboxBackend: .appleContainer
+        )
+
+        #expect(state.claudeCommand(for: session).contains(#"--volume "/Users/x/dev/repo":"/Users/x/dev/repo""#))
+    }
+
+    @Test func mainRepoSessionDoesNotDoubleMount() {
+        // When the session runs IN the main repo, $PWD already mounts it;
+        // a second identical mount risks the overlapping-mount failure.
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/repo",
+            projectId: project.id,
+            sandboxBackend: .appleContainer
+        )
+
+        #expect(!state.claudeCommand(for: session).contains(#"--volume "/Users/x/dev/repo""#))
+    }
+
+    @Test func openWorktreeSessionStoresOverride() {
+        // Reopening a worktree must be able to carry a sandbox override,
+        // like createWorktreeSession -- otherwise the override is silently
+        // dropped and claude runs with weaker isolation than chosen.
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/tmp")
+        state.projects = [project]
+        state.openWorktreeSession(project: project, worktreePath: "/tmp/wt", branch: "b", sandboxBackend: .appleContainer)
+
+        #expect(state.sessions.first?.sandboxBackend == .appleContainer)
+        #expect(state.sandboxBackend(for: state.sessions.first!) == .appleContainer)
     }
 
     @Test func legacySessionDecodesWithNilBackend() throws {

@@ -186,11 +186,48 @@ struct SettingsTests {
 
     // MARK: - Sandbox (Apple container backend)
 
+    /// The full golden command. Structure, in order:
+    /// 1. Host-side guards so fresh machines (no ~/.claude yet) can mount.
+    /// 2. `container run` with env propagated: the runtime forces TERM=xterm
+    ///    and strips COLORTERM/LANG, which degrades Claude Code's renderer;
+    ///    slim images only ship the C.UTF-8 locale. DISABLE_AUTOUPDATER stops
+    ///    claude self-updating into the ephemeral container layer every run.
+    /// 3. Worktree mounted at its host path + ~/.claude state mounts.
+    /// 4. A sh wrapper that waits for the container PTY to receive its real
+    ///    window size before exec'ing claude (it briefly reads 0x0 at start,
+    ///    making claude lay out for 80 columns and garble the terminal), and
+    ///    forwards externally appended args (--resume) to claude via "$@".
     @Test func claudeCommandWithAppleContainer() {
         var settings = CanopySettings()
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "canopy-claude"
-        #expect(settings.claudeCommand == #"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD" canopy-claude claude --permission-mode auto"#)
+        #expect(settings.claudeCommand == #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig --workdir "$PWD" canopy-claude sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec claude --permission-mode auto "$@"' claude"#)
+    }
+
+    @Test func claudeCommandAppleContainerExtraMountsResolveSymlinks() throws {
+        // The extra mount is the worktree's MAIN repo (its .git file points
+        // there). git records the RESOLVED path, so /tmp must mount as
+        // /private/tmp or the in-container lookup fails.
+        let dir = "/tmp/canopy-mount-test-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+
+        let backend = SandboxBackend.appleContainer
+        let command = backend.claudeCommand(
+            claudeFlags: "", sbxFlags: "", containerImage: "img", containerFlags: "",
+            extraMountPaths: [dir]
+        )
+        #expect(command.contains(#"--volume "/private\#(dir)":"/private\#(dir)""#))
+    }
+
+    @Test func unsafeContainerWorkingDirectories() {
+        // $HOME (or an ancestor) overlaps the ~/.claude mounts: the workdir
+        // mount is silently dropped or the VM hangs.
+        #expect(SandboxBackend.isUnsafeContainerWorkingDirectory("/Users/x", home: "/Users/x"))
+        #expect(SandboxBackend.isUnsafeContainerWorkingDirectory("/Users", home: "/Users/x"))
+        #expect(SandboxBackend.isUnsafeContainerWorkingDirectory("/", home: "/Users/x"))
+        #expect(!SandboxBackend.isUnsafeContainerWorkingDirectory("/Users/x/dev/proj", home: "/Users/x"))
+        #expect(!SandboxBackend.isUnsafeContainerWorkingDirectory("/Users/xyz", home: "/Users/x"))
     }
 
     @Test func claudeCommandAppleContainerWithFlags() {
@@ -198,7 +235,9 @@ struct SettingsTests {
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "canopy-claude:latest"
         settings.containerFlags = "--memory 8g --cpus 8"
-        #expect(settings.claudeCommand == #"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD" --memory 8g --cpus 8 canopy-claude:latest claude --permission-mode auto"#)
+        let command = settings.claudeCommand
+        // Container flags go before the image; image before the wrapper.
+        #expect(command.contains(#"--workdir "$PWD" --memory 8g --cpus 8 canopy-claude:latest sh -c"#))
     }
 
     @Test func claudeCommandAppleContainerEmptyClaudeFlags() {
@@ -206,7 +245,7 @@ struct SettingsTests {
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "canopy-claude"
         settings.claudeFlags = "   "
-        #expect(settings.claudeCommand == #"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD" canopy-claude claude"#)
+        #expect(settings.claudeCommand.contains(#"exec claude "$@""#))
     }
 
     @Test func claudeCommandAppleContainerTrimsImageAndFlags() {
@@ -214,7 +253,19 @@ struct SettingsTests {
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "  canopy-claude  "
         settings.containerFlags = "  --memory 8g  "
-        #expect(settings.claudeCommand == #"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD" --memory 8g canopy-claude claude --permission-mode auto"#)
+        #expect(settings.claudeCommand.contains(#"--workdir "$PWD" --memory 8g canopy-claude sh -c"#))
+    }
+
+    @Test func claudeCommandAppleContainerResumeAppendReachesClaude() {
+        // MainWindow appends " --resume <id>" to the command. The wrapper's
+        // trailing $0 word is `claude`, so appended text becomes positional
+        // args forwarded to claude via "$@" inside the container.
+        var settings = CanopySettings()
+        settings.sandboxBackend = .appleContainer
+        settings.containerImage = "canopy-claude"
+        let command = settings.claudeCommand + " --resume abc-123"
+        #expect(command.hasSuffix(#"' claude --resume abc-123"#))
+        #expect(command.contains(#"exec claude --permission-mode auto "$@""#))
     }
 
     @Test func claudeCommandAppleContainerEmptyImageNeverRunsOnHost() {
@@ -224,7 +275,18 @@ struct SettingsTests {
         var settings = CanopySettings()
         settings.sandboxBackend = .appleContainer
         settings.containerImage = ""
-        #expect(settings.claudeCommand.hasPrefix("container run"))
+        #expect(settings.claudeCommand.contains("container run"))
+        #expect(!settings.claudeCommand.hasPrefix("claude"))
+    }
+
+    @Test func unknownBackendRawValueDecodesAsOffWithoutLosingOtherSettings() throws {
+        // A config written by a NEWER Canopy (with a backend this build
+        // doesn't know) must not throw: load()'s try? fallback would
+        // silently factory-reset the user's entire settings file.
+        let json = #"{"sandboxBackend": "futureBackend", "claudeFlags": "--model opus"}"#
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: json.data(using: .utf8)!)
+        #expect(decoded.sandboxBackend == .off)
+        #expect(decoded.claudeFlags == "--model opus")
     }
 
     @Test func appleContainerCodableRoundTrip() throws {

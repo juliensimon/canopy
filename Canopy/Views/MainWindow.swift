@@ -185,6 +185,18 @@ struct SessionView: View {
                     ?? appState.settings.autoStartClaude
                 if shouldStart {
                     let backend = appState.sandboxBackend(for: session)
+                    // Mounting $HOME overlaps the ~/.claude mounts and breaks
+                    // the VM (silently empty workdir, or an unkillable hang).
+                    if backend == .appleContainer,
+                       SandboxBackend.isUnsafeContainerWorkingDirectory(session.workingDirectory) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(500))
+                            terminalSession.sendCommand(
+                                "echo '⚠️  Canopy: Apple container sessions cannot run in your home directory (or above it) -- the ~/.claude mounts would overlap. Use a project directory, or turn the sandbox off for this session.'"
+                            )
+                        }
+                        return
+                    }
                     var command = appState.claudeCommand(for: session)
                     // Resume a specific Claude session if we have its ID.
                     // Skipped for sbx -- its session files live inside the

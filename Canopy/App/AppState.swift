@@ -469,7 +469,8 @@ final class AppState: ObservableObject {
     /// 5. Launches a terminal session in the worktree
     /// Creates a session in an existing worktree directory (no git worktree
     /// add), resuming the most recent Claude session found for it.
-    func openWorktreeSession(project: Project, worktreePath: String, branch: String?) {
+    /// `sandboxBackend` nil = inherit project/global, like everywhere else.
+    func openWorktreeSession(project: Project, worktreePath: String, branch: String?, sandboxBackend: SandboxBackend? = nil) {
         let sessionId = ClaudeSessionFinder.findLatestSessionId(for: worktreePath)
         let session = SessionInfo(
             name: branch ?? "session",
@@ -477,7 +478,8 @@ final class AppState: ObservableObject {
             projectId: project.id,
             branchName: branch,
             worktreePath: worktreePath,
-            claudeSessionId: sessionId
+            claudeSessionId: sessionId,
+            sandboxBackend: sandboxBackend
         )
         sessions.append(session)
         saveSessions()
@@ -498,13 +500,26 @@ final class AppState: ObservableObject {
     /// Builds the claude command for a session. The backend comes from the
     /// per-session resolution above; flags and image resolve through the
     /// normal project → global chain.
+    ///
+    /// Worktree sessions additionally mount the project's main repository:
+    /// the worktree's `.git` file points there, so git inside the container
+    /// is broken without it. Only for real worktrees -- a worktree is never
+    /// inside the repo, so the mounts can't overlap (overlapping virtiofs
+    /// mounts are silently dropped or hang the VM).
     func claudeCommand(for session: SessionInfo) -> String {
         let project = projects.first { $0.id == session.projectId }
+        var extraMounts: [String] = []
+        if session.worktreePath != nil,
+           let repoPath = project?.repositoryPath,
+           repoPath != session.workingDirectory {
+            extraMounts.append(repoPath)
+        }
         return sandboxBackend(for: session).claudeCommand(
             claudeFlags: project?.claudeFlags ?? settings.claudeFlags,
             sbxFlags: project?.sbxFlags ?? settings.sbxFlags,
             containerImage: project?.containerImage ?? settings.containerImage,
-            containerFlags: project?.containerFlags ?? settings.containerFlags
+            containerFlags: project?.containerFlags ?? settings.containerFlags,
+            extraMountPaths: extraMounts
         )
     }
 

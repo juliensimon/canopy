@@ -114,7 +114,10 @@ struct ProjectResolutionTests {
         )
         let settings = CanopySettings()
 
-        #expect(project.resolvedClaudeCommand(globalSettings: settings) == #"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD" project-image claude --permission-mode auto"#)
+        let command = project.resolvedClaudeCommand(globalSettings: settings)
+        #expect(command.contains("container run"))
+        #expect(command.contains(#"--workdir "$PWD" project-image sh -c"#))
+        #expect(command.contains(#"exec claude --permission-mode auto "$@""#))
     }
 
     @Test func appleContainerImageFallsBackToGlobal() {
@@ -128,7 +131,7 @@ struct ProjectResolutionTests {
         settings.containerFlags = "--memory 8g"
 
         let command = project.resolvedClaudeCommand(globalSettings: settings)
-        #expect(command.contains(" --memory 8g global-image claude "))
+        #expect(command.contains(" --memory 8g global-image sh -c"))
     }
 
     @Test func claudeCommandSandboxWithResume() {
@@ -177,7 +180,8 @@ struct ProjectResolutionTests {
             command += " --resume \(sessionId)"
         }
 
-        #expect(command.hasSuffix("claude --permission-mode auto --resume \(sessionId)"))
+        // Appended args become "$@" positionals forwarded to claude.
+        #expect(command.hasSuffix("' claude --resume \(sessionId)"))
     }
 
     @Test func sandboxResumeAppendedWhenNotSandboxed() {
@@ -317,6 +321,22 @@ struct ProjectResolutionTests {
         let project = try JSONDecoder().decode(Project.self, from: json.data(using: .utf8)!)
         #expect(project.sandboxBackend == .dockerSbx)
         #expect(project.sbxFlags == "--memory 8g")
+    }
+
+    @Test func unknownBackendRawValueDecodesAsNilWithoutLosingProject() throws {
+        // A projects.json written by a NEWER Canopy must not throw: the
+        // loader's try? fallback would silently drop ALL projects.
+        let json = """
+        {
+            "id": "\(UUID().uuidString)",
+            "name": "future",
+            "repositoryPath": "/repo",
+            "sandboxBackend": "futureBackend"
+        }
+        """
+        let project = try JSONDecoder().decode(Project.self, from: json.data(using: .utf8)!)
+        #expect(project.sandboxBackend == nil)
+        #expect(project.name == "future")
     }
 
     @Test func legacyProjectUseSandboxFalseMigratesToExplicitOff() throws {

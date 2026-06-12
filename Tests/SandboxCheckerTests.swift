@@ -22,6 +22,7 @@ struct SandboxCheckerTests {
         #expect(SandboxChecker.Status.missingSbx == SandboxChecker.Status.missingSbx)
         #expect(SandboxChecker.Status.missingDocker != SandboxChecker.Status.missingSbx)
         #expect(SandboxChecker.Status.missingContainer != SandboxChecker.Status.containerSystemStopped)
+        #expect(SandboxChecker.Status.missingKernel != SandboxChecker.Status.containerSystemStopped)
     }
 
     @Test func checkOffNeedsNoTools() async {

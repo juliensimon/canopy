@@ -6,6 +6,7 @@ struct EditProjectSheet: View {
     @Environment(\.dismiss) var dismiss
 
     let project: Project
+    private let globalSettings: CanopySettings
 
     @State private var projectName: String
     @State private var filesToCopy: String
@@ -24,6 +25,7 @@ struct EditProjectSheet: View {
 
     init(project: Project, settings: CanopySettings) {
         self.project = project
+        self.globalSettings = settings
         self._projectName = State(initialValue: project.name)
         self._filesToCopy = State(initialValue: project.filesToCopy.joined(separator: ", "))
         self._symlinkPaths = State(initialValue: project.symlinkPaths.joined(separator: ", "))
@@ -192,14 +194,17 @@ struct EditProjectSheet: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Container image")
                                     .font(.subheadline)
-                                TextField("blank = use global image", text: $containerImage)
+                                TextField("blank = use global (\(globalSettings.containerImage))", text: $containerImage)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 12, design: .monospaced))
                                 Text("Container flags")
                                     .font(.subheadline)
-                                TextField("blank = use global flags", text: $containerFlags)
+                                TextField(containerFlagsPlaceholder, text: $containerFlags)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 12, design: .monospaced))
+                                Text("Leave blank to inherit the global values.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
                             }
                             .padding(.leading, 16)
                         }
@@ -216,7 +221,7 @@ struct EditProjectSheet: View {
                 Spacer()
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(projectName.isEmpty)
+                    .disabled(projectName.isEmpty || checkingSandbox)
             }
         }
         .padding(20)
@@ -253,6 +258,11 @@ struct EditProjectSheet: View {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    private var containerFlagsPlaceholder: String {
+        let global = globalSettings.containerFlags.trimmingCharacters(in: .whitespaces)
+        return global.isEmpty ? "blank = use global flags" : "blank = use global (\(global))"
+    }
 }
 
 /// Shared user-facing strings for sandbox backend validation.
@@ -264,9 +274,11 @@ enum SandboxBackendUI {
         case .missingSbx:
             return "sbx not found. Install with: brew install docker/tap/sbx"
         case .missingContainer:
-            return "container not found. Requires macOS 26+ on Apple silicon -- install from github.com/apple/container."
+            return "container not found. Requires macOS 26+ on Apple silicon -- install with: brew install container"
         case .containerSystemStopped:
             return "container runtime is not running. Start it with: container system start"
+        case .missingKernel:
+            return "container runtime has no Linux kernel installed. Run: container system kernel set --recommended"
         case .available:
             return ""
         }

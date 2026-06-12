@@ -56,35 +56,72 @@ Session IDs are found automatically by scanning `~/.claude/projects/`.
 
 ### Sandbox modes
 
-Canopy can optionally run Claude Code inside a sandbox for hard process isolation. Your working directory is bind-mounted into the sandbox, so file edits work normally, but the agent can't touch the rest of your system. Two backends are available in Settings:
+Canopy can optionally run Claude Code inside a sandbox for hard process isolation. Your working directory is bind-mounted into the sandbox, so file edits work normally, but the agent can't touch the rest of your system. Two backends are available.
 
-**Docker Sandbox (sbx)** runs Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM. The command becomes `sbx run claude -- [flags]`. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`).
+The backend can be set at three levels -- resolution order is **session → project → global**:
+
+| Level | Where | Notes |
+|---|---|---|
+| Global | Settings (`Cmd+,`) → Claude Code → Sandbox picker | Default for everything |
+| Per project | Edit Project → Override global Claude settings → Sandbox picker | Overrides global |
+| Per session | New Worktree Session sheet (`Cmd+Shift+T`) → Sandbox picker | Overrides both, for that session only; "Use project default" inherits |
+
+Canopy validates the required tools before enabling a backend and shows a specific fix (install command, `container system start`, kernel install) when something is missing.
+
+#### Prerequisites
+
+**Docker Sandbox (sbx)**
+- macOS with [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- `sbx` CLI: `brew install docker/tap/sbx`
+
+**Apple container**
+- **macOS 26+ on Apple silicon only**
+- `container` CLI: `brew install container` (or the `.pkg` from [github.com/apple/container](https://github.com/apple/container/releases))
+- Start the runtime once per boot: `container system start` (or `brew services start container` to keep it running)
+- First run only: install the Linux kernel with `container system kernel set --recommended` (~16 MB download)
+- Build the sandbox image once: **Settings → Build Image** (a few minutes; creates the default `canopy-claude` image)
+- First sandboxed session only: run `/login` inside it (see below)
+
+#### Docker Sandbox (sbx)
+
+Runs Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM. The command becomes `sbx run [sbx-flags] claude -- [claude-flags]`.
 
 - **Session resume is disabled** -- session files (`~/.claude/projects/`) live inside the ephemeral microVM and don't persist across runs
 
-**Apple container** runs Claude inside a lightweight VM using Apple's open-source [container](https://github.com/apple/container) runtime -- no Docker Desktop needed. Requires macOS 26+ on Apple silicon, and the runtime must be started once per boot with `container system start`.
+#### Apple container
 
-Unlike sbx, `container` is a generic runtime, so an image is needed. The image name defaults to `canopy-claude`; click **Build Image** in Settings to create it from Canopy's built-in recipe (takes a few minutes on first build):
+Runs Claude inside a lightweight VM using Apple's open-source [container](https://github.com/apple/container) runtime -- no Docker Desktop needed.
+
+Unlike sbx, `container` is a generic runtime, so an image is needed. The image name defaults to `canopy-claude`; click **Build Image** in Settings to create it (one-time) from Canopy's built-in recipe:
 
 ```dockerfile
 FROM node:22-slim
 RUN apt-get update && apt-get install -y git ripgrep curl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH="/root/.local/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 DISABLE_AUTOUPDATER=1
 ```
 
-Claude Code is installed with the native installer (not npm) on purpose: your host `~/.claude.json` is mounted into the container and declares a native install, so `/doctor` inside the sandbox expects a binary at `/root/.local/bin/claude`. You can also point the image field at any custom image with claude, node, and git installed. Canopy launches sessions with the worktree mounted at its host path and `~/.claude` mounted from the host:
+Claude Code is installed with the native installer (not npm) on purpose: your host `~/.claude.json` is mounted into the container and declares a native install, so `/doctor` inside the sandbox expects a binary at `/root/.local/bin/claude`. You can also point the image field at any custom image that has claude, node, and git installed. After a Claude Code update, click **Build Image** again to refresh the image.
 
-- **Session resume works** -- session files persist on the host via the `~/.claude` mount
-- **One-time login**: macOS stores Claude OAuth credentials in the Keychain, which the Linux container can't read. Run `/login` inside the first sandboxed session; the credentials land in the mounted `~/.claude` and persist for all later sessions
+What Canopy mounts into the VM (all at their host paths, so everything lines up):
+
+- **Your worktree** (`$PWD`) -- file edits land directly in the worktree
+- **The project's main repository** (worktree sessions only) -- a worktree's `.git` file points at the main repo, so git inside the sandbox would be broken without it
+- **`~/.claude/` and `~/.claude.json`** -- Claude state lives on the host, which is why **session resume, Show Transcript, and `--resume` all work** (unlike sbx)
+- **`~/.gitconfig`** -- so commits inside the sandbox have your git identity
+
+Things to know:
+
+- **One-time login**: macOS stores Claude OAuth credentials in the Keychain, which the Linux VM can't read. Run `/login` inside the first sandboxed session; the credentials land in the mounted `~/.claude` and persist for all later sessions
+- **Resources**: the VM defaults to 1 GB RAM / 4 CPUs, which is tight for real builds. Put `--memory 8g --cpus 8` in the "Container flags" setting
 - **MCP servers**: because your host config is mounted, MCP servers launched via `npx` work (the image includes node), but servers pointing at macOS binaries or apps won't resolve inside the Linux VM
-- Add resource flags like `--memory 8g --cpus 8` in the "Container flags" setting (defaults are 1 GB / 4 CPUs)
+- **Home-directory sessions are blocked**: a sandboxed session can't run in `~` (or above it) -- that mount would overlap the `~/.claude` mounts, which the runtime can't handle. Use a project directory, or turn the sandbox off for that session
+- **Terminal rendering**: Canopy passes `TERM`, `COLORTERM`, and a UTF-8 locale into the VM and waits for the VM's terminal to pick up the real window size before starting claude -- without this, output renders garbled
 
-In both modes:
+#### In both modes
+
 - **A shield icon** appears next to the session name in the sidebar (hover to see which backend)
 - **The split terminal** still opens a host shell (not sandboxed), which is useful for inspecting the real filesystem
-
-The backend can be set globally (Settings), per project (project edit sheet), or per session: the New Worktree Session sheet has a Sandbox picker that overrides both for that session only. Canopy validates the required tools are installed before enabling a backend.
 
 ## Workflows
 

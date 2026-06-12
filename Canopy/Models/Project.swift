@@ -88,8 +88,11 @@ struct Project: Identifiable, Codable {
         worktreeBaseDir = try container.decodeIfPresent(String.self, forKey: .worktreeBaseDir)
         autoStartClaude = try container.decodeIfPresent(Bool.self, forKey: .autoStartClaude)
         claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags)
-        if let backend = try container.decodeIfPresent(SandboxBackend.self, forKey: .sandboxBackend) {
-            sandboxBackend = backend
+        if let raw = try container.decodeIfPresent(String.self, forKey: .sandboxBackend) {
+            // Tolerant of unknown rawValues (file written by a newer
+            // version): throwing here would fail the whole-array decode and
+            // silently drop ALL projects. Unknown maps to nil (use global).
+            sandboxBackend = SandboxBackend(rawValue: raw)
         } else {
             // A legacy boolean was an explicit per-project override, so
             // false must migrate to .off (not nil, which means "use global").

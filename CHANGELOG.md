@@ -32,6 +32,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sandboxBackend` (`off` / `dockerSbx` / `appleContainer`). Existing files
   migrate automatically on load; the legacy key is still read.
 
+### Fixed (Apple container hardening, from adversarial review + end-to-end probing)
+- **git now works in sandboxed worktree sessions**: the project's main
+  repository is mounted alongside the worktree (a worktree's `.git` file
+  points there); `~/.gitconfig` is mounted so commits have your identity.
+- **Terminal no longer renders garbled** in container sessions: TERM,
+  COLORTERM, and a UTF-8 locale are passed into the VM, and claude starts
+  only after the VM terminal has its real window size (it briefly reports
+  0x0, which made claude lay out for 80 columns).
+- Home-directory sessions are blocked for the container backend with a clear
+  message -- mounting `~` overlaps the `~/.claude` mounts and breaks the VM.
+- Enabling "Override global Claude settings" on a project no longer silently
+  saves auto-start=off and empty flags; fields now seed from the effective
+  values, so saving without changes is a no-op.
+- Config files written by a newer Canopy (unknown sandbox backend value) no
+  longer silently factory-reset all settings/projects on load.
+- Validation now also detects a missing Linux kernel (`container system
+  status` passes even without one) and points at the exact fix command.
+- Saving Settings (or a project sheet) while backend validation is running
+  no longer persists a stale backend value.
+- Fresh machines: `~/.claude`, `~/.claude.json`, and `~/.gitconfig` are
+  created on first sandboxed launch instead of failing the mounts; the image
+  build command quotes user input; claude self-updates inside the ephemeral
+  VM are disabled (`DISABLE_AUTOUPDATER=1`).
+
 ## [0.9.5] - 2026-05-14
 
 ### Added

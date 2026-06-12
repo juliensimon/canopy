@@ -20,9 +20,12 @@ struct AddProjectSheet: View {
     @State private var containerImage = ""
     @State private var containerFlags = ""
 
+    private let globalSettings: CanopySettings
+
     init(settings: CanopySettings) {
         // Seed from the global values so enabling the override changes
         // nothing until the user actually changes a field.
+        self.globalSettings = settings
         let seeds = ClaudeOverrideDefaults(project: nil, settings: settings)
         self._autoStartClaude = State(initialValue: seeds.autoStartClaude)
         self._claudeFlags = State(initialValue: seeds.claudeFlags)
@@ -213,7 +216,7 @@ struct AddProjectSheet: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Container image")
                                     .font(.subheadline)
-                                TextField("blank = use global image", text: $containerImage)
+                                TextField("blank = use global (\(globalSettings.containerImage))", text: $containerImage)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 12, design: .monospaced))
                                 Text("Container flags")
@@ -221,6 +224,9 @@ struct AddProjectSheet: View {
                                 TextField("blank = use global flags", text: $containerFlags)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 12, design: .monospaced))
+                                Text("Leave blank to inherit the global values.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
                             }
                             .padding(.leading, 16)
                         }
@@ -238,7 +244,7 @@ struct AddProjectSheet: View {
                 Spacer()
                 Button("Add Project") { addProject() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!isValidRepo || projectName.isEmpty)
+                    .disabled(!isValidRepo || projectName.isEmpty || checkingSandbox)
             }
         }
         .padding(20)
