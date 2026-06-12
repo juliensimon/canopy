@@ -201,7 +201,16 @@ struct SettingsTests {
         var settings = CanopySettings()
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "canopy-claude"
-        #expect(settings.claudeCommand == #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig --workdir "$PWD" canopy-claude sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec claude --permission-mode auto "$@"' claude"#)
+        #expect(settings.claudeCommand == #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig --workdir "$PWD" 'canopy-claude' sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec claude --permission-mode auto "$@"' claude"#)
+    }
+
+    @Test func claudeCommandQuotesImageAsSingleToken() {
+        // The image is user input appended into the shell command: spaces or
+        // metacharacters would split it into multiple tokens.
+        var settings = CanopySettings()
+        settings.sandboxBackend = .appleContainer
+        settings.containerImage = "registry.example.com/team/image:v1"
+        #expect(settings.claudeCommand.contains(#" 'registry.example.com/team/image:v1' sh -c"#))
     }
 
     @Test func claudeCommandAppleContainerExtraMountsResolveSymlinks() throws {
@@ -237,7 +246,7 @@ struct SettingsTests {
         settings.containerFlags = "--memory 8g --cpus 8"
         let command = settings.claudeCommand
         // Container flags go before the image; image before the wrapper.
-        #expect(command.contains(#"--workdir "$PWD" --memory 8g --cpus 8 canopy-claude:latest sh -c"#))
+        #expect(command.contains(#"--workdir "$PWD" --memory 8g --cpus 8 'canopy-claude:latest' sh -c"#))
     }
 
     @Test func claudeCommandAppleContainerEmptyClaudeFlags() {
@@ -253,7 +262,7 @@ struct SettingsTests {
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "  canopy-claude  "
         settings.containerFlags = "  --memory 8g  "
-        #expect(settings.claudeCommand.contains(#"--workdir "$PWD" --memory 8g canopy-claude sh -c"#))
+        #expect(settings.claudeCommand.contains(#"--workdir "$PWD" --memory 8g 'canopy-claude' sh -c"#))
     }
 
     @Test func claudeCommandAppleContainerEscapesSingleQuotesInFlags() {

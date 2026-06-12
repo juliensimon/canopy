@@ -16,10 +16,11 @@ struct ContainerImageBuilder {
     ENV PATH="/root/.local/bin:$PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 DISABLE_AUTOUPDATER=1
     """
 
-    /// Single-quoted: the tag is user input interpolated into a login-shell
-    /// command -- unquoted, spaces or metacharacters would split or inject.
+    /// Single-quoted with embedded-quote escaping: the tag is user input
+    /// interpolated into a login-shell command -- unquoted (or with a raw `'`
+    /// inside), spaces or metacharacters would split or inject.
     static func buildCommand(tag: String, contextDir: String) -> String {
-        "container build --tag '\(tag)' --file '\(contextDir)/Dockerfile' '\(contextDir)'"
+        "container build --tag \(SandboxBackend.shellSingleQuoted(tag)) --file \(SandboxBackend.shellSingleQuoted(contextDir + "/Dockerfile")) \(SandboxBackend.shellSingleQuoted(contextDir))"
     }
 
     enum BuildResult: Equatable {
@@ -137,6 +138,6 @@ struct ContainerImageBuilder {
     static func imageExists(_ name: String) async -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return false }
-        return await SandboxChecker.succeeds("container image inspect '\(trimmed)'")
+        return await SandboxChecker.succeeds("container image inspect \(SandboxBackend.shellSingleQuoted(trimmed))")
     }
 }

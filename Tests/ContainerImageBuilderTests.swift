@@ -27,6 +27,13 @@ struct ContainerImageBuilderTests {
         #expect(command == "container build --tag 'canopy-claude' --file '/tmp/my ctx/Dockerfile' '/tmp/my ctx'")
     }
 
+    @Test func buildCommandEscapesEmbeddedSingleQuotes() {
+        // A raw ' inside the tag would terminate the quoting and leak the
+        // rest of the value as shell tokens.
+        let command = ContainerImageBuilder.buildCommand(tag: "a'b", contextDir: "/tmp/ctx")
+        #expect(command.contains(#"--tag 'a'\''b'"#))
+    }
+
     @Test func dockerfileSetsRenderingEnvironment() {
         // Sessions inherit the image env when --env flags are absent (custom
         // commands, future paths). Bake sane terminal defaults into the image

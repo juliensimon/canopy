@@ -116,7 +116,7 @@ struct ProjectResolutionTests {
 
         let command = project.resolvedClaudeCommand(globalSettings: settings)
         #expect(command.contains("container run"))
-        #expect(command.contains(#"--workdir "$PWD" project-image sh -c"#))
+        #expect(command.contains(#"--workdir "$PWD" 'project-image' sh -c"#))
         #expect(command.contains(#"exec claude --permission-mode auto "$@""#))
     }
 
@@ -131,7 +131,7 @@ struct ProjectResolutionTests {
         settings.containerFlags = "--memory 8g"
 
         let command = project.resolvedClaudeCommand(globalSettings: settings)
-        #expect(command.contains(" --memory 8g global-image sh -c"))
+        #expect(command.contains(" --memory 8g 'global-image' sh -c"))
     }
 
     @Test func claudeCommandSandboxWithResume() {

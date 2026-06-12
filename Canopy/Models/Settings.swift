@@ -75,7 +75,9 @@ enum SandboxBackend: String, Codable {
             }
             let image = containerImage.trimmingCharacters(in: .whitespaces)
             if !image.isEmpty {
-                parts.append(image)
+                // One shell token: spaces/metacharacters in the user-supplied
+                // image name must not split or inject.
+                parts.append(Self.shellSingleQuoted(image))
             }
             // The invocation lives inside the wrapper's single quotes: a
             // single quote in user flags would terminate the string early
@@ -110,6 +112,13 @@ enum SandboxBackend: String, Codable {
         guard let resolved = realpath(path, nil) else { return path }
         defer { free(resolved) }
         return String(cString: resolved)
+    }
+
+    /// Wraps a user-supplied value as ONE shell token, escaping embedded
+    /// single quotes (which would otherwise terminate the quoting and leak
+    /// the rest as shell tokens).
+    static func shellSingleQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 }
 
@@ -273,6 +282,13 @@ struct CanopySettings: Codable {
             NSLog("Canopy: failed to encode settings")
             return false
         }
-        return FileManager.default.createFile(atPath: path, contents: data)
+        do {
+            // Atomic: a crash mid-write must not leave a truncated file.
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            return true
+        } catch {
+            NSLog("Canopy: failed to write %@ (%@)", path, "\(error)")
+            return false
+        }
     }
 }

@@ -516,7 +516,10 @@ final class AppState: ObservableObject {
         var extraMounts: [String] = []
         if session.worktreePath != nil,
            let repoPath = project?.repositoryPath,
-           repoPath != session.workingDirectory {
+           // Compare resolved paths: /tmp vs /private/tmp spellings of the
+           // same directory must not produce a duplicate (overlapping) mount.
+           SandboxBackend.realResolvedPath(repoPath)
+               != SandboxBackend.realResolvedPath(session.workingDirectory) {
             extraMounts.append(repoPath)
         }
         return sandboxBackend(for: session).claudeCommand(

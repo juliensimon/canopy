@@ -60,7 +60,7 @@ struct SessionSandboxTests {
 
         let command = state.claudeCommand(for: session)
         #expect(command.contains("container run"))
-        #expect(command.contains(" global-image sh -c"))
+        #expect(command.contains(" 'global-image' sh -c"))
         #expect(command.contains(#"exec claude --model haiku "$@""#))
     }
 
