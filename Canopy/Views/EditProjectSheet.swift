@@ -14,8 +14,10 @@ struct EditProjectSheet: View {
     @State private var overrideClaude: Bool
     @State private var autoStartClaude: Bool
     @State private var claudeFlags: String
-    @State private var useSandbox: Bool
+    @State private var sandboxBackend: SandboxBackend
     @State private var sbxFlags: String
+    @State private var containerImage: String
+    @State private var containerFlags: String
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
     @State private var selectedColorIndex: Int
@@ -28,11 +30,14 @@ struct EditProjectSheet: View {
         self._setupCommands = State(initialValue: project.setupCommands.joined(separator: ", "))
         self._overrideClaude = State(initialValue:
             project.autoStartClaude != nil || project.claudeFlags != nil
-            || project.useSandbox != nil || project.sbxFlags != nil)
+            || project.sandboxBackend != nil || project.sbxFlags != nil
+            || project.containerImage != nil || project.containerFlags != nil)
         self._autoStartClaude = State(initialValue: project.autoStartClaude ?? false)
         self._claudeFlags = State(initialValue: project.claudeFlags ?? "")
-        self._useSandbox = State(initialValue: project.useSandbox ?? false)
+        self._sandboxBackend = State(initialValue: project.sandboxBackend ?? .off)
         self._sbxFlags = State(initialValue: project.sbxFlags ?? "")
+        self._containerImage = State(initialValue: project.containerImage ?? "")
+        self._containerFlags = State(initialValue: project.containerFlags ?? "")
         self._selectedColorIndex = State(initialValue: project.colorIndex ?? 0)
     }
 
@@ -135,43 +140,61 @@ struct EditProjectSheet: View {
                         }
                         .padding(.leading, 16)
 
-                        Toggle("Run in Docker Sandbox (sbx)", isOn: Binding(
-                            get: { useSandbox },
+                        Picker("Sandbox", selection: Binding(
+                            get: { sandboxBackend },
                             set: { newValue in
-                                if newValue {
+                                if newValue == .off {
+                                    sandboxBackend = .off
+                                    sandboxStatus = nil
+                                } else {
                                     checkingSandbox = true
                                     Task.detached(priority: .utility) {
-                                        let status = await SandboxChecker.check()
+                                        let status = await SandboxChecker.check(backend: newValue)
                                         await MainActor.run {
                                             sandboxStatus = status
-                                            useSandbox = status == .available
+                                            sandboxBackend = status == .available ? newValue : .off
                                             checkingSandbox = false
                                         }
                                     }
-                                } else {
-                                    useSandbox = false
-                                    sandboxStatus = nil
                                 }
                             }
-                        ))
+                        )) {
+                            Text("Off").tag(SandboxBackend.off)
+                            Text("Docker Sandbox (sbx)").tag(SandboxBackend.dockerSbx)
+                            Text("Apple container").tag(SandboxBackend.appleContainer)
+                        }
                             .font(.subheadline)
                             .padding(.leading, 16)
                             .disabled(checkingSandbox)
 
                         if let status = sandboxStatus, status != .available {
-                            Text(status == .missingDocker
-                                ? "Docker not found. Install Docker Desktop from docker.com."
-                                : "sbx not found. Install with: brew install docker/tap/sbx")
+                            Text(SandboxBackendUI.warning(for: status))
                                 .font(.caption)
                                 .foregroundStyle(.red)
                                 .padding(.leading, 16)
                         }
 
-                        if useSandbox {
+                        if sandboxBackend == .dockerSbx {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Sandbox flags")
                                     .font(.subheadline)
                                 TextField("e.g. --memory 8g", text: $sbxFlags)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                            }
+                            .padding(.leading, 16)
+                        }
+
+                        if sandboxBackend == .appleContainer {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Container image")
+                                    .font(.subheadline)
+                                TextField("blank = use global image", text: $containerImage)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                                Text("Container flags")
+                                    .font(.subheadline)
+                                TextField("blank = use global flags", text: $containerFlags)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 12, design: .monospaced))
                             }
@@ -206,8 +229,12 @@ struct EditProjectSheet: View {
         updated.setupCommands = parseCSV(setupCommands)
         updated.autoStartClaude = overrideClaude ? autoStartClaude : nil
         updated.claudeFlags = overrideClaude ? claudeFlags : nil
-        updated.useSandbox = overrideClaude ? useSandbox : nil
+        updated.sandboxBackend = overrideClaude ? sandboxBackend : nil
         updated.sbxFlags = overrideClaude ? sbxFlags : nil
+        // Blank image/flags mean "inherit global", so store nil rather than
+        // letting an empty string override a configured global value.
+        updated.containerImage = overrideClaude ? nilIfBlank(containerImage) : nil
+        updated.containerFlags = overrideClaude ? nilIfBlank(containerFlags) : nil
         updated.colorIndex = selectedColorIndex
         appState.updateProject(updated)
         dismiss()
@@ -217,5 +244,28 @@ struct EditProjectSheet: View {
         text.split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+    }
+
+    private func nilIfBlank(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+/// Shared user-facing strings for sandbox backend validation.
+enum SandboxBackendUI {
+    static func warning(for status: SandboxChecker.Status) -> String {
+        switch status {
+        case .missingDocker:
+            return "Docker not found. Install Docker Desktop from docker.com."
+        case .missingSbx:
+            return "sbx not found. Install with: brew install docker/tap/sbx"
+        case .missingContainer:
+            return "container not found. Requires macOS 26+ on Apple silicon -- install from github.com/apple/container."
+        case .containerSystemStopped:
+            return "container runtime is not running. Start it with: container system start"
+        case .available:
+            return ""
+        }
     }
 }

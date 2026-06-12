@@ -12,12 +12,15 @@ struct SettingsView: View {
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
     @State private var checkForUpdatesOnLaunch: Bool
-    @State private var useSandbox: Bool
+    @State private var sandboxBackend: SandboxBackend
     @State private var sbxFlags: String
+    @State private var containerImage: String
+    @State private var containerFlags: String
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
     @State private var ghPath: String
     @State private var sbxPath: String
+    @State private var containerPath: String
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -27,10 +30,13 @@ struct SettingsView: View {
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
         self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
-        self._useSandbox = State(initialValue: settings.useSandbox)
+        self._sandboxBackend = State(initialValue: settings.sandboxBackend)
         self._sbxFlags = State(initialValue: settings.sbxFlags)
+        self._containerImage = State(initialValue: settings.containerImage)
+        self._containerFlags = State(initialValue: settings.containerFlags)
         self._ghPath = State(initialValue: settings.ghPath)
         self._sbxPath = State(initialValue: settings.sbxPath)
+        self._containerPath = State(initialValue: settings.containerPath)
     }
 
     var body: some View {
@@ -79,15 +85,21 @@ struct SettingsView: View {
 
                                 Divider()
 
-                                Toggle("Run in Docker Sandbox (sbx)", isOn: Binding(
-                                    get: { useSandbox },
+                                Picker("Sandbox", selection: Binding(
+                                    get: { sandboxBackend },
                                     set: { newValue in
-                                        if newValue { verifySandbox() } else {
-                                            useSandbox = false
+                                        if newValue == .off {
+                                            sandboxBackend = .off
                                             sandboxStatus = nil
+                                        } else {
+                                            verifySandbox(newValue)
                                         }
                                     }
-                                ))
+                                )) {
+                                    Text("Off").tag(SandboxBackend.off)
+                                    Text("Docker Sandbox (sbx)").tag(SandboxBackend.dockerSbx)
+                                    Text("Apple container").tag(SandboxBackend.appleContainer)
+                                }
                                 .disabled(checkingSandbox)
 
                                 if let status = sandboxStatus, status != .available {
@@ -96,7 +108,7 @@ struct SettingsView: View {
                                         .foregroundStyle(.red)
                                 }
 
-                                if useSandbox {
+                                if sandboxBackend == .dockerSbx {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("Sandbox flags")
                                             .font(.subheadline)
@@ -105,6 +117,36 @@ struct SettingsView: View {
                                             .textFieldStyle(.roundedBorder)
                                             .font(.system(size: 12, design: .monospaced))
                                         Text("Additional flags passed to `sbx run`.")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+
+                                if sandboxBackend == .appleContainer {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Container image")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                        TextField("e.g. canopy-claude", text: $containerImage)
+                                            .textFieldStyle(.roundedBorder)
+                                            .font(.system(size: 12, design: .monospaced))
+                                        Text("OCI image with claude, node, and git installed. See the user guide for a Dockerfile recipe.")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                        if containerImage.trimmingCharacters(in: .whitespaces).isEmpty {
+                                            Text("An image is required to start sandboxed sessions.")
+                                                .font(.caption)
+                                                .foregroundStyle(.red)
+                                        }
+                                    }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Container flags")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                        TextField("e.g. --memory 8g --cpus 8", text: $containerFlags)
+                                            .textFieldStyle(.roundedBorder)
+                                            .font(.system(size: 12, design: .monospaced))
+                                        Text("Additional flags passed to `container run`.")
                                             .font(.caption)
                                             .foregroundStyle(.tertiary)
                                     }
@@ -228,6 +270,21 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Apple container CLI")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                HStack {
+                                    TextField("/usr/local/bin/container", text: $containerPath)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(size: 12, design: .monospaced))
+                                    cliStatusDot(containerPath)
+                                }
+                                Text("Used by the Apple container sandbox backend.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                         .padding(4)
                     } label: {
@@ -267,50 +324,29 @@ struct SettingsView: View {
     }
 
     private var previewCommand: String {
-        var parts: [String] = []
-        if useSandbox {
-            parts.append("sbx run")
-            let trimmedSbx = sbxFlags.trimmingCharacters(in: .whitespaces)
-            if !trimmedSbx.isEmpty {
-                parts.append(trimmedSbx)
-            }
-            parts.append("claude --")
-            let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty {
-                parts.append(trimmed)
-            }
-        } else {
-            parts.append("claude")
-            let trimmed = claudeFlags.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty {
-                parts.append(trimmed)
-            }
-        }
-        return parts.joined(separator: " ")
+        sandboxBackend.claudeCommand(
+            claudeFlags: claudeFlags,
+            sbxFlags: sbxFlags,
+            containerImage: containerImage,
+            containerFlags: containerFlags
+        )
     }
 
-    private func verifySandbox() {
+    private func verifySandbox(_ backend: SandboxBackend) {
         checkingSandbox = true
         sandboxStatus = nil
         Task.detached(priority: .utility) {
-            let status = await SandboxChecker.check()
+            let status = await SandboxChecker.check(backend: backend)
             await MainActor.run {
                 sandboxStatus = status
-                useSandbox = status == .available
+                sandboxBackend = status == .available ? backend : .off
                 checkingSandbox = false
             }
         }
     }
 
     private func sandboxWarning(for status: SandboxChecker.Status) -> String {
-        switch status {
-        case .missingDocker:
-            return "Docker not found. Install Docker Desktop from docker.com."
-        case .missingSbx:
-            return "sbx not found. Install with: brew install docker/tap/sbx"
-        case .available:
-            return ""
-        }
+        SandboxBackendUI.warning(for: status)
     }
 
     private func cliStatusDot(_ path: String) -> some View {
@@ -332,10 +368,13 @@ struct SettingsView: View {
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
         settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
-        settings.useSandbox = useSandbox
+        settings.sandboxBackend = sandboxBackend
         settings.sbxFlags = sbxFlags
+        settings.containerImage = containerImage
+        settings.containerFlags = containerFlags
         settings.ghPath = ghPath
         settings.sbxPath = sbxPath
+        settings.containerPath = containerPath
         settings.save()
         appState.settings = settings
         dismiss()

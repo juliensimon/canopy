@@ -157,11 +157,11 @@ struct Sidebar: View {
             let diff = appState.sessionDiffStats[session.id]
             let ahead = appState.sessionCommitsAhead[session.id]
             let prs = appState.sessionPRCount[session.id]
-            let sandboxed = isSandboxed(session)
+            let backend = sandboxBackend(session)
             if let ts = appState.terminalSessions[session.id] {
-                LiveSessionRow(session: session, terminalSession: ts, projectColor: color, diffStat: diff, commitsAhead: ahead, prCount: prs, isSandboxed: sandboxed)
+                LiveSessionRow(session: session, terminalSession: ts, projectColor: color, diffStat: diff, commitsAhead: ahead, prCount: prs, sandboxBackend: backend)
             } else {
-                SidebarSessionRow(session: session, projectColor: color, diffStat: diff, commitsAhead: ahead, prCount: prs, isSandboxed: sandboxed)
+                SidebarSessionRow(session: session, projectColor: color, diffStat: diff, commitsAhead: ahead, prCount: prs, sandboxBackend: backend)
             }
 
             Spacer()
@@ -388,12 +388,12 @@ struct Sidebar: View {
 
     // MARK: - Helpers
 
-    private func isSandboxed(_ session: SessionInfo) -> Bool {
+    private func sandboxBackend(_ session: SessionInfo) -> SandboxBackend {
         if let projectId = session.projectId,
            let project = appState.projects.first(where: { $0.id == projectId }) {
-            return project.useSandbox ?? appState.settings.useSandbox
+            return project.resolvedSandboxBackend(globalSettings: appState.settings)
         }
-        return appState.settings.useSandbox
+        return appState.settings.sandboxBackend
     }
 
     private func projectColorFor(_ session: SessionInfo) -> Color {
@@ -497,7 +497,7 @@ struct LiveSessionRow: View {
     var diffStat: GitDiffStat?
     var commitsAhead: Int?
     var prCount: Int?
-    var isSandboxed: Bool = false
+    var sandboxBackend: SandboxBackend = .off
 
     var body: some View {
         SidebarSessionRow(
@@ -507,7 +507,7 @@ struct LiveSessionRow: View {
             diffStat: diffStat,
             commitsAhead: commitsAhead,
             prCount: prCount,
-            isSandboxed: isSandboxed
+            sandboxBackend: sandboxBackend
         )
     }
 }
@@ -521,7 +521,7 @@ struct SidebarSessionRow: View {
     var diffStat: GitDiffStat?
     var commitsAhead: Int?
     var prCount: Int?
-    var isSandboxed: Bool = false
+    var sandboxBackend: SandboxBackend = .off
 
     var body: some View {
         HStack(spacing: 8) {
@@ -533,11 +533,13 @@ struct SidebarSessionRow: View {
                     Text(session.name)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
-                    if isSandboxed {
+                    if sandboxBackend != .off {
                         Image(systemName: "shield.lefthalf.filled")
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
-                            .tooltip("Running in Docker Sandbox")
+                            .tooltip(sandboxBackend == .dockerSbx
+                                ? "Running in Docker Sandbox"
+                                : "Running in Apple container")
                     }
                 }
 

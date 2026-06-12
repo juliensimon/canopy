@@ -79,7 +79,7 @@ struct ProjectResolutionTests {
     @Test func claudeCommandSandboxFallsBackToGlobal() {
         let project = Project(name: "test", repositoryPath: "/tmp")
         var settings = CanopySettings()
-        settings.useSandbox = true
+        settings.sandboxBackend = .dockerSbx
 
         #expect(project.resolvedClaudeCommand(globalSettings: settings) == "sbx run claude -- --permission-mode auto")
     }
@@ -87,10 +87,10 @@ struct ProjectResolutionTests {
     @Test func claudeCommandProjectOverridesSandbox() {
         let project = Project(
             name: "test", repositoryPath: "/tmp",
-            useSandbox: false
+            sandboxBackend: .off
         )
         var settings = CanopySettings()
-        settings.useSandbox = true
+        settings.sandboxBackend = .dockerSbx
 
         #expect(project.resolvedClaudeCommand(globalSettings: settings) == "claude --permission-mode auto")
     }
@@ -98,7 +98,7 @@ struct ProjectResolutionTests {
     @Test func claudeCommandProjectEnablesSandbox() {
         let project = Project(
             name: "test", repositoryPath: "/tmp",
-            useSandbox: true,
+            sandboxBackend: .dockerSbx,
             sbxFlags: "--memory 16g"
         )
         let settings = CanopySettings()
@@ -106,9 +106,34 @@ struct ProjectResolutionTests {
         #expect(project.resolvedClaudeCommand(globalSettings: settings) == "sbx run --memory 16g claude -- --permission-mode auto")
     }
 
+    @Test func claudeCommandProjectSelectsAppleContainer() {
+        let project = Project(
+            name: "test", repositoryPath: "/tmp",
+            sandboxBackend: .appleContainer,
+            containerImage: "project-image"
+        )
+        let settings = CanopySettings()
+
+        #expect(project.resolvedClaudeCommand(globalSettings: settings) == #"container run -it --rm --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --workdir "$PWD" project-image claude --permission-mode auto"#)
+    }
+
+    @Test func appleContainerImageFallsBackToGlobal() {
+        // Project opts into the container backend but inherits the global image.
+        let project = Project(
+            name: "test", repositoryPath: "/tmp",
+            sandboxBackend: .appleContainer
+        )
+        var settings = CanopySettings()
+        settings.containerImage = "global-image"
+        settings.containerFlags = "--memory 8g"
+
+        let command = project.resolvedClaudeCommand(globalSettings: settings)
+        #expect(command.contains(" --memory 8g global-image claude "))
+    }
+
     @Test func claudeCommandSandboxWithResume() {
         // When sandbox is on, --resume still lands after -- (passed to claude, not sbx)
-        let project = Project(name: "test", repositoryPath: "/tmp", useSandbox: true)
+        let project = Project(name: "test", repositoryPath: "/tmp", sandboxBackend: .dockerSbx)
         let settings = CanopySettings()
 
         var command = project.resolvedClaudeCommand(globalSettings: settings)
@@ -117,16 +142,16 @@ struct ProjectResolutionTests {
         #expect(command == "sbx run claude -- --permission-mode auto --resume abc-123")
     }
 
-    @Test func sandboxResumeSkippedWhenSandboxed() {
-        // Simulates MainWindow logic: --resume is not appended in sandbox mode
-        // because session files are ephemeral inside the microVM.
-        let project = Project(name: "test", repositoryPath: "/tmp", useSandbox: true)
+    @Test func sandboxResumeSkippedWhenDockerSbx() {
+        // Simulates MainWindow logic: --resume is not appended for the sbx
+        // backend because session files are ephemeral inside its microVM.
+        let project = Project(name: "test", repositoryPath: "/tmp", sandboxBackend: .dockerSbx)
         let settings = CanopySettings()
 
-        let isSandboxed = project.useSandbox ?? settings.useSandbox
+        let backend = project.resolvedSandboxBackend(globalSettings: settings)
         var command = project.resolvedClaudeCommand(globalSettings: settings)
         let sessionId = "277f18de-ba7a-440e-aaf4-66987b38f08d"
-        if !isSandboxed {
+        if backend.supportsResume {
             command += " --resume \(sessionId)"
         }
 
@@ -135,15 +160,35 @@ struct ProjectResolutionTests {
         #expect(command == "sbx run claude -- --permission-mode auto")
     }
 
+    @Test func sandboxResumeAppendedWhenAppleContainer() {
+        // Apple container sessions ARE resumable: ~/.claude is bind-mounted
+        // from the host, so session JSONLs persist across container runs.
+        let project = Project(
+            name: "test", repositoryPath: "/tmp",
+            sandboxBackend: .appleContainer,
+            containerImage: "canopy-claude"
+        )
+        let settings = CanopySettings()
+
+        let backend = project.resolvedSandboxBackend(globalSettings: settings)
+        var command = project.resolvedClaudeCommand(globalSettings: settings)
+        let sessionId = "277f18de-ba7a-440e-aaf4-66987b38f08d"
+        if backend.supportsResume {
+            command += " --resume \(sessionId)"
+        }
+
+        #expect(command.hasSuffix("claude --permission-mode auto --resume \(sessionId)"))
+    }
+
     @Test func sandboxResumeAppendedWhenNotSandboxed() {
         // Simulates MainWindow logic: --resume IS appended when not sandboxed
         let project = Project(name: "test", repositoryPath: "/tmp")
         let settings = CanopySettings()
 
-        let isSandboxed = project.useSandbox ?? settings.useSandbox
+        let backend = project.resolvedSandboxBackend(globalSettings: settings)
         var command = project.resolvedClaudeCommand(globalSettings: settings)
         let sessionId = "277f18de-ba7a-440e-aaf4-66987b38f08d"
-        if !isSandboxed {
+        if backend.supportsResume {
             command += " --resume \(sessionId)"
         }
 
@@ -152,32 +197,32 @@ struct ProjectResolutionTests {
     }
 
     @Test func sandboxResolutionProjectNilFallsToGlobal() {
-        // useSandbox == nil on project means use global setting
+        // sandboxBackend == nil on project means use global setting
         let project = Project(name: "test", repositoryPath: "/tmp")
         var settings = CanopySettings()
 
-        settings.useSandbox = false
-        #expect((project.useSandbox ?? settings.useSandbox) == false)
+        settings.sandboxBackend = .off
+        #expect(project.resolvedSandboxBackend(globalSettings: settings) == .off)
 
-        settings.useSandbox = true
-        #expect((project.useSandbox ?? settings.useSandbox) == true)
+        settings.sandboxBackend = .appleContainer
+        #expect(project.resolvedSandboxBackend(globalSettings: settings) == .appleContainer)
     }
 
     @Test func sandboxResolutionProjectOverridesGlobal() {
-        let projectOn = Project(name: "on", repositoryPath: "/tmp", useSandbox: true)
-        let projectOff = Project(name: "off", repositoryPath: "/tmp", useSandbox: false)
+        let projectOn = Project(name: "on", repositoryPath: "/tmp", sandboxBackend: .dockerSbx)
+        let projectOff = Project(name: "off", repositoryPath: "/tmp", sandboxBackend: .off)
         var settings = CanopySettings()
-        settings.useSandbox = false
+        settings.sandboxBackend = .off
 
-        #expect((projectOn.useSandbox ?? settings.useSandbox) == true)
-        #expect((projectOff.useSandbox ?? settings.useSandbox) == false)
+        #expect(projectOn.resolvedSandboxBackend(globalSettings: settings) == .dockerSbx)
+        #expect(projectOff.resolvedSandboxBackend(globalSettings: settings) == .off)
     }
 
     @Test func sandboxEmptyClaudeFlagsStillHasSeparator() {
         // Even with no claude flags, -- must be present so appended flags
         // (like --resume from MainWindow) are passed to claude, not sbx.
         var settings = CanopySettings()
-        settings.useSandbox = true
+        settings.sandboxBackend = .dockerSbx
         settings.claudeFlags = ""
 
         #expect(settings.claudeCommand == "sbx run claude --")
@@ -204,8 +249,41 @@ struct ProjectResolutionTests {
         #expect(project.worktreeBaseDir == nil)
         #expect(project.autoStartClaude == nil)
         #expect(project.claudeFlags == nil)
-        #expect(project.useSandbox == nil)
+        #expect(project.sandboxBackend == nil)
         #expect(project.sbxFlags == nil)
+        #expect(project.containerImage == nil)
+        #expect(project.containerFlags == nil)
+    }
+
+    @Test func legacyProjectUseSandboxMigratesToDockerSbx() throws {
+        // Projects saved before the backend enum used a useSandbox boolean.
+        let json = """
+        {
+            "id": "\(UUID().uuidString)",
+            "name": "legacy",
+            "repositoryPath": "/repo",
+            "useSandbox": true,
+            "sbxFlags": "--memory 8g"
+        }
+        """
+        let project = try JSONDecoder().decode(Project.self, from: json.data(using: .utf8)!)
+        #expect(project.sandboxBackend == .dockerSbx)
+        #expect(project.sbxFlags == "--memory 8g")
+    }
+
+    @Test func legacyProjectUseSandboxFalseMigratesToExplicitOff() throws {
+        // useSandbox: false was an explicit per-project override (not nil),
+        // so it must stay an override after migration.
+        let json = """
+        {
+            "id": "\(UUID().uuidString)",
+            "name": "legacy",
+            "repositoryPath": "/repo",
+            "useSandbox": false
+        }
+        """
+        let project = try JSONDecoder().decode(Project.self, from: json.data(using: .utf8)!)
+        #expect(project.sandboxBackend == .off)
     }
 
     @Test func decodesWithPartialFields() throws {
@@ -236,8 +314,10 @@ struct ProjectResolutionTests {
             setupCommands: ["npm i"],
             autoStartClaude: true,
             claudeFlags: "--verbose",
-            useSandbox: true,
-            sbxFlags: "--memory 8g"
+            sandboxBackend: .dockerSbx,
+            sbxFlags: "--memory 8g",
+            containerImage: "img",
+            containerFlags: "--cpus 4"
         )
 
         let data = try JSONEncoder().encode(project)
@@ -246,7 +326,9 @@ struct ProjectResolutionTests {
         #expect(json["autoStartClaude"] as? Bool == true)
         #expect(json["claudeFlags"] as? String == "--verbose")
         #expect(json["setupCommands"] as? [String] == ["npm i"])
-        #expect(json["useSandbox"] as? Bool == true)
+        #expect(json["sandboxBackend"] as? String == "dockerSbx")
         #expect(json["sbxFlags"] as? String == "--memory 8g")
+        #expect(json["containerImage"] as? String == "img")
+        #expect(json["containerFlags"] as? String == "--cpus 4")
     }
 }

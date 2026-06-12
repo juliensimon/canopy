@@ -54,16 +54,35 @@ When Canopy creates or opens a session, it can auto-start Claude Code with your 
 
 Session IDs are found automatically by scanning `~/.claude/projects/`.
 
-### Docker Sandbox mode
+### Sandbox modes
 
-Canopy can optionally run Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM for hard process isolation. When enabled, the command becomes `sbx run claude -- [flags]` instead of `claude [flags]`. Your working directory is bind-mounted into the sandbox, so file edits work normally, but the agent can't touch the rest of your system.
+Canopy can optionally run Claude Code inside a sandbox for hard process isolation. Your working directory is bind-mounted into the sandbox, so file edits work normally, but the agent can't touch the rest of your system. Two backends are available in Settings:
 
-Key behaviors in sandbox mode:
+**Docker Sandbox (sbx)** runs Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM. The command becomes `sbx run claude -- [flags]`. Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`).
+
 - **Session resume is disabled** -- session files (`~/.claude/projects/`) live inside the ephemeral microVM and don't persist across runs
-- **A shield icon** appears next to the session name in the sidebar
+
+**Apple container** runs Claude inside a lightweight VM using Apple's open-source [container](https://github.com/apple/container) runtime -- no Docker Desktop needed. Requires macOS 26+ on Apple silicon, and the runtime must be started once per boot with `container system start`.
+
+Unlike sbx, `container` is a generic runtime, so you supply the image. Build one once with `container build --tag canopy-claude --file Dockerfile .` from a Dockerfile like:
+
+```dockerfile
+FROM node:22-slim
+RUN apt-get update && apt-get install -y git ripgrep curl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN npm install -g @anthropic-ai/claude-code
+```
+
+then enter `canopy-claude` as the container image in Settings. Canopy launches sessions with the worktree mounted at its host path and `~/.claude` mounted from the host:
+
+- **Session resume works** -- session files persist on the host via the `~/.claude` mount
+- **One-time login**: macOS stores Claude OAuth credentials in the Keychain, which the Linux container can't read. Run `/login` inside the first sandboxed session; the credentials land in the mounted `~/.claude` and persist for all later sessions
+- Add resource flags like `--memory 8g --cpus 8` in the "Container flags" setting (defaults are 1 GB / 4 CPUs)
+
+In both modes:
+- **A shield icon** appears next to the session name in the sidebar (hover to see which backend)
 - **The split terminal** still opens a host shell (not sandboxed), which is useful for inspecting the real filesystem
 
-Sandbox mode requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`). Canopy validates both are installed before enabling the toggle.
+Canopy validates the required tools are installed before enabling a backend.
 
 ## Workflows
 
@@ -230,12 +249,15 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 |---------|---------|---------|
 | Auto-start Claude | On | Launch Claude Code when opening a session |
 | Claude flags | `--permission-mode auto` | Flags passed to the `claude` command |
-| Docker Sandbox | Off | Run Claude inside a `sbx` microVM (requires Docker Desktop + `sbx`) |
+| Sandbox | Off | Backend for isolated sessions: Docker Sandbox (`sbx`, requires Docker Desktop) or Apple container (requires macOS 26+, Apple silicon) |
 | Sandbox flags | *(empty)* | Additional flags passed to `sbx run` (e.g., `--memory 8g`) |
+| Container image | *(empty)* | OCI image used by the Apple container backend (see [Sandbox modes](#sandbox-modes)) |
+| Container flags | *(empty)* | Additional flags passed to `container run` (e.g., `--memory 8g --cpus 8`) |
 | Confirm before closing | On | Ask before closing a session |
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |
 | `gh` CLI path | *auto-detected* | Used for open PR data. Leave blank to use `PATH` lookup; override if Homebrew is in a non-standard location. |
-| `sbx` CLI path | *auto-detected* | Used when Docker Sandbox is enabled. Same auto-detect/override behavior as `gh`. |
+| `sbx` CLI path | *auto-detected* | Used when the Docker Sandbox backend is enabled. Same auto-detect/override behavior as `gh`. |
+| `container` CLI path | *auto-detected* | Used when the Apple container backend is enabled. Same auto-detect/override behavior as `gh`. |
 
 Per-project overrides for auto-start, Claude flags, and sandbox mode are available in the project edit sheet.
 
@@ -274,7 +296,7 @@ All configuration lives in `~/.config/canopy/`:
 - **Text selection in the terminal**: Hold `Option` while dragging. Claude Code enables mouse reporting which captures normal clicks -- `Option` bypasses it.
 - **Show Transcript**: Right-click a session > Show Transcript… for a clean scrollable view of the conversation. When Claude Code is running, Canopy reads the structured JSONL session log (`~/.claude/projects/...`) and renders user/assistant turns with markdown formatting. The Copy button (⌘⇧C) puts the formatted markdown on the clipboard -- handy for pasting into PR descriptions or notes.
 - **Scrolling with `CLAUDE_CODE_NO_FLICKER=1`**: That flag puts Claude Code into the alternate screen buffer (DECSET 1049), which has no scrollback by terminal protocol design. The live viewport intentionally can't scroll back in that mode -- use Show Transcript to read history, or `Cmd+F` to search.
-- **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off. Note: sandbox sessions are not resumable -- the session data lives inside the ephemeral microVM and is discarded when the sandbox stops.
+- **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off. Note: Docker Sandbox (sbx) sessions are not resumable -- their session data lives inside the ephemeral microVM and is discarded when the sandbox stops. Apple container sessions resume normally, since `~/.claude` is mounted from the host.
 - **Worktree base directory**: By default, worktrees are created at `../canopy-worktrees/<project>/` (as siblings of your repo). Override this per-project if you prefer a different location.
 - **Quick rebuild**: Run `bash scripts/bundle.sh` then `open /Applications/Canopy.app`.
 

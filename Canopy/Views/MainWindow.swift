@@ -184,12 +184,15 @@ struct SessionView: View {
                 let shouldStart = project?.shouldAutoStartClaude(globalSettings: appState.settings)
                     ?? appState.settings.autoStartClaude
                 if shouldStart {
-                    let isSandboxed = project?.useSandbox ?? appState.settings.useSandbox
+                    let backend = project?.resolvedSandboxBackend(globalSettings: appState.settings)
+                        ?? appState.settings.sandboxBackend
                     var command = project?.resolvedClaudeCommand(globalSettings: appState.settings)
                         ?? appState.settings.claudeCommand
                     // Resume a specific Claude session if we have its ID.
-                    // Skip in sandbox mode -- session files live inside the ephemeral microVM.
-                    if !isSandboxed, let sessionId = session.claudeSessionId {
+                    // Skipped for sbx -- its session files live inside the
+                    // ephemeral microVM. The Apple container backend mounts
+                    // ~/.claude from the host, so resume works there.
+                    if backend.supportsResume, let sessionId = session.claudeSessionId {
                         command += " --resume \(sessionId)"
                     }
                     Task { @MainActor in

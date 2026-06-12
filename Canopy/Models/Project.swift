@@ -27,11 +27,17 @@ struct Project: Identifiable, Codable {
     /// Override global Claude flags for this project. nil = use global.
     var claudeFlags: String?
 
-    /// Override global sandbox setting for this project. nil = use global.
-    var useSandbox: Bool?
+    /// Override global sandbox backend for this project. nil = use global.
+    var sandboxBackend: SandboxBackend?
 
     /// Override global sbx flags for this project. nil = use global.
     var sbxFlags: String?
+
+    /// Override global container image for this project. nil = use global.
+    var containerImage: String?
+
+    /// Override global container flags for this project. nil = use global.
+    var containerFlags: String?
 
     /// Color index into ProjectColor palette. Auto-assigned on creation, user-overridable.
     var colorIndex: Int?
@@ -44,8 +50,10 @@ struct Project: Identifiable, Codable {
         setupCommands: [String] = [],
         autoStartClaude: Bool? = nil,
         claudeFlags: String? = nil,
-        useSandbox: Bool? = nil,
+        sandboxBackend: SandboxBackend? = nil,
         sbxFlags: String? = nil,
+        containerImage: String? = nil,
+        containerFlags: String? = nil,
         colorIndex: Int? = nil
     ) {
         self.id = UUID()
@@ -56,9 +64,16 @@ struct Project: Identifiable, Codable {
         self.setupCommands = setupCommands
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
-        self.useSandbox = useSandbox
+        self.sandboxBackend = sandboxBackend
         self.sbxFlags = sbxFlags
+        self.containerImage = containerImage
+        self.containerFlags = containerFlags
         self.colorIndex = colorIndex
+    }
+
+    /// Key used by versions before the backend enum existed. Decode-only.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case useSandbox
     }
 
     // Forward-compatible decoding
@@ -73,8 +88,17 @@ struct Project: Identifiable, Codable {
         worktreeBaseDir = try container.decodeIfPresent(String.self, forKey: .worktreeBaseDir)
         autoStartClaude = try container.decodeIfPresent(Bool.self, forKey: .autoStartClaude)
         claudeFlags = try container.decodeIfPresent(String.self, forKey: .claudeFlags)
-        useSandbox = try container.decodeIfPresent(Bool.self, forKey: .useSandbox)
+        if let backend = try container.decodeIfPresent(SandboxBackend.self, forKey: .sandboxBackend) {
+            sandboxBackend = backend
+        } else {
+            // A legacy boolean was an explicit per-project override, so
+            // false must migrate to .off (not nil, which means "use global").
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            sandboxBackend = (try legacy.decodeIfPresent(Bool.self, forKey: .useSandbox)).map { $0 ? .dockerSbx : .off }
+        }
         sbxFlags = try container.decodeIfPresent(String.self, forKey: .sbxFlags)
+        containerImage = try container.decodeIfPresent(String.self, forKey: .containerImage)
+        containerFlags = try container.decodeIfPresent(String.self, forKey: .containerFlags)
         colorIndex = try container.decodeIfPresent(Int.self, forKey: .colorIndex)
     }
 
@@ -92,33 +116,19 @@ struct Project: Identifiable, Codable {
         autoStartClaude ?? globalSettings.autoStartClaude
     }
 
-    /// Resolves the Claude command, falling back to global settings.
-    ///
-    /// When sandbox mode is enabled, `--` separates sbx flags from claude flags:
-    /// `sbx run [sbx-flags] claude -- [claude-flags]`
-    func resolvedClaudeCommand(globalSettings: CanopySettings) -> String {
-        let sandbox = useSandbox ?? globalSettings.useSandbox
-        let sbxFlagsResolved = sbxFlags ?? globalSettings.sbxFlags
-        let flags = claudeFlags ?? globalSettings.claudeFlags
-        let trimmed = flags.trimmingCharacters(in: .whitespaces)
+    /// Resolves the sandbox backend, falling back to global settings.
+    func resolvedSandboxBackend(globalSettings: CanopySettings) -> SandboxBackend {
+        sandboxBackend ?? globalSettings.sandboxBackend
+    }
 
-        var parts: [String] = []
-        if sandbox {
-            parts.append("sbx run")
-            let trimmedSbx = sbxFlagsResolved.trimmingCharacters(in: .whitespaces)
-            if !trimmedSbx.isEmpty {
-                parts.append(trimmedSbx)
-            }
-            parts.append("claude --")
-            if !trimmed.isEmpty {
-                parts.append(trimmed)
-            }
-        } else {
-            parts.append("claude")
-            if !trimmed.isEmpty {
-                parts.append(trimmed)
-            }
-        }
-        return parts.joined(separator: " ")
+    /// Resolves the Claude command, falling back to global settings.
+    /// See `SandboxBackend.claudeCommand` for the per-backend shapes.
+    func resolvedClaudeCommand(globalSettings: CanopySettings) -> String {
+        resolvedSandboxBackend(globalSettings: globalSettings).claudeCommand(
+            claudeFlags: claudeFlags ?? globalSettings.claudeFlags,
+            sbxFlags: sbxFlags ?? globalSettings.sbxFlags,
+            containerImage: containerImage ?? globalSettings.containerImage,
+            containerFlags: containerFlags ?? globalSettings.containerFlags
+        )
     }
 }

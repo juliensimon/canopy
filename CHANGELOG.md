@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Apple container sandbox backend**: the Docker Sandbox toggle is now a
+  picker -- Off / Docker Sandbox (sbx) / Apple container. The new backend runs
+  Claude Code inside a lightweight VM via Apple's open-source
+  [container](https://github.com/apple/container) runtime (macOS 26+, Apple
+  silicon) with no Docker Desktop dependency. The worktree is mounted at its
+  host path and `~/.claude` is mounted from the host, so session resume, Show
+  Transcript, and activity tracking work in sandboxed sessions (unlike sbx).
+  You supply the OCI image -- the user guide includes a Dockerfile recipe.
+  Settings gain Container image / Container flags fields (global and
+  per-project) plus a `container` CLI path row; Canopy validates the CLI is
+  installed and the runtime is started before enabling the backend.
+
+### Changed
+- Settings/projects persistence: `useSandbox` (bool) is superseded by
+  `sandboxBackend` (`off` / `dockerSbx` / `appleContainer`). Existing files
+  migrate automatically on load; the legacy key is still read.
+
 ## [0.9.5] - 2026-05-14
 
 ### Added
