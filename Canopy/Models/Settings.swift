@@ -77,7 +77,11 @@ enum SandboxBackend: String, Codable {
             if !image.isEmpty {
                 parts.append(image)
             }
-            let claudeInvocation = flags.isEmpty ? "claude" : "claude \(flags)"
+            // The invocation lives inside the wrapper's single quotes: a
+            // single quote in user flags would terminate the string early
+            // and leak tokens into the shell. POSIX-escape them.
+            let escapedFlags = flags.replacingOccurrences(of: "'", with: #"'\''"#)
+            let claudeInvocation = escapedFlags.isEmpty ? "claude" : "claude \(escapedFlags)"
             parts.append(#"sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec \#(claudeInvocation) "$@"' claude"#)
             return parts.joined(separator: " ")
         }
@@ -245,15 +249,30 @@ struct CanopySettings: Codable {
     }
 
     static func load(from path: String = CanopySettings.defaultFilePath) -> CanopySettings {
-        guard let data = FileManager.default.contents(atPath: path),
-              let decoded = try? JSONDecoder().decode(CanopySettings.self, from: data) else {
+        guard let data = FileManager.default.contents(atPath: path) else {
+            return CanopySettings() // no file yet: defaults are correct
+        }
+        do {
+            return try JSONDecoder().decode(CanopySettings.self, from: data)
+        } catch {
+            // Corrupt file: returning defaults silently flattens the user's
+            // config (including turning sandboxing OFF). Keep the evidence.
+            NSLog("Canopy: settings.json failed to decode (%@); backing up to settings.json.corrupt", "\(error)")
+            try? FileManager.default.removeItem(atPath: path + ".corrupt")
+            try? FileManager.default.copyItem(atPath: path, toPath: path + ".corrupt")
             return CanopySettings()
         }
-        return decoded
     }
 
-    func save(to path: String = CanopySettings.defaultFilePath) {
-        guard let data = try? JSONEncoder().encode(self) else { return }
-        FileManager.default.createFile(atPath: path, contents: data)
+    /// Returns false when the settings could not be written -- callers must
+    /// surface that: a user who picked a sandbox and "saved" must not
+    /// silently end up unsandboxed on next launch.
+    @discardableResult
+    func save(to path: String = CanopySettings.defaultFilePath) -> Bool {
+        guard let data = try? JSONEncoder().encode(self) else {
+            NSLog("Canopy: failed to encode settings")
+            return false
+        }
+        return FileManager.default.createFile(atPath: path, contents: data)
     }
 }

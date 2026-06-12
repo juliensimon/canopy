@@ -256,6 +256,17 @@ struct SettingsTests {
         #expect(settings.claudeCommand.contains(#"--workdir "$PWD" --memory 8g canopy-claude sh -c"#))
     }
 
+    @Test func claudeCommandAppleContainerEscapesSingleQuotesInFlags() {
+        // The claude invocation lives inside the wrapper's single-quoted
+        // sh -c string: an unescaped quote in user flags would terminate it
+        // early and leak the rest as shell tokens (injection).
+        var settings = CanopySettings()
+        settings.sandboxBackend = .appleContainer
+        settings.containerImage = "canopy-claude"
+        settings.claudeFlags = "--append-system-prompt 'be nice'"
+        #expect(settings.claudeCommand.contains(#"exec claude --append-system-prompt '\''be nice'\'' "$@""#))
+    }
+
     @Test func claudeCommandAppleContainerResumeAppendReachesClaude() {
         // MainWindow appends " --resume <id>" to the command. The wrapper's
         // trailing $0 word is `claude`, so appended text becomes positional
@@ -351,5 +362,32 @@ struct SettingsTests {
         let loaded = CanopySettings.load(from: "/nonexistent/canopy/settings.json")
         #expect(loaded.claudeFlags == "--permission-mode auto")
         #expect(loaded.sandboxBackend == .off)
+    }
+
+    @Test func loadFromCorruptFileBacksItUpBeforeResetting() throws {
+        // A corrupt file must not silently flatten the user's config (which
+        // would also silently turn sandboxing OFF) -- keep the evidence.
+        let dir = (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("canopy-settings-corrupt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let path = (dir as NSString).appendingPathComponent("settings.json")
+        try "{not json".write(toFile: path, atomically: true, encoding: .utf8)
+
+        let loaded = CanopySettings.load(from: path)
+
+        #expect(loaded.sandboxBackend == .off) // defaults
+        #expect(FileManager.default.fileExists(atPath: path + ".corrupt"))
+    }
+
+    @Test func saveReportsFailure() {
+        let settings = CanopySettings()
+        #expect(settings.save(to: "/nonexistent-dir-xyz/settings.json") == false)
+
+        let dir = (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("canopy-save-ok-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        #expect(settings.save(to: (dir as NSString).appendingPathComponent("settings.json")) == true)
     }
 }

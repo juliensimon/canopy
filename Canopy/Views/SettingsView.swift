@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var imageExists: Bool?
     @State private var buildingImage = false
     @State private var buildError: String?
+    @State private var saveError: String?
     @State private var ghPath: String
     @State private var sbxPath: String
     @State private var containerPath: String
@@ -169,7 +170,11 @@ struct SettingsView: View {
                                                 .foregroundStyle(.green)
                                         }
                                     }
-                                    .task(id: sandboxBackend) { await refreshImageStatus() }
+                                    // Re-check when the image NAME changes too,
+                                    // not just the backend -- otherwise the
+                                    // found/not-found status goes blank after
+                                    // editing the field.
+                                    .task(id: "\(sandboxBackend.rawValue)|\(containerImage)") { await refreshImageStatus() }
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("Container flags")
                                             .font(.subheadline)
@@ -347,12 +352,21 @@ struct SettingsView: View {
             HStack {
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
+                if let saveError {
+                    Text(saveError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 Spacer()
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
                     // While a backend check is in flight the picker state is
-                    // stale; saving then would persist the old backend.
-                    .disabled(checkingSandbox)
+                    // stale; saving then would persist the old backend. An
+                    // empty image would generate a baffling `container run`
+                    // failure ("failed to pull image sh").
+                    .disabled(checkingSandbox
+                        || (sandboxBackend == .appleContainer
+                            && containerImage.trimmingCharacters(in: .whitespaces).isEmpty))
             }
         }
     }
@@ -367,6 +381,9 @@ struct SettingsView: View {
     }
 
     private func refreshImageStatus() async {
+        // Debounce keystrokes; .task(id:) cancels the previous check.
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
         let image = containerImage
         let exists = await ContainerImageBuilder.imageExists(image)
         if containerImage == image {
@@ -436,7 +453,12 @@ struct SettingsView: View {
         settings.ghPath = ghPath
         settings.sbxPath = sbxPath
         settings.containerPath = containerPath
-        settings.save()
+        // A failed write must keep the sheet open: dismissing would let the
+        // user believe their (possibly security-relevant) choice persisted.
+        guard settings.save() else {
+            saveError = "Could not write ~/.config/canopy/settings.json"
+            return
+        }
         appState.settings = settings
         dismiss()
     }

@@ -34,6 +34,26 @@ struct ContainerImageBuilderTests {
         #expect(ContainerImageBuilder.dockerfile.contains("DISABLE_AUTOUPDATER=1"))
     }
 
+    @Test func runCapturingOutputSurvivesLargeOutput() async {
+        // A 64KB pipe buffer blocks the child if nobody drains it while the
+        // process runs -- the old implementation read only after termination,
+        // so any real `container build` (apt-get logs alone exceed 64KB)
+        // deadlocked with the Building… spinner stuck forever.
+        let result = await ContainerImageBuilder.runCapturingOutput(
+            "i=0; while [ $i -lt 5000 ]; do echo 0123456789012345678901234567890123456789; i=$((i+1)); done; echo TAIL-MARKER",
+            timeoutSeconds: 60
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.output.count > 100_000)
+        #expect(result.output.contains("TAIL-MARKER"))
+    }
+
+    @Test func runCapturingOutputTimesOut() async {
+        let result = await ContainerImageBuilder.runCapturingOutput("sleep 60", timeoutSeconds: 2)
+        #expect(result.exitCode != 0)
+        #expect(result.output.contains("timed out"))
+    }
+
     @Test func imageExistsFalseForBogusImage() async {
         // Stable on any machine: false whether the container CLI is
         // missing or the image is simply not present.

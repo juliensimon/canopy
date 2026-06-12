@@ -40,28 +40,79 @@ struct ContainerImageBuilder {
         }
         defer { try? FileManager.default.removeItem(atPath: contextDir) }
 
+        let result = await runCapturingOutput(
+            buildCommand(tag: tag, contextDir: contextDir),
+            timeoutSeconds: 1800
+        )
+        return result.exitCode == 0 ? .success : .failure(String(result.output.suffix(500)))
+    }
+
+    /// Output accumulator usable from pipe/termination handler threads.
+    private final class OutputBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+        private(set) var timedOut = false
+
+        func append(_ chunk: Data) {
+            lock.lock(); defer { lock.unlock() }
+            data.append(chunk)
+        }
+        func markTimedOut() {
+            lock.lock(); defer { lock.unlock() }
+            timedOut = true
+        }
+        var string: String {
+            lock.lock(); defer { lock.unlock() }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+    }
+
+    /// Runs a command in a login shell, draining output WHILE it runs.
+    /// Draining only after termination deadlocks: the 64KB pipe buffer
+    /// fills (real builds easily exceed it), the child blocks writing,
+    /// never exits, and the termination handler never fires.
+    static func runCapturingOutput(_ command: String, timeoutSeconds: Double) async -> (exitCode: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: SandboxChecker.loginShell())
-        process.arguments = ["-ilc", buildCommand(tag: tag, contextDir: contextDir)]
+        process.arguments = ["-ilc", command]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
 
+        let buffer = OutputBuffer()
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+            } else {
+                buffer.append(chunk)
+            }
+        }
+
+        let timeoutWork = DispatchWorkItem {
+            if process.isRunning {
+                buffer.markTimedOut()
+                process.terminate()
+            }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds, execute: timeoutWork)
+
         return await withCheckedContinuation { continuation in
             process.terminationHandler = { process in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if process.terminationStatus == 0 {
-                    continuation.resume(returning: .success)
-                } else {
-                    let output = String(data: data, encoding: .utf8) ?? ""
-                    continuation.resume(returning: .failure(String(output.suffix(500))))
+                timeoutWork.cancel()
+                pipe.fileHandleForReading.readabilityHandler = nil
+                if let remaining = try? pipe.fileHandleForReading.readToEnd() {
+                    buffer.append(remaining)
                 }
+                let suffix = buffer.timedOut ? "\n(command timed out after \(Int(timeoutSeconds))s)" : ""
+                continuation.resume(returning: (process.terminationStatus, buffer.string + suffix))
             }
             do {
                 try process.run()
             } catch {
                 process.terminationHandler = nil
-                continuation.resume(returning: .failure(error.localizedDescription))
+                timeoutWork.cancel()
+                continuation.resume(returning: (127, error.localizedDescription))
             }
         }
     }

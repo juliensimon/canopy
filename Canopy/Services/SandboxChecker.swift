@@ -76,6 +76,9 @@ struct SandboxChecker {
             process.waitUntilExit()
             return process.terminationStatus == 0
         } catch {
+            // Spawn failure is not the same as "tool missing", but callers
+            // can only see false -- at least leave a trace for diagnosis.
+            NSLog("Canopy: SandboxChecker could not run %@ (%@)", command, "\(error)")
             return false
         }
     }

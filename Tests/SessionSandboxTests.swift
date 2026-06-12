@@ -91,15 +91,32 @@ struct SessionSandboxTests {
         #expect(state.claudeCommand(for: session).contains(#"--volume "/Users/x/dev/repo":"/Users/x/dev/repo""#))
     }
 
-    @Test func mainRepoSessionDoesNotDoubleMount() {
-        // When the session runs IN the main repo, $PWD already mounts it;
-        // a second identical mount risks the overlapping-mount failure.
+    @Test func nonWorktreeSessionGetsNoRepoMount() {
+        // Plain/main-repo sessions don't need the extra mount: their .git is
+        // self-contained, and overlapping mounts break the VM.
         let state = makeState()
         let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
         state.projects = [project]
         let session = SessionInfo(
             name: "s", workingDirectory: "/Users/x/dev/repo",
             projectId: project.id,
+            sandboxBackend: .appleContainer
+        )
+
+        #expect(!state.claudeCommand(for: session).contains(#"--volume "/Users/x/dev/repo""#))
+    }
+
+    @Test func worktreeSessionAtRepoPathDoesNotDoubleMount() {
+        // Exercises the equality guard itself: worktreePath set AND equal to
+        // the repo path. $PWD already mounts it; a second identical mount
+        // risks the overlapping-mount failure.
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/repo",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/repo",
             sandboxBackend: .appleContainer
         )
 
