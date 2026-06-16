@@ -148,6 +148,98 @@ struct GitService {
         return Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
     }
 
+    /// Files that would textually conflict if `branchA` and `branchB` were
+    /// merged — computed WITHOUT touching the working tree, via
+    /// `git merge-tree --write-tree` (a 3-way merge against their merge-base).
+    ///
+    /// Returns `[]` for a clean merge, the conflicting paths on conflict, or
+    /// `nil` if the command is unavailable/errored (git < 2.38, bad ref, …) so
+    /// callers can fall back to the heuristic layer and flag textual-check as
+    /// unavailable. Note: only catches *textual* conflicts — see SharedSurface.
+    func mergeTreeConflicts(branchA: String, branchB: String, repoPath: String) async -> [String]? {
+        guard let result = try? await runAllowingFailure(
+            ["merge-tree", "--write-tree", "--name-only", "--no-messages", branchA, branchB],
+            in: repoPath
+        ) else {
+            return nil
+        }
+        switch result.status {
+        case 0:
+            return []
+        case 1:
+            // On a real conflict, stdout is "<tree-oid>\n" then one conflicting
+            // path per line. Git also exits 1 for a *bad ref*, but with empty
+            // stdout (the error goes to stderr) — treat that as unavailable.
+            let lines = result.stdout
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            guard !lines.isEmpty else { return nil }
+            return Array(lines.dropFirst())
+        default:
+            return nil
+        }
+    }
+
+    /// Files that `branch` changed relative to `base` (three-dot diff: changes
+    /// introduced on the branch since their merge-base). Non-throwing; `[]` on
+    /// error. Used by the heuristic (watch) layer to find shared-surface overlap.
+    func changedFiles(base: String, branch: String, repoPath: String) async -> [String] {
+        guard let output = try? await run(
+            ["diff", "--name-only", "\(base)...\(branch)"], in: repoPath
+        ) else { return [] }
+        return output
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Cross-worktree conflict pre-flight: how `branch` collides with each of
+    /// its `siblings`, combining the textual (hard) and shared-surface (watch)
+    /// layers. `base` is the common branch both diverged from (e.g. the merge
+    /// target). Computed without touching the working tree.
+    func collisionReport(
+        for branch: String, against siblings: [String], base: String, repoPath: String
+    ) async -> WorktreeCollisionReport {
+        // Group this branch's surface-touching files by surface key once.
+        let branchFiles = await changedFiles(base: base, branch: branch, repoPath: repoPath)
+        var branchSurfaces: [String: [String]] = [:]
+        for file in branchFiles {
+            if let key = SharedSurface.surfaceKey(for: file) {
+                branchSurfaces[key, default: []].append(file)
+            }
+        }
+
+        var collisions: [BranchCollision] = []
+        var textualAvailable = true
+
+        for sibling in siblings {
+            // Layer 1 — textual.
+            let hardOpt = await mergeTreeConflicts(branchA: branch, branchB: sibling, repoPath: repoPath)
+            if hardOpt == nil { textualAvailable = false }
+            let hard = hardOpt ?? []
+
+            // Layer 2 — shared-surface overlap by surface key, minus the hard set.
+            let siblingFiles = await changedFiles(base: base, branch: sibling, repoPath: repoPath)
+            let siblingKeys = Set(siblingFiles.compactMap { SharedSurface.surfaceKey(for: $0) })
+            let watch = branchSurfaces
+                .filter { siblingKeys.contains($0.key) }
+                .flatMap { $0.value }
+                .filter { !hard.contains($0) }
+                .sorted()
+
+            if !hard.isEmpty || !watch.isEmpty {
+                collisions.append(BranchCollision(
+                    branch: sibling, conflictingFiles: hard, sharedSurfaceFiles: watch
+                ))
+            }
+        }
+
+        return WorktreeCollisionReport(
+            branch: branch, collisions: collisions, textualCheckAvailable: textualAvailable
+        )
+    }
+
     /// Merges source branch into target branch.
     /// Checks out target in `repoPath`, attempts merge. On conflict, aborts and returns conflicting files.
     /// Note: this performs a `git checkout` on `repoPath` — callers must ensure no active work exists there.
@@ -383,6 +475,29 @@ struct GitService {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    /// Like `run`, but returns the exit status and stdout instead of throwing on
+    /// a non-zero exit. Needed for commands that signal a meaningful result via
+    /// exit code — e.g. `git merge-tree` returns 1 with the conflict list on
+    /// stdout, which `run` would discard while throwing.
+    private func runAllowingFailure(_ args: [String], in directory: String) async throws -> (status: Int32, stdout: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = args
+        process.currentDirectoryURL = URL(fileURLWithPath: directory)
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        try process.run()
+        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+        _ = stderr.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        return (process.terminationStatus, String(data: outData, encoding: .utf8) ?? "")
+    }
+
     /// Resolves the `gh` CLI path, checking common Homebrew and system locations.
     private static let ghPath: String? = {
         let candidates = [
@@ -480,6 +595,85 @@ struct BranchInfo: Identifiable {
 enum MergeResult {
     case success(commitCount: Int)
     case conflict(files: [String])
+}
+
+/// Classifies "high-stakes shared surfaces" — files that commonly cause
+/// *semantic* collisions across parallel worktrees even when they merge
+/// textually clean (package manifests, lockfiles, migrations, generated types,
+/// env examples). Drives the heuristic "watch" layer of the cross-worktree
+/// conflict pre-flight, which catches what `merge-tree` structurally cannot.
+enum SharedSurface {
+    /// Default glob patterns, matched against the repo-relative path and the
+    /// basename. (Per-project overrides are a planned follow-up.)
+    static let patterns: [String] = [
+        // package manifests
+        "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "Gemfile",
+        "Package.swift", "pom.xml", "build.gradle", "build.gradle.kts", "*.csproj",
+        // lockfiles
+        "*.lock", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
+        "Gemfile.lock", "Cargo.lock", "poetry.lock", "Package.resolved",
+        // migrations
+        "**/migrations/**", "**/migrate/**", "db/migrate/**",
+        // generated types
+        "**/generated/**", "*.generated.*", "schema.d.ts",
+        // env examples
+        ".env.example", ".env.*.example",
+    ]
+
+    static func matches(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        return patterns.contains { glob($0, matches: path) || glob($0, matches: name) }
+    }
+
+    /// A grouping key so two branches that touch the *same surface* collide even
+    /// when they touch *different files* in it. Directory surfaces (migrations,
+    /// generated, …) group by the directory marker; file surfaces (manifests,
+    /// lockfiles) group by basename. Returns nil for non-surface paths.
+    static func surfaceKey(for path: String) -> String? {
+        guard matches(path) else { return nil }
+        let lower = path.lowercased()
+        for marker in ["migrations", "migrate", "generated"] {
+            if lower.hasPrefix("\(marker)/") || lower.contains("/\(marker)/") {
+                return marker
+            }
+        }
+        return (path as NSString).lastPathComponent
+    }
+
+    /// fnmatch-based glob. `**` is normalised to `*`; with no FNM_PATHNAME flag
+    /// `*` already spans `/`, so `*migrations/*` matches `db/migrations/x.sql`.
+    private static func glob(_ pattern: String, matches text: String) -> Bool {
+        let p = pattern
+            .replacingOccurrences(of: "**/", with: "*")
+            .replacingOccurrences(of: "**", with: "*")
+        return fnmatch(p, text, 0) == 0
+    }
+}
+
+/// How one sibling branch collides with the branch being evaluated.
+struct BranchCollision: Identifiable, Hashable {
+    var id: String { branch }
+    let branch: String
+    /// Files that textually conflict (merge-tree) — a *hard* collision.
+    let conflictingFiles: [String]
+    /// Files on a shared high-stakes surface that merge textually clean — a
+    /// *watch* (advisory) collision the textual layer can't see.
+    let sharedSurfaceFiles: [String]
+}
+
+/// Cross-worktree pre-flight result for one branch vs its sibling worktrees.
+struct WorktreeCollisionReport {
+    let branch: String
+    let collisions: [BranchCollision]
+    /// False if the textual (merge-tree) check couldn't run (e.g. old git);
+    /// the heuristic layer still populates and the UI says so.
+    let textualCheckAvailable: Bool
+
+    var isEmpty: Bool { collisions.isEmpty }
+    var hardCount: Int { collisions.filter { !$0.conflictingFiles.isEmpty }.count }
+    var watchCount: Int {
+        collisions.filter { $0.conflictingFiles.isEmpty && !$0.sharedSurfaceFiles.isEmpty }.count
+    }
 }
 
 struct GitStatusInfo {
