@@ -16,6 +16,7 @@ struct ProjectDetailView: View {
     @State private var showNewWorktree = false
     @State private var openPRs: [GitPRInfo] = []
     @State private var worktreeDiffStats: [String: GitDiffStat] = [:]
+    @State private var worktreeCollisions: [String: WorktreeCollisionReport] = [:]
     private let git = GitService()
 
     var projectSessions: [SessionInfo] {
@@ -294,6 +295,27 @@ struct ProjectDetailView: View {
         GitService.samePath(wt.path, project.repositoryPath)
     }
 
+    /// Tooltip text for a worktree's collision badge: one line per colliding
+    /// sibling branch, listing its hard (conflict) and watch (shared-surface) files.
+    private func collisionTooltip(_ report: WorktreeCollisionReport) -> String {
+        let lines = report.collisions.map { c in
+            var parts: [String] = []
+            if !c.conflictingFiles.isEmpty {
+                parts.append("will conflict: \(c.conflictingFiles.joined(separator: ", "))")
+            }
+            if !c.sharedSurfaceFiles.isEmpty {
+                parts.append("shared surface: \(c.sharedSurfaceFiles.joined(separator: ", "))")
+            }
+            return "\(c.branch) — \(parts.joined(separator: "; "))"
+        }
+        // The badge can't run the textual layer on old git; say so rather than
+        // imply a clean hard-conflict check (the panel carries the same caveat).
+        let caveat = report.textualCheckAvailable
+            ? ""
+            : "⚠︎ textual conflict check unavailable — shared-surface overlaps only\n"
+        return caveat + lines.joined(separator: "\n")
+    }
+
     @ViewBuilder
     private func worktreeRow(_ wt: WorktreeInfo) -> some View {
         let existingSession = sessionForWorktree(wt)
@@ -340,6 +362,19 @@ struct ProjectDetailView: View {
                                 ? "\(diff.filesChanged) file\(diff.filesChanged == 1 ? "" : "s") changed"
                                 : diff.changedFiles.joined(separator: "\n"))
                         }
+                    }
+
+                    // Cross-worktree collision badge (advisory)
+                    if let branch = wt.branch,
+                       let report = worktreeCollisions[branch], !report.isEmpty {
+                        HStack(spacing: 2) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                            Text("\(report.collisions.count)")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(report.hardCount > 0 ? .red : .orange)
+                        .tooltip(collisionTooltip(report))
                     }
                 }
                 HStack(spacing: 4) {
@@ -508,6 +543,17 @@ struct ProjectDetailView: View {
                     }
                 }
             }
+
+            // Cross-worktree collision pre-flight for the ambient row badges:
+            // each non-main worktree branch vs the others, off the main branch.
+            let collisionBranches = wts.compactMap(\.branch).filter { $0 != currentBranch }
+            // Anchor the heuristic to the real trunk (main/master/develop) rather
+            // than whatever branch the main worktree happens to be checked out on
+            // — otherwise "changed since base" is computed against the wrong base.
+            let collisionBase = await git.baseBranch(for: currentBranch, repoPath: project.repositoryPath) ?? currentBranch
+            worktreeCollisions = await git.collisionReports(
+                branches: collisionBranches, base: collisionBase, repoPath: project.repositoryPath
+            )
         } catch {
             // Silently handle — repo might not be accessible
         }
