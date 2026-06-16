@@ -350,6 +350,18 @@ struct GitServiceTests {
         #expect(!GitService.samePath(target, target + "-other"))
     }
 
+    /// The exact reported scenario: `/tmp` is a system symlink to `/private/tmp`,
+    /// so `git worktree list` records `/private/tmp/…` while a stored repo path
+    /// may keep the `/tmp/…` spelling. The two must compare equal.
+    @Test func samePathMatchesTmpAndPrivateTmpSpellings() throws {
+        let resolved = "/private/tmp/canopy-sp-\(UUID().uuidString)"
+        try fm.createDirectory(atPath: resolved, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: resolved) }
+        let viaTmp = resolved.replacingOccurrences(of: "/private/tmp", with: "/tmp")
+
+        #expect(GitService.samePath(resolved, viaTmp))
+    }
+
     @discardableResult
     private func shell(_ command: String, in dir: String) throws -> String {
         let process = Process()
