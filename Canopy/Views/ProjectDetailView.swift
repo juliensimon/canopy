@@ -547,8 +547,12 @@ struct ProjectDetailView: View {
             // Cross-worktree collision pre-flight for the ambient row badges:
             // each non-main worktree branch vs the others, off the main branch.
             let collisionBranches = wts.compactMap(\.branch).filter { $0 != currentBranch }
+            // Anchor the heuristic to the real trunk (main/master/develop) rather
+            // than whatever branch the main worktree happens to be checked out on
+            // — otherwise "changed since base" is computed against the wrong base.
+            let collisionBase = await git.baseBranch(for: currentBranch, repoPath: project.repositoryPath) ?? currentBranch
             worktreeCollisions = await git.collisionReports(
-                branches: collisionBranches, base: currentBranch, repoPath: project.repositoryPath
+                branches: collisionBranches, base: collisionBase, repoPath: project.repositoryPath
             )
         } catch {
             // Silently handle — repo might not be accessible

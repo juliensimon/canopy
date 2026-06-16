@@ -80,6 +80,10 @@ struct WorktreeCollisionTests {
         // Ordinary source and docs are not shared surfaces.
         #expect(!SharedSurface.matches("README.md"))
         #expect(!SharedSurface.matches("src/app.ts"))
+        // Directory markers match whole components only — no substring false
+        // positives on lookalike directory names.
+        #expect(!SharedSurface.matches("src/notmigrations/seed.sql"))
+        #expect(!SharedSurface.matches("regenerated/config.txt"))
     }
 
     // MARK: - collisionReport (both layers combined)

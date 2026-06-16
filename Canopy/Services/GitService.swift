@@ -643,55 +643,49 @@ enum MergeResult {
 /// env examples). Drives the heuristic "watch" layer of the cross-worktree
 /// conflict pre-flight, which catches what `merge-tree` structurally cannot.
 enum SharedSurface {
-    /// Default glob patterns, matched against the repo-relative path and the
-    /// basename. (Per-project overrides are a planned follow-up.)
-    static let patterns: [String] = [
+    /// Directory surfaces, matched by whole path *component* — so `migrations`
+    /// matches `db/migrations/x.sql` but not `src/notmigrations/x` (a glob with
+    /// `*` spanning `/` would wrongly match the substring).
+    private static let directoryMarkers = ["migrations", "migrate", "generated"]
+
+    /// File surfaces, matched against the *basename* only (which contains no
+    /// `/`), so a glob `*` can't accidentally cross directory boundaries.
+    private static let filePatterns = [
         // package manifests
         "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "Gemfile",
         "Package.swift", "pom.xml", "build.gradle", "build.gradle.kts", "*.csproj",
         // lockfiles
         "*.lock", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
         "Gemfile.lock", "Cargo.lock", "poetry.lock", "Package.resolved",
-        // migrations
-        "**/migrations/**", "**/migrate/**", "db/migrate/**",
         // generated types
-        "**/generated/**", "*.generated.*", "schema.d.ts",
+        "*.generated.*", "schema.d.ts",
         // env examples
         ".env.example", ".env.*.example",
     ]
 
-    static func matches(_ path: String) -> Bool {
-        let name = (path as NSString).lastPathComponent
-        return patterns.contains { glob($0, matches: path) || glob($0, matches: name) }
-    }
+    static func matches(_ path: String) -> Bool { surfaceKey(for: path) != nil }
 
     /// A grouping key so two branches that touch the *same surface* collide even
-    /// when they touch *different files* in it. Directory surfaces (migrations,
-    /// generated, …) group by the directory marker; file surfaces (manifests,
-    /// lockfiles) group by basename. Returns nil for non-surface paths.
+    /// when they touch *different files* in it. Directory surfaces group by the
+    /// directory marker; file surfaces group by basename. Returns nil for
+    /// non-surface paths.
     static func surfaceKey(for path: String) -> String? {
-        guard matches(path) else { return nil }
         let lower = path.lowercased()
-        for marker in ["migrations", "migrate", "generated"] {
+        for marker in directoryMarkers {
             if lower.hasPrefix("\(marker)/") || lower.contains("/\(marker)/") {
                 return marker
             }
         }
-        return (path as NSString).lastPathComponent
-    }
-
-    /// fnmatch-based glob. `**` is normalised to `*`; with no FNM_PATHNAME flag
-    /// `*` already spans `/`, so `*migrations/*` matches `db/migrations/x.sql`.
-    private static func glob(_ pattern: String, matches text: String) -> Bool {
-        let p = pattern
-            .replacingOccurrences(of: "**/", with: "*")
-            .replacingOccurrences(of: "**", with: "*")
-        return fnmatch(p, text, 0) == 0
+        let name = (path as NSString).lastPathComponent
+        if filePatterns.contains(where: { fnmatch($0, name, 0) == 0 }) {
+            return name
+        }
+        return nil
     }
 }
 
 /// How one sibling branch collides with the branch being evaluated.
-struct BranchCollision: Identifiable, Hashable {
+struct BranchCollision: Identifiable, Hashable, Sendable {
     var id: String { branch }
     let branch: String
     /// Files that textually conflict (merge-tree) — a *hard* collision.
@@ -702,7 +696,7 @@ struct BranchCollision: Identifiable, Hashable {
 }
 
 /// Cross-worktree pre-flight result for one branch vs its sibling worktrees.
-struct WorktreeCollisionReport {
+struct WorktreeCollisionReport: Sendable {
     let branch: String
     let collisions: [BranchCollision]
     /// False if the textual (merge-tree) check couldn't run (e.g. old git);
