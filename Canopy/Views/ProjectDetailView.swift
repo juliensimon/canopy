@@ -16,6 +16,7 @@ struct ProjectDetailView: View {
     @State private var showNewWorktree = false
     @State private var openPRs: [GitPRInfo] = []
     @State private var worktreeDiffStats: [String: GitDiffStat] = [:]
+    @State private var worktreeCollisions: [String: WorktreeCollisionReport] = [:]
     private let git = GitService()
 
     var projectSessions: [SessionInfo] {
@@ -293,6 +294,21 @@ struct ProjectDetailView: View {
         wt.path == project.repositoryPath
     }
 
+    /// Tooltip text for a worktree's collision badge: one line per colliding
+    /// sibling branch, listing its hard (conflict) and watch (shared-surface) files.
+    private func collisionTooltip(_ report: WorktreeCollisionReport) -> String {
+        report.collisions.map { c in
+            var parts: [String] = []
+            if !c.conflictingFiles.isEmpty {
+                parts.append("will conflict: \(c.conflictingFiles.joined(separator: ", "))")
+            }
+            if !c.sharedSurfaceFiles.isEmpty {
+                parts.append("shared surface: \(c.sharedSurfaceFiles.joined(separator: ", "))")
+            }
+            return "\(c.branch) — \(parts.joined(separator: "; "))"
+        }.joined(separator: "\n")
+    }
+
     @ViewBuilder
     private func worktreeRow(_ wt: WorktreeInfo) -> some View {
         let existingSession = sessionForWorktree(wt)
@@ -339,6 +355,19 @@ struct ProjectDetailView: View {
                                 ? "\(diff.filesChanged) file\(diff.filesChanged == 1 ? "" : "s") changed"
                                 : diff.changedFiles.joined(separator: "\n"))
                         }
+                    }
+
+                    // Cross-worktree collision badge (advisory)
+                    if let branch = wt.branch,
+                       let report = worktreeCollisions[branch], !report.isEmpty {
+                        HStack(spacing: 2) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                            Text("\(report.collisions.count)")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(report.hardCount > 0 ? .red : .orange)
+                        .tooltip(collisionTooltip(report))
                     }
                 }
                 HStack(spacing: 4) {
@@ -507,6 +536,13 @@ struct ProjectDetailView: View {
                     }
                 }
             }
+
+            // Cross-worktree collision pre-flight for the ambient row badges:
+            // each non-main worktree branch vs the others, off the main branch.
+            let collisionBranches = wts.compactMap(\.branch).filter { $0 != currentBranch }
+            worktreeCollisions = await git.collisionReports(
+                branches: collisionBranches, base: currentBranch, repoPath: project.repositoryPath
+            )
         } catch {
             // Silently handle — repo might not be accessible
         }

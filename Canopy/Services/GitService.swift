@@ -240,6 +240,22 @@ struct GitService {
         )
     }
 
+    /// Collision report for each branch against all the others — for the
+    /// ambient worktree-list badges. Branches with no siblings are omitted.
+    func collisionReports(
+        branches: [String], base: String, repoPath: String
+    ) async -> [String: WorktreeCollisionReport] {
+        var result: [String: WorktreeCollisionReport] = [:]
+        for branch in branches {
+            let siblings = branches.filter { $0 != branch }
+            guard !siblings.isEmpty else { continue }
+            result[branch] = await collisionReport(
+                for: branch, against: siblings, base: base, repoPath: repoPath
+            )
+        }
+        return result
+    }
+
     /// Merges source branch into target branch.
     /// Checks out target in `repoPath`, attempts merge. On conflict, aborts and returns conflicting files.
     /// Note: this performs a `git checkout` on `repoPath` — callers must ensure no active work exists there.

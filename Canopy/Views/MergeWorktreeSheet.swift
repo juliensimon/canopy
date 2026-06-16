@@ -17,6 +17,7 @@ struct MergeWorktreeSheet: View {
     @State private var targetBranch = ""
     @State private var branches: [BranchInfo] = []
     @State private var commitCount: Int?
+    @State private var collision: WorktreeCollisionReport?
     @State private var isLoading = true
     @State private var isMerging = false
     @State private var errorMessage: String?
@@ -29,6 +30,8 @@ struct MergeWorktreeSheet: View {
     @State private var isCleaningUp = false
 
     private let git = GitService()
+
+    private var hasCollisions: Bool { !(collision?.isEmpty ?? true) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -43,7 +46,7 @@ struct MergeWorktreeSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 450, height: mergeComplete ? 300 : 380)
+        .frame(width: 450, height: mergeComplete ? 300 : (hasCollisions ? 480 : 380))
         .task { await loadInfo() }
     }
 
@@ -80,7 +83,10 @@ struct MergeWorktreeSheet: View {
                     }
                     .labelsHidden()
                     .onChange(of: targetBranch) { _, _ in
-                        Task { await loadCommitCount() }
+                        Task {
+                            await loadCommitCount()
+                            await loadCollisions()
+                        }
                     }
                 }
             }
@@ -96,6 +102,8 @@ struct MergeWorktreeSheet: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            collisionPanel
 
             if let error = errorMessage {
                 Text(error)
@@ -185,6 +193,60 @@ struct MergeWorktreeSheet: View {
         }
     }
 
+    // MARK: - Collision pre-flight panel
+
+    @ViewBuilder
+    private var collisionPanel: some View {
+        if let collision, !collision.isEmpty {
+            let accent: Color = collision.hardCount > 0 ? .red : .orange
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(accent)
+                    Text("Also being edited in \(collision.collisions.count) other worktree\(collision.collisions.count == 1 ? "" : "s")")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                ForEach(collision.collisions) { c in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(c.branch)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        if !c.conflictingFiles.isEmpty {
+                            collisionLine("will conflict", c.conflictingFiles, .red)
+                        }
+                        if !c.sharedSurfaceFiles.isEmpty {
+                            collisionLine("shared surface", c.sharedSurfaceFiles, .orange)
+                        }
+                    }
+                }
+                if !collision.textualCheckAvailable {
+                    Text("Textual conflict check unavailable on this git — showing shared-surface overlaps only.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 6).fill(accent.opacity(0.08)))
+        }
+    }
+
+    private func collisionLine(_ label: String, _ files: [String], _ color: Color) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(color)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(color.opacity(0.15)))
+            Text(files.joined(separator: ", "))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+
     // MARK: - Actions
 
     private func loadInfo() async {
@@ -199,6 +261,7 @@ struct MergeWorktreeSheet: View {
                 ?? "main"
 
             await loadCommitCount()
+            await loadCollisions()
         } catch {
             errorMessage = "Failed to load repository info"
         }
@@ -210,6 +273,22 @@ struct MergeWorktreeSheet: View {
         commitCount = try? await git.commitCount(
             from: branchName,
             to: targetBranch,
+            repoPath: project.repositoryPath
+        )
+    }
+
+    /// Cross-worktree pre-flight: how the branch being merged collides with the
+    /// project's *other* worktree branches, evaluated against the merge target.
+    /// Advisory only — never blocks the merge.
+    private func loadCollisions() async {
+        guard !targetBranch.isEmpty else { collision = nil; return }
+        let worktrees = (try? await git.listWorktrees(repoPath: project.repositoryPath)) ?? []
+        let siblings = worktrees
+            .compactMap(\.branch)
+            .filter { $0 != branchName && $0 != targetBranch }
+        guard !siblings.isEmpty else { collision = nil; return }
+        collision = await git.collisionReport(
+            for: branchName, against: siblings, base: targetBranch,
             repoPath: project.repositoryPath
         )
     }

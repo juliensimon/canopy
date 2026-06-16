@@ -129,6 +129,24 @@ struct WorktreeCollisionTests {
         }
     }
 
+    // MARK: - collisionReports (per-branch, for the worktree list)
+
+    @Test func collisionReportsCoversEachBranchAgainstTheOthers() async throws {
+        try await withWorktrees(["feat/a", "feat/b", "feat/c"]) { repo, wt in
+            // a and b collide on package.json; c is disjoint.
+            try commit("{ \"v\": \"a\" }\n", to: "package.json", in: wt["feat/a"]!)
+            try commit("{ \"v\": \"b\" }\n", to: "package.json", in: wt["feat/b"]!)
+            try commit("c\n", to: "src/c.ts", in: wt["feat/c"]!)
+
+            let reports = await git.collisionReports(
+                branches: ["feat/a", "feat/b", "feat/c"], base: "main", repoPath: repo
+            )
+            #expect(reports["feat/a"]?.collisions.contains { $0.branch == "feat/b" } == true)
+            #expect(reports["feat/b"]?.collisions.contains { $0.branch == "feat/a" } == true)
+            #expect(reports["feat/c"]?.isEmpty == true)
+        }
+    }
+
     // MARK: - Fixture
 
     /// Creates a repo on `main` with an initial commit plus one worktree per
