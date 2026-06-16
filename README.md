@@ -194,13 +194,19 @@ git branch -d feat/whatever
 
 …except you never actually did all of it, and now you have 11 stale worktrees and 40 merged branches on your laptop. Canopy replaces the whole thing with a two-phase confirmation sheet. Phase 1: pick the target branch, confirm the commit count, see any conflicts before they happen. Phase 2: pick what to clean up — worktree directory, feature branch, both, or neither. One click. Done. No debt.
 
+**Cross-worktree pre-flight.** With several worktrees in flight, Phase 1 also shows how the branch you're merging collides with your *other* worktree branches — before you merge. It flags two kinds: **will conflict** (a real textual conflict, computed with `git merge-tree` without touching your working tree) and **shared surface** (both branches touch a high-stakes file — a package manifest, lockfile, migration, or generated type — that may merge cleanly but still break, like two `0007_*.sql` migrations with different names). It's advisory: it never blocks the merge, it just shows where parallel work overlaps. The same collisions appear as a ⚠ badge on each worktree row in the project view.
+
+![Cross-worktree conflict pre-flight in the Merge & Finish sheet](docs/screenshots/collision-preflight-panel.png)
+
+![Collision badges on worktree rows in the project view](docs/screenshots/collision-worktree-badges.png)
+
 ---
 
 ### 🌳 Project view — see every worktree at once
 
 ![Project detail view](docs/screenshots/project-detail.png)
 
-Click any project in the sidebar to see every worktree, its branch, its status, and a one-click button to open, merge, or delete it. "Open All" resumes every inactive worktree at once with their prior Claude sessions — the fastest way to get back into a multi-branch project after a weekend away.
+Click any project in the sidebar to see every worktree, its branch, its status, a ⚠ badge when it collides with another worktree, and a one-click button to open, merge, or delete it. "Open All" resumes every inactive worktree at once with their prior Claude sessions — the fastest way to get back into a multi-branch project after a weekend away.
 
 The project view also lists every open pull request for the repository, pulled via `gh pr list` — so you can see at a glance which of your worktrees already have a PR in flight and which are still local.
 

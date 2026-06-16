@@ -189,7 +189,8 @@ When your feature is done:
 
 3. **Phase 1**: Confirm the target branch and review the commit count. Click **Merge & Finish**.
    - Canopy checks for uncommitted changes and already-merged branches
-   - If there are merge conflicts, Canopy aborts and lists the conflicting files
+   - **Cross-worktree pre-flight**: if other worktrees of the project also have changes, Phase 1 lists how this branch collides with them before you merge — **will conflict** (a real textual conflict, computed with `git merge-tree` without touching your tree) and **shared surface** (both branches touch a package manifest, lockfile, migration, or generated type that may merge cleanly yet still break, e.g. two `0007_*.sql` migrations with different names). This is advisory and never blocks the merge.
+   - If there are merge conflicts when you proceed, Canopy aborts and lists the conflicting files
 
 4. **Phase 2**: After a successful merge, choose what to clean up:
    - Delete the worktree directory
@@ -246,6 +247,7 @@ Shown when you click a project header in the sidebar. Displays:
 
 - Repository info (current branch, branch count)
 - All worktrees with status, base branch, and action buttons (Open, Merge, Delete)
+- A collision badge (⚠) on a worktree row when it overlaps another worktree — red for a textual conflict, orange for a shared-surface overlap; hover for the colliding branches and files
 - "Open All" to resume all inactive worktrees
 - Worktree configuration summary
 - Open pull requests for the repository, pulled via `gh pr list`
