@@ -328,6 +328,40 @@ struct GitServiceTests {
 
     // MARK: - Helpers
 
+    // MARK: - Path comparison (main worktree detection)
+
+    /// `git worktree list` reports symlink-resolved paths (e.g. /private/tmp/…)
+    /// while a stored repositoryPath may be the unresolved (/tmp/…) form. They
+    /// must compare equal — otherwise the main worktree is misclassified as a
+    /// feature worktree and wrongly offered Merge & Delete. Regression test.
+    @Test func samePathTreatsSymlinkAndTargetAsEqual() throws {
+        let target = NSTemporaryDirectory() + "canopy-target-\(UUID().uuidString)"
+        try fm.createDirectory(atPath: target, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: target) }
+
+        let link = NSTemporaryDirectory() + "canopy-link-\(UUID().uuidString)"
+        try fm.createSymbolicLink(atPath: link, withDestinationPath: target)
+        defer { try? fm.removeItem(atPath: link) }
+
+        // The symlink and its target are the same directory.
+        #expect(GitService.samePath(link, target))
+        #expect(GitService.samePath(target, target))
+        // Genuinely different paths stay unequal.
+        #expect(!GitService.samePath(target, target + "-other"))
+    }
+
+    /// The exact reported scenario: `/tmp` is a system symlink to `/private/tmp`,
+    /// so `git worktree list` records `/private/tmp/…` while a stored repo path
+    /// may keep the `/tmp/…` spelling. The two must compare equal.
+    @Test func samePathMatchesTmpAndPrivateTmpSpellings() throws {
+        let resolved = "/private/tmp/canopy-sp-\(UUID().uuidString)"
+        try fm.createDirectory(atPath: resolved, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: resolved) }
+        let viaTmp = resolved.replacingOccurrences(of: "/private/tmp", with: "/tmp")
+
+        #expect(GitService.samePath(resolved, viaTmp))
+    }
+
     @discardableResult
     private func shell(_ command: String, in dir: String) throws -> String {
         let process = Process()

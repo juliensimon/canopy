@@ -229,6 +229,17 @@ struct GitService {
         return (path as NSString).appendingPathComponent(raw)
     }
 
+    /// True if two filesystem paths refer to the same location. Resolves with
+    /// realpath(3) via `SandboxBackend.realResolvedPath` — the same helper the
+    /// rest of the codebase uses to match how git records paths (/tmp →
+    /// /private/tmp). `git worktree list` reports the resolved form while a
+    /// stored repo path may keep the unresolved one, so a raw string compare
+    /// wrongly treats them as different. (Foundation's resolvingSymlinksInPath
+    /// is unsuitable here — it strips /private instead of adding it.)
+    static func samePath(_ a: String, _ b: String) -> Bool {
+        SandboxBackend.realResolvedPath(a) == SandboxBackend.realResolvedPath(b)
+    }
+
     // MARK: - Diff & Push Status
 
     /// Returns a summary of uncommitted changes (staged + unstaged) vs HEAD.
