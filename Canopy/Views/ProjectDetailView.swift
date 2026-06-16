@@ -290,7 +290,7 @@ struct ProjectDetailView: View {
 
     /// Returns true if a session exists for this worktree's branch (matched by path).
     private func isMainWorktree(_ wt: WorktreeInfo) -> Bool {
-        wt.path == project.repositoryPath
+        GitService.samePath(wt.path, project.repositoryPath)
     }
 
     @ViewBuilder

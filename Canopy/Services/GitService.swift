@@ -229,6 +229,15 @@ struct GitService {
         return (path as NSString).appendingPathComponent(raw)
     }
 
+    /// True if two filesystem paths refer to the same location, resolving
+    /// symlinks. `git worktree list` reports symlink-resolved paths (e.g.
+    /// /private/tmp/…) while a stored repo path may keep the unresolved form
+    /// (/tmp/…); a raw string compare would wrongly treat them as different.
+    static func samePath(_ a: String, _ b: String) -> Bool {
+        URL(fileURLWithPath: a).resolvingSymlinksInPath().path
+            == URL(fileURLWithPath: b).resolvingSymlinksInPath().path
+    }
+
     // MARK: - Diff & Push Status
 
     /// Returns a summary of uncommitted changes (staged + unstaged) vs HEAD.
