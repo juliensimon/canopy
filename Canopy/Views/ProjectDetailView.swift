@@ -297,7 +297,7 @@ struct ProjectDetailView: View {
     /// Tooltip text for a worktree's collision badge: one line per colliding
     /// sibling branch, listing its hard (conflict) and watch (shared-surface) files.
     private func collisionTooltip(_ report: WorktreeCollisionReport) -> String {
-        report.collisions.map { c in
+        let lines = report.collisions.map { c in
             var parts: [String] = []
             if !c.conflictingFiles.isEmpty {
                 parts.append("will conflict: \(c.conflictingFiles.joined(separator: ", "))")
@@ -306,7 +306,13 @@ struct ProjectDetailView: View {
                 parts.append("shared surface: \(c.sharedSurfaceFiles.joined(separator: ", "))")
             }
             return "\(c.branch) — \(parts.joined(separator: "; "))"
-        }.joined(separator: "\n")
+        }
+        // The badge can't run the textual layer on old git; say so rather than
+        // imply a clean hard-conflict check (the panel carries the same caveat).
+        let caveat = report.textualCheckAvailable
+            ? ""
+            : "⚠︎ textual conflict check unavailable — shared-surface overlaps only\n"
+        return caveat + lines.joined(separator: "\n")
     }
 
     @ViewBuilder

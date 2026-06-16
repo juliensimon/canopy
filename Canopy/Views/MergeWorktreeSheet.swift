@@ -208,21 +208,27 @@ struct MergeWorktreeSheet: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                 }
-                ForEach(collision.collisions) { c in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(c.branch)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                        if !c.conflictingFiles.isEmpty {
-                            collisionLine("will conflict", c.conflictingFiles, .red)
-                        }
-                        if !c.sharedSurfaceFiles.isEmpty {
-                            collisionLine("shared surface", c.sharedSurfaceFiles, .orange)
+                // Scrolls rather than clipping when many worktrees collide.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(collision.collisions) { c in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(c.branch)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                if !c.conflictingFiles.isEmpty {
+                                    collisionLine("will conflict", c.conflictingFiles, .red)
+                                }
+                                if !c.sharedSurfaceFiles.isEmpty {
+                                    collisionLine("shared surface", c.sharedSurfaceFiles, .orange)
+                                }
+                            }
                         }
                     }
                 }
+                .frame(maxHeight: 220)
                 if !collision.textualCheckAvailable {
-                    Text("Textual conflict check unavailable on this git — showing shared-surface overlaps only.")
+                    Text("Couldn't run the textual conflict check — showing shared-surface overlaps only.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }

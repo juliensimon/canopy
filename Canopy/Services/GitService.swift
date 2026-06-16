@@ -185,10 +185,13 @@ struct GitService {
     /// introduced on the branch since their merge-base). Non-throwing; `[]` on
     /// error. Used by the heuristic (watch) layer to find shared-surface overlap.
     func changedFiles(base: String, branch: String, repoPath: String) async -> [String] {
-        guard let output = try? await run(
+        // Use runAllowingFailure (drains pipes before waiting) rather than run():
+        // a large `diff --name-only` in a monorepo can exceed the pipe buffer and
+        // deadlock run()'s read-after-wait ordering.
+        guard let result = try? await runAllowingFailure(
             ["diff", "--name-only", "\(base)...\(branch)"], in: repoPath
-        ) else { return [] }
-        return output
+        ), result.status == 0 else { return [] }
+        return result.stdout
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
@@ -245,15 +248,25 @@ struct GitService {
     func collisionReports(
         branches: [String], base: String, repoPath: String
     ) async -> [String: WorktreeCollisionReport] {
-        var result: [String: WorktreeCollisionReport] = [:]
-        for branch in branches {
-            let siblings = branches.filter { $0 != branch }
-            guard !siblings.isEmpty else { continue }
-            result[branch] = await collisionReport(
-                for: branch, against: siblings, base: base, repoPath: repoPath
-            )
+        // Fan out per-branch reports concurrently — each is independent and
+        // read-only against the repo, so a project with several worktrees
+        // doesn't pay an O(N²) sequential cost before its badges appear.
+        await withTaskGroup(of: (String, WorktreeCollisionReport).self) { group in
+            for branch in branches {
+                let siblings = branches.filter { $0 != branch }
+                guard !siblings.isEmpty else { continue }
+                group.addTask {
+                    (branch, await collisionReport(
+                        for: branch, against: siblings, base: base, repoPath: repoPath
+                    ))
+                }
+            }
+            var result: [String: WorktreeCollisionReport] = [:]
+            for await (branch, report) in group {
+                result[branch] = report
+            }
+            return result
         }
-        return result
     }
 
     /// Merges source branch into target branch.
