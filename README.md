@@ -138,7 +138,7 @@ This is the view I use to answer "am I on track for my API budget this month" an
 
 ### ⌨️ Command palette — fuzzy search everything
 
-`Cmd+K` opens a fuzzy-match palette over every session, project, branch, and action Canopy knows about. Type three letters of a branch name, hit return, you're there. Type the name of a project, hit return, the project view opens. Type "merge", hit return, the merge flow fires on the current session.
+`Cmd+K` opens a fuzzy-match palette over your sessions (searchable by name, project, branch, and terminal output), your projects, and quick actions (New Session, New Worktree Session, Settings). Type three letters of a branch name, hit return, you're there. Type the name of a project, hit return, the project view opens.
 
 If you have more than four or five sessions open, this is the fastest way to navigate. Faster than clicking. Faster than Mission Control. Fast enough to feel instant.
 
@@ -252,7 +252,7 @@ A prompt like `"Review {{branch}} for correctness and add tests"` becomes `"Revi
 
 | Shortcut | Action |
 |---|---|
-| `Cmd+T` | New plain session (directory picker) |
+| `Cmd+T` | New session (directory picker) |
 | `Cmd+Shift+T` | New worktree session |
 | `Cmd+Shift+P` | Add project |
 | `Cmd+K` | Command palette |
@@ -261,6 +261,7 @@ A prompt like `"Review {{branch}} for correctness and add tests"` becomes `"Revi
 | `Cmd+Shift+A` | Activity dashboard |
 | `Cmd+Shift+S` | Cycle tab sort mode |
 | `Cmd+1`–`Cmd+9` | Jump to tab N |
+| `Cmd+Shift+C` | Copy transcript (in Show Transcript view) |
 | `Cmd+,` | Settings |
 | `Cmd+?` | Help |
 
@@ -303,6 +304,7 @@ All configuration lives in `~/.config/canopy/`:
 - `sessions.json` — persisted sessions, restored on app restart
 - `sessions.backup.json` — automatic backup created on every launch
 - `prompts.json` — saved prompt library
+- `prompts.backup.json` — automatic backup created on every launch
 
 ---
 

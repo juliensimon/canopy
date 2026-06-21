@@ -6,11 +6,11 @@ Native macOS app (Swift 6, macOS 14+) for managing parallel Claude Code sessions
 
 | Path | Purpose |
 |------|---------|
-| `Canopy/App/AppState.swift` | Central observable state (~800 lines), @MainActor |
+| `Canopy/App/AppState.swift` | Central observable state (~960 lines), @MainActor |
 | `Canopy/Models/` | Codable data models (Project, CanopySettings, ActivityData) |
 | `Canopy/Services/` | Business logic (GitService, TerminalSession, ActivityDataService) |
 | `Canopy/Views/` | SwiftUI components |
-| `Tests/` | 37 test files using Swift's `Testing` framework |
+| `Tests/` | Test suites using Swift's `Testing` framework |
 | `scripts/bundle.sh` | Release build script (Xcode) |
 | `project.yml` | XcodeGen project config |
 | `Package.swift` | SPM config (single dep: SwiftTerm) |
