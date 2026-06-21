@@ -74,4 +74,33 @@ struct ConfigCorruptionBackupTests {
         #expect(state.projects.count == 1)
         #expect(state.projects.first?.name == "demo")
     }
+
+    /// A config dir whose parent is a *file* can never be created, so the atomic
+    /// write fails. The save path must log and return — not crash via `try!` —
+    /// so the data-loss-prevention work never introduces a crash on a failed
+    /// save, and the in-memory state survives.
+    private func unwritableConfigDir() throws -> (dir: String, cleanup: () -> Void) {
+        let blocker = NSTemporaryDirectory() + "canopy-blocker-\(UUID().uuidString)"
+        try "x".write(toFile: blocker, atomically: true, encoding: .utf8)
+        return ("\(blocker)/cfg", { try? FileManager.default.removeItem(atPath: blocker) })
+    }
+
+    @Test func savePromptsSurvivesWriteFailure() throws {
+        let (dir, cleanup) = try unwritableConfigDir()
+        defer { cleanup() }
+        let state = AppState(configDir: dir)
+        state.prompts = [SavedPrompt(title: "t", body: "b")]
+        state.savePrompts() // must not crash
+        #expect(state.prompts.count == 1)
+        #expect(!FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("prompts.json")))
+    }
+
+    @Test func saveProjectsSurvivesWriteFailure() throws {
+        let (dir, cleanup) = try unwritableConfigDir()
+        defer { cleanup() }
+        let state = AppState(configDir: dir)
+        state.addProject(Project(name: "demo", repositoryPath: "/tmp/demo-\(UUID().uuidString)")) // triggers saveProjects
+        #expect(state.projects.count == 1) // in-memory append survives a failed save
+        #expect(!FileManager.default.fileExists(atPath: (dir as NSString).appendingPathComponent("projects.json")))
+    }
 }
