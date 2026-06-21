@@ -27,6 +27,15 @@ enum SessionCostService {
         return f
     }()
 
+    /// Fallback for JSONL timestamps without fractional seconds (they occur in
+    /// real Claude Code logs); mirrors ActivityDataService. Without it, the
+    /// `.withFractionalSeconds` formatter returns nil for such timestamps.
+    private nonisolated(unsafe) static let iso8601NoFrac: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     /// Parse token usage from JSONL content string, only counting entries after `since`.
     static func parseTokenUsage(from jsonlContent: String, since: Date? = nil) -> TokenUsage {
         var usage = TokenUsage()
@@ -46,7 +55,7 @@ enum SessionCostService {
             // rather than over-report recent usage.
             if let since {
                 guard let timestamp = obj["timestamp"] as? String,
-                      let entryDate = iso8601.date(from: timestamp),
+                      let entryDate = iso8601.date(from: timestamp) ?? iso8601NoFrac.date(from: timestamp),
                       entryDate >= since else {
                     continue
                 }

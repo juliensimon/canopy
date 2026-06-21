@@ -42,4 +42,17 @@ struct SessionCostFilteringTests {
         )
         #expect(usage.outputTokens == 7)
     }
+
+    @Test func countsInWindowEntryWithoutFractionalSeconds() {
+        // Real Claude JSONL timestamps sometimes lack fractional seconds. With a
+        // cutoff active, such an in-window entry must still be counted (matching
+        // ActivityDataService's fallback) — not dropped as "unparseable".
+        let jsonl = """
+        {"type":"assistant","timestamp":"2026-06-01T00:00:00Z","message":{"model":"claude-opus","usage":{"output_tokens":7}}}
+        """
+        let usage = SessionCostService.parseTokenUsage(
+            from: jsonl, since: Date(timeIntervalSince1970: 0)
+        )
+        #expect(usage.outputTokens == 7)
+    }
 }
