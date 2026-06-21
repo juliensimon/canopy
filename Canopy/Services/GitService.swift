@@ -26,6 +26,9 @@ struct GitService {
         baseBranch: String? = nil,
         createBranch: Bool = true
     ) async throws {
+        // Trim whitespace from UI input: git rejects a refname with surrounding
+        // spaces, so an untrimmed branch from a text field would fail here.
+        let branch = branch.trimmingCharacters(in: .whitespacesAndNewlines)
         var args = ["worktree", "add"]
         if createBranch {
             args += ["-b", branch, worktreePath]
@@ -283,16 +286,16 @@ struct GitService {
         let originalBranch = (try? await currentBranch(repoPath: repoPath)) ?? ""
         func restoreOriginalBranch() async {
             if !originalBranch.isEmpty, originalBranch != "HEAD", originalBranch != target {
-                _ = try? await run(["checkout", originalBranch], in: repoPath)
+                _ = try? await run(["checkout", originalBranch], in: repoPath, disableHooks: true)
             }
         }
 
         // Checkout target branch
-        try await run(["checkout", target], in: repoPath)
+        try await run(["checkout", target], in: repoPath, disableHooks: true)
 
         // Attempt merge
         do {
-            try await run(["merge", source], in: repoPath)
+            try await run(["merge", source], in: repoPath, disableHooks: true)
         } catch {
             // Check if it's a conflict
             let conflictOutput = try await run(["diff", "--name-only", "--diff-filter=U"], in: repoPath)
@@ -473,28 +476,65 @@ struct GitService {
         process.arguments = ["-l", "-c", command]
         process.currentDirectoryURL = URL(fileURLWithPath: directory)
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
 
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            throw GitError.commandFailed("Setup command failed: \(command)\n\(output)")
+        let result = try runProcess(process, stdout: stdout, stderr: stderr)
+        if result.status != 0 {
+            let out = String(data: result.stdout, encoding: .utf8) ?? ""
+            let err = String(data: result.stderr, encoding: .utf8) ?? ""
+            throw GitError.commandFailed("Setup command failed: \(command)\n\(out)\(err)")
         }
     }
 
     // MARK: - Private
 
+    /// Box for handing `Data` read on a background queue back to the caller.
+    /// Safe because `runProcess` only reads `.data` after a `DispatchGroup`
+    /// barrier, which establishes the necessary happens-before ordering.
+    private final class OutputBox: @unchecked Sendable { var data = Data() }
+
+    /// Spawns an already-configured `process` (executable, arguments, cwd and the
+    /// given stdout/stderr pipes set) and returns its exit status with both
+    /// streams fully captured.
+    ///
+    /// Reads stdout on the calling thread while a background queue drains stderr,
+    /// so both pipes empty *concurrently with* the running child. This is the
+    /// only ordering that cannot deadlock: the previous "waitUntilExit() then
+    /// read" pattern hung forever once a child wrote more than the OS pipe buffer
+    /// (~16–64KB) — the child blocked on a full pipe while we blocked on the wait.
+    private static func runProcess(
+        _ process: Process, stdout: Pipe, stderr: Pipe
+    ) throws -> (status: Int32, stdout: Data, stderr: Data) {
+        try process.run()
+        let errBox = OutputBox()
+        let group = DispatchGroup()
+        let errHandle = stderr.fileHandleForReading
+        group.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            errBox.data = errHandle.readDataToEndOfFile()
+            group.leave()
+        }
+        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+        group.wait()
+        process.waitUntilExit()
+        return (process.terminationStatus, outData, errBox.data)
+    }
+
     /// Runs a git command and returns stdout.
+    /// - Parameter disableHooks: prepend `-c core.hooksPath=/dev/null` so the
+    ///   command runs no repo-local hooks. Used for destructive host operations
+    ///   (Merge & Finish): a worktree's `.git` points into the main repo, which
+    ///   is mounted writable into the sandbox, so a sandboxed agent could plant
+    ///   `.git/hooks/post-merge` that would otherwise execute on the host the
+    ///   moment the user clicks Merge & Finish.
     @discardableResult
-    private func run(_ args: [String], in directory: String) async throws -> String {
+    private func run(_ args: [String], in directory: String, disableHooks: Bool = false) async throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = args
+        process.arguments = disableHooks ? ["-c", "core.hooksPath=/dev/null"] + args : args
         process.currentDirectoryURL = URL(fileURLWithPath: directory)
 
         let stdout = Pipe()
@@ -502,17 +542,12 @@ struct GitService {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 {
-            let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8) ?? "Unknown error"
+        let result = try GitService.runProcess(process, stdout: stdout, stderr: stderr)
+        if result.status != 0 {
+            let errStr = String(data: result.stderr, encoding: .utf8) ?? "Unknown error"
             throw GitError.commandFailed("git \(args.joined(separator: " ")): \(errStr)")
         }
-
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8) ?? ""
+        return String(data: result.stdout, encoding: .utf8) ?? ""
     }
 
     /// Like `run`, but returns the exit status and stdout instead of throwing on
@@ -530,12 +565,8 @@ struct GitService {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        try process.run()
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        _ = stderr.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
-        return (process.terminationStatus, String(data: outData, encoding: .utf8) ?? "")
+        let result = try GitService.runProcess(process, stdout: stdout, stderr: stderr)
+        return (result.status, String(data: result.stdout, encoding: .utf8) ?? "")
     }
 
     /// Resolves the `gh` CLI path, checking common Homebrew and system locations.
@@ -564,17 +595,12 @@ struct GitService {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 {
-            let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-            let errStr = String(data: errData, encoding: .utf8) ?? "Unknown error"
+        let result = try GitService.runProcess(process, stdout: stdout, stderr: stderr)
+        if result.status != 0 {
+            let errStr = String(data: result.stderr, encoding: .utf8) ?? "Unknown error"
             throw GitError.commandFailed("gh \(args.joined(separator: " ")): \(errStr)")
         }
-
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8) ?? ""
+        return String(data: result.stdout, encoding: .utf8) ?? ""
     }
 
     /// Parses `git worktree list --porcelain` output into structured data.
@@ -652,7 +678,8 @@ enum SharedSurface {
     /// `/`), so a glob `*` can't accidentally cross directory boundaries.
     private static let filePatterns = [
         // package manifests
-        "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "Gemfile",
+        "package.json", "Cargo.toml", "go.mod", "go.sum", "pyproject.toml",
+        "requirements.txt", "Pipfile", "composer.json", "Gemfile", "Podfile",
         "Package.swift", "pom.xml", "build.gradle", "build.gradle.kts", "*.csproj",
         // lockfiles
         "*.lock", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
@@ -676,8 +703,11 @@ enum SharedSurface {
                 return marker
             }
         }
-        let name = (path as NSString).lastPathComponent
-        if filePatterns.contains(where: { fnmatch($0, name, 0) == 0 }) {
+        // Case-insensitive: macOS's default filesystem is case-insensitive, so a
+        // `Package.json` / `GEMFILE` must match too (and group by a normalized
+        // key). fnmatch is case-sensitive, so fold both sides to lowercase.
+        let name = (path as NSString).lastPathComponent.lowercased()
+        if filePatterns.contains(where: { fnmatch($0.lowercased(), name, 0) == 0 }) {
             return name
         }
         return nil

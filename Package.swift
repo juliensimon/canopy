@@ -21,6 +21,11 @@ let package = Package(
             exclude: ["App/Canopy.entitlements", "Assets.xcassets", "Models/CLAUDE.md", "Views/CLAUDE.md", "Services/CLAUDE.md"],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
+                // Match the release build (project.yml sets SWIFT_STRICT_CONCURRENCY
+                // = complete): make `swift build`/`swift test` enforce the same
+                // data-race checks, so the TDD loop catches concurrency regressions
+                // instead of only the Xcode archive doing so at bundle time.
+                .enableUpcomingFeature("StrictConcurrency"),
             ]
         ),
         .testTarget(

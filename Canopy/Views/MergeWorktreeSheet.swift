@@ -335,6 +335,13 @@ struct MergeWorktreeSheet: View {
                     return
                 }
 
+                // Pause git-status polling around the destructive merge: the poll
+                // loop shells read commands against this same repo and can collide
+                // with the merge's writes on index.lock, surfacing as a spurious
+                // "merge failed". Restart it however the merge ends.
+                appState.stopGitStatusPolling()
+                defer { appState.startGitStatusPolling() }
+
                 let result = try await git.mergeInto(
                     target: targetBranch,
                     source: branchName,
@@ -377,7 +384,7 @@ struct MergeWorktreeSheet: View {
                 // then seeing an error.
                 if let sid = sessionId {
                     appState.performCloseSession(id: sid)
-                } else if let session = appState.sessions.first(where: { $0.worktreePath == worktreePath }) {
+                } else if let session = appState.session(forWorktreePath: worktreePath) {
                     appState.performCloseSession(id: session.id)
                 }
 

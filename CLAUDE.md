@@ -12,12 +12,12 @@ macOS app for running parallel Claude Code sessions across git worktrees (versio
 ## Architecture
 
 ```
-Canopy/App/AppState.swift   — central @MainActor state (~800 lines), all @Published UI state
+Canopy/App/AppState.swift   — central @MainActor state (~960 lines), all @Published UI state
 Canopy/Models/              — Codable structs: Project, CanopySettings, ActivityData
 Canopy/Services/            — GitService, TerminalSession, ActivityDataService, NotificationService
 Canopy/Utilities/           — ClaudeSessionFinder, ProjectColor
 Canopy/Views/               — 30+ SwiftUI components
-Tests/                      — 26 test files using Swift Testing (@Suite/@Test), NOT XCTest
+Tests/                      — 37 test files using Swift Testing (@Suite/@Test), NOT XCTest
 ```
 
 ## Testing

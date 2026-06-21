@@ -86,6 +86,60 @@ struct WorktreeCollisionTests {
         #expect(!SharedSurface.matches("regenerated/config.txt"))
     }
 
+    /// `changedFiles` uses a three-dot diff (`base...branch`) so base-side edits
+    /// made AFTER the fork are excluded. A regression to two-dot would leak the
+    /// base's later changes into the shared-surface set and raise false-positive
+    /// "shared surface" alarms over a destructive merge. The original fixture
+    /// never advanced `main` after forking, so this case was invisible.
+    @Test func changedFilesExcludesBaseSideEditsMadeAfterFork() async throws {
+        try await withWorktrees(["feat/a"]) { repo, wt in
+            try commit("a\n", to: "go.mod", in: wt["feat/a"]!)
+            // main advances AFTER the fork with its OWN, different surface edit.
+            try commit("main\n", to: "Cargo.lock", in: repo)
+
+            let files = await git.changedFiles(base: "main", branch: "feat/a", repoPath: repo)
+            // Three-dot: only feat/a's change. Two-dot would also include
+            // main's Cargo.lock, which this asserts against.
+            #expect(files == ["go.mod"])
+        }
+    }
+
+    /// The grouping *key* (not just `matches`) is what closes the
+    /// same-sequence-migration gap: two DIFFERENT files on the same surface must
+    /// produce the SAME key so the branches collide. This pins the key directly.
+    @Test func surfaceKeyGroupsSameSurfaceAcrossDifferentFiles() {
+        // Same directory surface, different files → same key.
+        #expect(SharedSurface.surfaceKey(for: "db/migrations/0007_users.sql")
+                == SharedSurface.surfaceKey(for: "db/migrations/0007_orders.sql"))
+        // Same file surface in different directories → same key (basename).
+        #expect(SharedSurface.surfaceKey(for: "apps/web/package.json")
+                == SharedSurface.surfaceKey(for: "services/api/package.json"))
+        // Different surfaces → different keys.
+        #expect(SharedSurface.surfaceKey(for: "package.json")
+                != SharedSurface.surfaceKey(for: "go.mod"))
+        // Non-surface paths have no key.
+        #expect(SharedSurface.surfaceKey(for: "src/app.ts") == nil)
+    }
+
+    /// macOS's default filesystem is case-insensitive, so surface matching must
+    /// be too — otherwise a `Package.json` / `GEMFILE` silently escapes the
+    /// watch layer (a false negative that defeats the feature's purpose).
+    @Test func sharedSurfaceMatchingIsCaseInsensitive() {
+        #expect(SharedSurface.matches("apps/web/PACKAGE.JSON"))
+        #expect(SharedSurface.matches("GEMFILE"))
+        #expect(SharedSurface.surfaceKey(for: "Package.JSON")
+                == SharedSurface.surfaceKey(for: "package.json"))
+    }
+
+    /// High-collision manifests/checksums that were missing from the watch list.
+    @Test func sharedSurfaceCoversCommonEcosystemManifests() {
+        #expect(SharedSurface.matches("go.sum"))
+        #expect(SharedSurface.matches("requirements.txt"))
+        #expect(SharedSurface.matches("Pipfile"))
+        #expect(SharedSurface.matches("composer.json"))
+        #expect(SharedSurface.matches("ios/Podfile"))
+    }
+
     // MARK: - collisionReport (both layers combined)
 
     @Test func collisionReportSeparatesHardAndWatch() async throws {

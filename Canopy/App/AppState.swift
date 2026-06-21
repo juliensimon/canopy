@@ -345,6 +345,14 @@ final class AppState: ObservableObject {
         gitPollTask = nil
     }
 
+    /// Terminates every live terminal session's shell + claude child. Called on
+    /// app quit so spawned processes (and any running, paid Claude agent) do not
+    /// outlive the app, relying solely on the kernel's SIGHUP to reap them.
+    func stopAllSessions() {
+        for session in terminalSessions.values { session.stop() }
+        for session in splitTerminalSessions.values { session.stop() }
+    }
+
     // MARK: - Update Checking
 
     /// Called at launch — only fetches if the user has the setting enabled
@@ -766,8 +774,14 @@ final class AppState: ObservableObject {
 
     func loadPrompts() {
         let path = promptsFilePath
-        guard let data = FileManager.default.contents(atPath: path),
-              let decoded = try? JSONDecoder().decode([SavedPrompt].self, from: data) else {
+        guard let data = FileManager.default.contents(atPath: path) else { return }
+        // Back up before decoding so a corrupt prompt library is preserved
+        // rather than silently dropped and overwritten with [] on the next save.
+        let backupPath = (path as NSString).deletingPathExtension + ".backup.json"
+        try? FileManager.default.removeItem(atPath: backupPath)
+        try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
+        guard let decoded = try? JSONDecoder().decode([SavedPrompt].self, from: data) else {
+            NSLog("Canopy: prompts.json failed to decode; previous content kept at %@", backupPath)
             return
         }
         prompts = decoded
@@ -775,7 +789,13 @@ final class AppState: ObservableObject {
 
     func savePrompts() {
         guard let data = try? JSONEncoder().encode(prompts) else { return }
-        FileManager.default.createFile(atPath: promptsFilePath, contents: data)
+        // Atomic write so a crash mid-write can't corrupt the file (which would
+        // then decode to nothing and be lost on the next save).
+        do {
+            try data.write(to: URL(fileURLWithPath: promptsFilePath), options: .atomic)
+        } catch {
+            NSLog("Canopy: failed to write %@ (%@)", promptsFilePath, "\(error)")
+        }
     }
 
     func sendPrompt(_ prompt: SavedPrompt, to session: SessionInfo) {
@@ -788,6 +808,16 @@ final class AppState: ObservableObject {
             dir: dir
         )
         terminalSessions[session.id]?.sendCommand(resolved)
+    }
+
+    /// Finds a live session whose worktree is the same on-disk location as
+    /// `worktreePath`, comparing with symlink-resolving `GitService.samePath`.
+    /// git reports the resolved `/private/...` form while a stored worktree path
+    /// may keep the raw spelling (`/tmp`), so a raw `==` would miss it and leak
+    /// the session — a tab left running over a deleted worktree (the same path
+    /// divergence PR #32 fixed for `isMainWorktree`).
+    func session(forWorktreePath worktreePath: String) -> SessionInfo? {
+        sessions.first { $0.worktreePath.map { GitService.samePath($0, worktreePath) } ?? false }
     }
 
     func saveSessions() {
@@ -836,14 +866,17 @@ final class AppState: ObservableObject {
 
     func loadProjects() {
         let path = projectsFilePath
-        guard let data = FileManager.default.contents(atPath: path),
-              let decoded = try? JSONDecoder().decode([Project].self, from: data) else {
-            return
-        }
-        // Back up before loading so we can recover if something overwrites
+        guard let data = FileManager.default.contents(atPath: path) else { return }
+        // Back up BEFORE decoding so a corrupt file is preserved: a failed
+        // decode followed by the next save would otherwise overwrite it with [],
+        // permanently losing every project's repo path and worktree config.
         let backupPath = (configDir as NSString).appendingPathComponent("projects.backup.json")
         try? FileManager.default.removeItem(atPath: backupPath)
         try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
+        guard let decoded = try? JSONDecoder().decode([Project].self, from: data) else {
+            NSLog("Canopy: projects.json failed to decode; previous content kept at %@", backupPath)
+            return
+        }
 
         projects = decoded
         // Auto-assign colors to projects that predate the color system
@@ -861,7 +894,13 @@ final class AppState: ObservableObject {
 
     private func saveProjects() {
         guard let data = try? JSONEncoder().encode(projects) else { return }
-        FileManager.default.createFile(atPath: projectsFilePath, contents: data)
+        // Atomic write so a crash mid-write can't corrupt the file (which would
+        // then decode to nothing and be lost on the next save).
+        do {
+            try data.write(to: URL(fileURLWithPath: projectsFilePath), options: .atomic)
+        } catch {
+            NSLog("Canopy: failed to write %@ (%@)", projectsFilePath, "\(error)")
+        }
     }
 
     // MARK: - Activity Data Pre-loading

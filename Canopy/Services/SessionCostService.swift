@@ -38,12 +38,18 @@ enum SessionCostService {
                   let usageDict = message["usage"] as? [String: Any] else {
                 continue
             }
-            // Skip entries before the cutoff date
-            if let since,
-               let timestamp = obj["timestamp"] as? String,
-               let entryDate = iso8601.date(from: timestamp),
-               entryDate < since {
-                continue
+            // Skip synthetic harness entries (not real token spend), matching
+            // ActivityDataService.
+            if message["model"] as? String == "<synthetic>" { continue }
+            // With a cutoff, only count entries we can confirm are in-window: a
+            // missing/unparseable timestamp can't be placed in time, so skip it
+            // rather than over-report recent usage.
+            if let since {
+                guard let timestamp = obj["timestamp"] as? String,
+                      let entryDate = iso8601.date(from: timestamp),
+                      entryDate >= since else {
+                    continue
+                }
             }
             usage.inputTokens += usageDict["input_tokens"] as? Int ?? 0
             usage.inputTokens += usageDict["cache_creation_input_tokens"] as? Int ?? 0

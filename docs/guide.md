@@ -189,7 +189,7 @@ When your feature is done:
 
 3. **Phase 1**: Confirm the target branch and review the commit count. Click **Merge & Finish**.
    - Canopy checks for uncommitted changes and already-merged branches
-   - **Cross-worktree pre-flight**: if other worktrees of the project also have changes, Phase 1 lists how this branch collides with them before you merge — **will conflict** (a real textual conflict, computed with `git merge-tree` without touching your tree) and **shared surface** (both branches touch a package manifest, lockfile, migration, or generated type that may merge cleanly yet still break, e.g. two `0007_*.sql` migrations with different names). This is advisory and never blocks the merge.
+   - **Cross-worktree pre-flight**: when the project has other worktrees, Phase 1 lists how this branch collides with their branches before you merge — **will conflict** (a real textual conflict, computed with `git merge-tree` without touching your tree) and **shared surface** (both branches touch a package manifest, lockfile, migration, or generated type that may merge cleanly yet still break, e.g. two `0007_*.sql` migrations with different names). This is advisory and never blocks the merge.
    - If there are merge conflicts when you proceed, Canopy aborts and lists the conflicting files
 
 4. **Phase 2**: After a successful merge, choose what to clean up:

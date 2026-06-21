@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-21
+
+### Added
+- **Cross-worktree conflict pre-flight for Merge & Finish**: before you merge,
+  Canopy shows how the branch being merged collides with your *other* in-flight
+  worktree branches. Two layers, advisory only (they never block the merge): a
+  **hard** layer (`will conflict`) computed with `git merge-tree` for real
+  textual conflicts, and a **watch** layer (`shared surface`) that flags files
+  two branches both touch on a high-stakes surface — package manifests,
+  lockfiles, migration directories, generated types — even when they merge
+  textually clean (e.g. two same-sequence migrations). Surfaced in the Merge &
+  Finish sheet and as a ⚠ badge (red = hard, orange = watch) on the project
+  view's worktree rows. (#33)
+
+### Fixed
+- **Main worktree no longer misclassified on symlinked repo paths**: the main
+  worktree could be shown as a feature worktree — wrongly offering Merge &
+  Finish and Delete on your primary checkout — when the repository path was a
+  symlink (e.g. `/tmp` vs `/private/tmp`). Path comparison now resolves
+  symlinks before deciding. (#32)
+- **Merge & Finish and the project view no longer hang on large repositories**:
+  git commands that produced more than ~64KB of output (a big merge, or a
+  worktree with many changed files) could deadlock and freeze the app — in the
+  merge case, mid-merge with the repo left on the target branch. All git
+  invocations now drain their output concurrently and cannot deadlock.
+- **Config files are no longer lost on corruption**: a corrupt `projects.json`
+  or `prompts.json` was silently discarded and then overwritten with an empty
+  list on the next save, permanently losing every project's repo/worktree
+  config or the entire prompt library. Both are now backed up before loading
+  (like `sessions.json`) and written atomically.
+- **Merge & Finish now closes the correct session** when the stored worktree
+  path and git's resolved path differ only by a symlink, instead of leaving an
+  orphaned tab (and a running shell) over a deleted worktree.
+- **Merge & Finish runs git with repo-local hooks disabled.** A worktree's
+  `.git` points into the (sandbox-writable) main repo, so a hook planted there
+  could otherwise execute on the host the moment you clicked Merge & Finish.
+- **Quitting Canopy now terminates every session's shell and Claude process**
+  instead of leaving them — and any running, paid agent — alive after the
+  window closes.
+- **Background git-status polling pauses during Merge & Finish**, preventing a
+  spurious "merge failed" from `index.lock` contention on the flagship flow.
+- **Per-session token/cost counting is more accurate**: it now skips synthetic
+  harness entries and excludes entries it can't place within the selected time
+  window.
+- **The command palette no longer rebuilds its full search corpus on every
+  keystroke**, removing typing jank with several busy sessions open.
+- **Worktree creation trims surrounding whitespace from the branch name**
+  instead of failing when a text field carries a stray space.
+
+### Changed
+- The cross-worktree watch layer recognizes more shared surfaces (`go.sum`,
+  `requirements.txt`, `Pipfile`, `composer.json`, `Podfile`) and now matches
+  file surfaces case-insensitively.
+
 ## [1.0.0] - 2026-06-12
 
 ### Added
