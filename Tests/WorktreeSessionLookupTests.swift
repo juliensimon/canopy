@@ -42,4 +42,16 @@ struct WorktreeSessionLookupTests {
 
         #expect(state.session(forWorktreePath: "/tmp/canopy-p3-totally-different") == nil)
     }
+
+    @Test func cannotResolveSymlinkSpellingOnceWorktreeDeleted() {
+        // Once the worktree directory is gone, realpath(3) can't resolve, so
+        // samePath degrades to a raw compare and a differently-spelled path
+        // (/private/tmp vs /tmp) no longer matches. This is exactly why
+        // MergeWorktreeSheet.performCleanup must capture the session id BEFORE
+        // deleting the worktree, not after.
+        let name = "canopy-p3-\(UUID().uuidString)" // never created on disk
+        let state = AppState(configDir: NSTemporaryDirectory() + "cfg-\(UUID().uuidString)")
+        state.sessions = [SessionInfo(name: name, workingDirectory: "/tmp/\(name)", worktreePath: "/tmp/\(name)")]
+        #expect(state.session(forWorktreePath: "/private/tmp/\(name)") == nil)
+    }
 }

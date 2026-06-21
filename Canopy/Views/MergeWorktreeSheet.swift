@@ -368,6 +368,12 @@ struct MergeWorktreeSheet: View {
 
         Task {
             do {
+                // Resolve which session to close BEFORE deleting the worktree:
+                // afterwards the directory no longer exists, so samePath's
+                // realpath(3) can't resolve /tmp vs /private/tmp and the lookup
+                // would miss, leaking the session's shell + claude processes.
+                let sessionToClose = sessionId ?? appState.session(forWorktreePath: worktreePath)?.id
+
                 if deleteWorktree {
                     try await git.removeWorktree(
                         repoPath: project.repositoryPath,
@@ -382,10 +388,8 @@ struct MergeWorktreeSheet: View {
                 // Close the session only after cleanup succeeded -- on a git
                 // failure the user keeps their tab instead of losing it and
                 // then seeing an error.
-                if let sid = sessionId {
-                    appState.performCloseSession(id: sid)
-                } else if let session = appState.session(forWorktreePath: worktreePath) {
-                    appState.performCloseSession(id: session.id)
+                if let sessionToClose {
+                    appState.performCloseSession(id: sessionToClose)
                 }
 
                 dismiss()
