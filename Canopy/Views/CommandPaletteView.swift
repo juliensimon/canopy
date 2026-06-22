@@ -77,11 +77,13 @@ struct CommandPaletteView: View {
     @State private var selectedIndex = 0
     @FocusState private var isSearchFocused: Bool
 
+    /// Built once when the palette opens (see `.onAppear`), not on every
+    /// keystroke: generating the corpus decodes and ANSI-strips each session's
+    /// full ~500KB terminal buffer, far too expensive to redo per render.
+    @State private var allItems: [CommandPaletteItem] = []
+
     private var items: [CommandPaletteItem] {
-        CommandPaletteItem.filter(
-            CommandPaletteItem.generate(from: appState),
-            query: query
-        )
+        CommandPaletteItem.filter(allItems, query: query)
     }
 
     var body: some View {
@@ -120,6 +122,7 @@ struct CommandPaletteView: View {
         .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
         .frame(width: 500)
         .onAppear {
+            allItems = CommandPaletteItem.generate(from: appState)
             query = ""
             selectedIndex = 0
             isSearchFocused = true

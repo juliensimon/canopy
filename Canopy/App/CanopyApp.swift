@@ -56,6 +56,7 @@ struct CanopyApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     appState.saveSessionsBeforeTermination()
+                    appState.stopAllSessions()
                 }
         }
         .windowStyle(.titleBar)

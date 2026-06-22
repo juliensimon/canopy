@@ -188,8 +188,8 @@ When your feature is done:
    (or close the session, then click the **Merge** button on the worktree row in the project detail view)
 
 3. **Phase 1**: Confirm the target branch and review the commit count. Click **Merge & Finish**.
-   - Canopy checks for uncommitted changes and already-merged branches
-   - **Cross-worktree pre-flight**: if other worktrees of the project also have changes, Phase 1 lists how this branch collides with them before you merge — **will conflict** (a real textual conflict, computed with `git merge-tree` without touching your tree) and **shared surface** (both branches touch a package manifest, lockfile, migration, or generated type that may merge cleanly yet still break, e.g. two `0007_*.sql` migrations with different names). This is advisory and never blocks the merge.
+   - Canopy checks for uncommitted changes in the worktree **and in the main repository** (the merge switches the main repo's checked-out branch, so its changes would otherwise be dragged along), and whether the branch is already fully merged
+   - **Cross-worktree pre-flight**: when the project has other worktrees, Phase 1 lists how this branch collides with their branches before you merge — **will conflict** (a real textual conflict, computed with `git merge-tree` without touching your tree) and **shared surface** (both branches touch a package manifest, lockfile, migration, or generated type that may merge cleanly yet still break, e.g. two `0007_*.sql` migrations with different names). This is advisory and never blocks the merge.
    - If there are merge conflicts when you proceed, Canopy aborts and lists the conflicting files
 
 4. **Phase 2**: After a successful merge, choose what to clean up:
@@ -226,6 +226,7 @@ Right-click context menus are available on both session rows and project headers
 - Copy Working Directory / Branch Name
 - Open in IDE / Terminal / Finder
 - **Send Prompt** — fire a saved prompt at this session (see [Prompt Library](#prompt-library))
+- **Open / Close Split Terminal** — toggle a second terminal pane alongside the session (also `Cmd+Shift+D`)
 - Merge & Finish (worktree sessions)
 - Session Info
 - Close
@@ -235,7 +236,7 @@ Right-click context menus are available on both session rows and project headers
 - Edit Project
 - Open in Terminal / Finder
 - Copy Repository Path
-- Delete Project
+- Close Project
 
 ### Tab bar
 
@@ -300,7 +301,7 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 
 ### Settings
 
-**File > Settings** (`Cmd+,`):
+**Canopy > Settings** (`Cmd+,`):
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
@@ -312,6 +313,9 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 | Container flags | *(empty)* | Additional flags passed to `container run` (e.g., `--memory 8g --cpus 8`) |
 | Confirm before closing | On | Ask before closing a session |
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |
+| Terminal path | `/System/Applications/Utilities/Terminal.app` | App used for "Open in Terminal" in session context menus |
+| Notify when sessions finish | On | Show a macOS notification when a background session goes from working to idle |
+| Check for updates on launch | On | Check GitHub once a day for a newer release (the Updates section also has a "Check for Updates Now" button) |
 | `gh` CLI path | *auto-detected* | Used for open PR data. Leave blank to use `PATH` lookup; override if Homebrew is in a non-standard location. |
 | `sbx` CLI path | *auto-detected* | Used when the Docker Sandbox backend is enabled. Same auto-detect/override behavior as `gh`. |
 | `container` CLI path | *auto-detected* | Used when the Apple container backend is enabled. Same auto-detect/override behavior as `gh`. |

@@ -12,12 +12,12 @@ macOS app for running parallel Claude Code sessions across git worktrees (versio
 ## Architecture
 
 ```
-Canopy/App/AppState.swift   — central @MainActor state (~800 lines), all @Published UI state
+Canopy/App/AppState.swift   — central @MainActor state (~960 lines), all @Published UI state
 Canopy/Models/              — Codable structs: Project, CanopySettings, ActivityData
 Canopy/Services/            — GitService, TerminalSession, ActivityDataService, NotificationService
 Canopy/Utilities/           — ClaudeSessionFinder, ProjectColor
 Canopy/Views/               — 30+ SwiftUI components
-Tests/                      — 26 test files using Swift Testing (@Suite/@Test), NOT XCTest
+Tests/                      — Swift Testing suites (@Suite/@Test), NOT XCTest
 ```
 
 ## Testing
@@ -31,8 +31,8 @@ Tests/                      — 26 test files using Swift Testing (@Suite/@Test)
 
 - Git: shells out to `git` CLI (no Swift git library)
 - Notifications: `UNUserNotificationCenter` — app is notarized; app icon shows automatically
-- Persistence: JSON files at `~/.config/canopy/{projects,settings,sessions}.json`
-- Activity data: scans `~/Library/Caches/claude-code/` for Claude Code JSONL session files
+- Persistence: JSON files at `~/.config/canopy/{projects,settings,sessions,prompts}.json`
+- Activity data: scans `~/.claude/projects/` for Claude Code JSONL session files
 - Concurrency: strict Swift 6 @MainActor; use `Task { @MainActor in ... }` for background→main
 
 ## Secret Prevention

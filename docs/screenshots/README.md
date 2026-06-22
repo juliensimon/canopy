@@ -10,6 +10,9 @@ Images referenced by the main project README.
 | `split-terminal.png` | `Cmd+Shift+D` split shell pane |
 | `merge-finish.png` | Merge & Finish confirmation sheet |
 | `project-detail.png` | Project detail view with multiple worktrees |
+| `splash.png` | Splash / wordmark banner |
+| `collision-preflight-panel.png` | Cross-worktree conflict pre-flight in the Merge & Finish sheet |
+| `collision-worktree-badges.png` | Collision badges on worktree rows in the project view |
 
 Aim for **under ~1.5MB per image**. If the originals are larger, compress with `pngquant`.
 
