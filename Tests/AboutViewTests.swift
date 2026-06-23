@@ -2,7 +2,12 @@ import Testing
 import Foundation
 @testable import Canopy
 
+// @MainActor: AboutView conforms to SwiftUI.View (main-actor isolated), so its
+// static constants are main-actor isolated on toolchains without SE-0434's
+// implicit-nonisolated relaxation (e.g. CI's Swift). Isolating the suite lets
+// the tests read them on every supported toolchain. Matches AppStateTests.
 @Suite("AboutView privacy statement")
+@MainActor
 struct AboutViewTests {
 
     // The strong, defensible claim must be present. This is what users read.
