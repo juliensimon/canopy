@@ -8,6 +8,17 @@ struct AboutView: View {
 
     private let githubURL = "https://github.com/juliensimon/canopy"
 
+    /// Headline privacy claim shown in the About window. Defensible as written:
+    /// Canopy ships no analytics SDK and persists everything to local JSON.
+    static let privacyHeadline = "Zero telemetry · Zero data collection"
+
+    /// Detail line. MUST disclose the single outbound request (the optional,
+    /// user-toggleable update check to GitHub) so the headline stays accurate
+    /// even when someone runs a packet sniffer. See AboutViewTests.
+    static let privacyDetail =
+        "Everything stays on your Mac. The only network request is an "
+        + "optional check to GitHub for new versions."
+
     var body: some View {
         VStack(spacing: 16) {
             if let splash = Self.loadResource(name: "Splash", ext: "jpg") {
@@ -64,13 +75,17 @@ struct AboutView: View {
                 .buttonStyle(.link)
             }
 
+            Divider()
+
+            privacySection
+
             Spacer()
 
             Button("OK") { dismiss() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(24)
-        .frame(width: 540, height: 520)
+        .frame(width: 540, height: 560)
     }
 
     private static func loadResource(name: String, ext: String) -> NSImage? {
@@ -83,6 +98,26 @@ struct AboutView: View {
             return NSImage(contentsOfFile: path)
         }
         return nil
+    }
+
+    private var privacySection: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 5) {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text(Self.privacyHeadline)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+            }
+            Text(Self.privacyDetail)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .textSelection(.enabled)
     }
 
     @ViewBuilder
