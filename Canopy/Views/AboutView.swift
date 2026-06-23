@@ -106,6 +106,7 @@ struct AboutView: View {
                 Image(systemName: "lock.shield")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
                 Text(Self.privacyHeadline)
                     .font(.caption)
                     .fontWeight(.medium)

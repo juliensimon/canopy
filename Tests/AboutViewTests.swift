@@ -5,7 +5,8 @@ import Foundation
 // @MainActor: AboutView conforms to SwiftUI.View (main-actor isolated), so its
 // static constants are main-actor isolated on toolchains without SE-0434's
 // implicit-nonisolated relaxation (e.g. CI's Swift). Isolating the suite lets
-// the tests read them on every supported toolchain. Matches AppStateTests.
+// the tests read them on every supported toolchain — the same @MainActor
+// isolation AppStateTests applies per-test.
 @Suite("AboutView privacy statement")
 @MainActor
 struct AboutViewTests {
