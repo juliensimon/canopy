@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Update the Apple container sandbox image**: a new **Update** button (Settings
+  → Apple container, next to Build Image) rebuilds the image with `--no-cache`
+  to pull the latest Claude Code. Claude Code is baked into an image layer with
+  its auto-updater disabled, so the version was previously frozen at first build
+  — and a plain rebuild reused the cached install layer and reinstalled the same
+  version. (#38)
+
 ### Fixed
 - **Sandbox readiness is now checked when a session launches**, not just when a
   backend is selected in Settings. A backend that stopped being ready after

@@ -6,16 +6,10 @@ enum ActivityDataService {
     // MARK: - Shared formatters (created once per loadData call, passed around)
 
     struct Formatters {
-        let iso8601: ISO8601DateFormatter
-        let iso8601NoFrac: ISO8601DateFormatter
         let dayFmt: DateFormatter
         let hourFmt: DateFormatter
 
         init() {
-            iso8601 = ISO8601DateFormatter()
-            iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            iso8601NoFrac = ISO8601DateFormatter()
-            iso8601NoFrac.formatOptions = [.withInternetDateTime]
             dayFmt = DateFormatter()
             dayFmt.dateFormat = "yyyy-MM-dd"
             dayFmt.timeZone = .current
@@ -143,8 +137,7 @@ enum ActivityDataService {
                 let model = message["model"] as? String ?? "unknown"
                 guard model != "<synthetic>" else { continue }
 
-                guard let date = formatters.iso8601.date(from: timestamp)
-                        ?? formatters.iso8601NoFrac.date(from: timestamp) else {
+                guard let date = ClaudeSessionFinder.parseTimestamp(timestamp) else {
                     continue
                 }
                 let dayKey = formatters.dayFmt.string(from: date)

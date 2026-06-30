@@ -34,6 +34,26 @@ enum ClaudeSessionFinder {
         return "\(home)/.claude/projects/\(encoded)"
     }
 
+    // ISO8601DateFormatter is thread-safe for parsing, so a shared instance is
+    // fine across the off-main parsing in ActivityDataService and SessionCostService.
+    private nonisolated(unsafe) static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private nonisolated(unsafe) static let iso8601NoFrac: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// Parses a Claude Code JSONL timestamp. Real logs appear both with and
+    /// without fractional seconds, so try the fractional formatter first and
+    /// fall back. Single source of truth for both forms.
+    static func parseTimestamp(_ timestamp: String) -> Date? {
+        iso8601.date(from: timestamp) ?? iso8601NoFrac.date(from: timestamp)
+    }
+
     /// Returns the most recent Claude session ID for the given working directory.
     static func findLatestSessionId(for directory: String) -> String? {
         let projectDir = projectDirectory(for: directory)
