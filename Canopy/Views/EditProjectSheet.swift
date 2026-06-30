@@ -283,4 +283,14 @@ enum SandboxBackendUI {
             return ""
         }
     }
+
+    /// The command to send to a session's terminal at launch, given the sandbox
+    /// preflight result. When the backend is ready, run Claude as built;
+    /// otherwise echo the actionable warning instead of firing the command and
+    /// letting the runtime print a cryptic error (e.g. an XPC connection error
+    /// when the container daemon is stopped).
+    static func launchCommand(for status: SandboxChecker.Status, command: String) -> String {
+        guard status != .available else { return command }
+        return "echo " + SandboxBackend.shellSingleQuoted("⚠️  Canopy: " + warning(for: status))
+    }
 }

@@ -66,7 +66,7 @@ The backend can be set at three levels -- resolution order is **session → proj
 | Per project | Edit Project → Override global Claude settings → Sandbox picker | Overrides global |
 | Per session | New Worktree Session sheet (`Cmd+Shift+T`) → Sandbox picker | Overrides both, for that session only; "Use project default" inherits |
 
-Canopy validates the required tools before enabling a backend and shows a specific fix (install command, `container system start`, kernel install) when something is missing.
+Canopy validates the required tools before enabling a backend and shows a specific fix (install command, `container system start`, kernel install) when something is missing. The same check also runs when a session launches, so if the backend stopped being ready in the meantime — for example the container runtime wasn't restarted after a reboot — the session prints the fix in its terminal instead of a cryptic runtime error.
 
 #### Prerequisites
 
