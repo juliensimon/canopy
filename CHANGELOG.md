@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-06-30
+
 ### Added
 - **Update the Apple container sandbox image**: a new **Update** button (Settings
   → Apple container, next to Build Image) rebuilds the image with `--no-cache`
@@ -14,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its auto-updater disabled, so the version was previously frozen at first build
   — and a plain rebuild reused the cached install layer and reinstalled the same
   version. (#38)
+- **Privacy statement in the About window**: a "Zero telemetry · Zero data
+  collection" line, with a note disclosing that the only outbound request is the
+  optional, user-toggleable update check to GitHub. (#35)
+
+### Changed
+- **Claude JSONL timestamp parsing is now single-sourced** through
+  `ClaudeSessionFinder.parseTimestamp`, removing duplicated ISO8601 parsing in
+  the activity and cost services (behavior-preserving). (#36)
 
 ### Fixed
 - **Sandbox readiness is now checked when a session launches**, not just when a
