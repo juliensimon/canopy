@@ -97,6 +97,8 @@ struct HelpView: View {
                             "Optional isolation for Claude sessions, set globally (Settings), per project, or per session (New Worktree Session sheet). Docker Sandbox runs Claude in an sbx microVM (requires Docker Desktop; no session resume). Apple container runs it in a lightweight VM via Apple's container runtime (macOS 26+, Apple silicon; resume works). Sandboxed sessions show a shield icon in the sidebar — hover it to see which backend. The sandbox protects your machine — everything not explicitly mounted (SSH keys, Keychain, other repos, the rest of your home dir) stays out of reach — but not the mounted project or Claude state, and outbound network stays open. See the User Guide for the full boundary.")
                     concept("Sandbox Login (Apple container)",
                             "macOS keeps Claude's credentials in the Keychain, which the Linux VM can't read. Run /login once inside your first sandboxed session — credentials persist in the mounted ~/.claude for all later sessions.")
+                    concept("Sandbox Image (Apple container)",
+                            "The Apple container backend runs Claude inside an image you build once from Settings → Build Image. Claude Code is baked into the image with its auto-updater disabled, so its version is frozen until you rebuild. To pull a newer Claude Code, click Update (next to Build Image) — it rebuilds from scratch so the latest version is fetched.")
                 }
 
                 // Config

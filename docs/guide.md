@@ -79,7 +79,7 @@ Canopy validates the required tools before enabling a backend and shows a specif
 - `container` CLI: `brew install container` (or the `.pkg` from [github.com/apple/container](https://github.com/apple/container/releases))
 - Start the runtime once per boot: `container system start` (or `brew services start container` to keep it running)
 - First run only: install the Linux kernel with `container system kernel set --recommended` (~16 MB download)
-- Build the sandbox image once: **Settings → Build Image** (a few minutes; creates the default `canopy-claude` image)
+- Build the sandbox image once: **Settings → Build Image** (a few minutes; creates the default `canopy-claude` image). Later, **Update** rebuilds it to pull a newer Claude Code
 - First sandboxed session only: run `/login` inside it (see below)
 
 #### Docker Sandbox (sbx)
@@ -101,7 +101,9 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="/root/.local/bin:$PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 DISABLE_AUTOUPDATER=1
 ```
 
-Claude Code is installed with the native installer (not npm) on purpose: your host `~/.claude.json` is mounted into the container and declares a native install, so `/doctor` inside the sandbox expects a binary at `/root/.local/bin/claude`. You can also point the image field at any custom image that has claude, node, and git installed. After a Claude Code update, click **Build Image** again to refresh the image.
+Claude Code is installed with the native installer (not npm) on purpose: your host `~/.claude.json` is mounted into the container and declares a native install, so `/doctor` inside the sandbox expects a binary at `/root/.local/bin/claude`. You can also point the image field at any custom image that has claude, node, and git installed.
+
+To pull a newer Claude Code into the image later, click **Update** (next to Build Image). Claude Code is baked into an image layer with its auto-updater disabled, so the version is frozen until you rebuild — and **Update** rebuilds with `--no-cache` so the install layer actually re-fetches the latest version (a plain **Build Image** reuses the cached layer and reinstalls the same version).
 
 What Canopy mounts into the VM (all at their host paths, so everything lines up):
 
