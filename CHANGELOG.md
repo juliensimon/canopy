@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Sandbox readiness is now checked when a session launches**, not just when a
+  backend is selected in Settings. A backend that stopped being ready after
+  configuration — most commonly the Apple container runtime not restarted after
+  a reboot — now prints the actionable fix (e.g. `container system start`) in the
+  session terminal instead of a cryptic `XPC connection error`. (#37)
+
 ## [1.1.0] - 2026-06-22
 
 ### Added
