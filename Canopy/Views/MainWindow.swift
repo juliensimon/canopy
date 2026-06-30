@@ -207,18 +207,20 @@ struct SessionView: View {
                         command += " --resume \(sessionId)"
                     }
                     let launchCommand = command
-                    // Preflight the sandbox before launching. The check spawns
-                    // blocking subprocesses, so run it off the main actor. A
-                    // daemon that stopped after the project was configured
-                    // (e.g. a reboot) would otherwise surface a cryptic runtime
-                    // error in the terminal instead of an actionable hint.
-                    Task.detached(priority: .utility) {
+                    // Preflight the sandbox before launching. SandboxChecker.check
+                    // is nonisolated, so awaiting it from this MainActor task runs
+                    // its blocking subprocess off the main actor while the UI stays
+                    // responsive -- no detached task or cross-actor capture needed.
+                    // A daemon that stopped after the project was configured (e.g. a
+                    // reboot) would otherwise surface a cryptic runtime error in the
+                    // terminal instead of an actionable hint.
+                    Task { @MainActor in
                         let status = await SandboxChecker.check(backend: backend)
                         try? await Task.sleep(for: .milliseconds(500))
-                        let toSend = SandboxBackendUI.launchCommand(for: status, command: launchCommand)
-                        await MainActor.run {
-                            terminalSession.sendCommand(toSend)
-                        }
+                        guard !Task.isCancelled else { return }
+                        terminalSession.sendCommand(
+                            SandboxBackendUI.launchCommand(for: status, command: launchCommand)
+                        )
                     }
                 }
             }
