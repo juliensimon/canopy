@@ -177,7 +177,7 @@ Pick a sandbox backend in Settings (globally, per project, or per session in the
 **Docker Sandbox (sbx)** — a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM via `sbx run`. Session resume is disabled (session files live inside the ephemeral microVM).
 *Requirements:* [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`).
 
-**Apple container** — a lightweight VM via Apple's open-source [container](https://github.com/apple/container) runtime, no Docker Desktop needed. Canopy mounts the worktree, the project's main repo, and your `~/.claude` state at their host paths — so git works inside the sandbox and **session resume works**, unlike sbx. The default `canopy-claude` image is built in one click (**Settings → Build Image**); a one-time `/login` inside the first sandboxed session sets up credentials.
+**Apple container** — a lightweight VM via Apple's open-source [container](https://github.com/apple/container) runtime, no Docker Desktop needed. Canopy mounts the worktree, the project's main repo, and your `~/.claude` state at their host paths — so git works inside the sandbox and **session resume works**, unlike sbx. The default `canopy-claude` image is built in one click (**Settings → Build Image**); a one-time `/login` inside the first sandboxed session sets up credentials. Claude Code is baked into the image, so click **Update** when you want to pull a newer version into it.
 *Requirements:* macOS 26+ on Apple silicon, `brew install container`, `container system start` once per boot. Full setup steps in the [user guide](docs/guide.md#sandbox-modes).
 
 ---
