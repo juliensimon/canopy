@@ -19,8 +19,13 @@ struct ContainerImageBuilder {
     /// Single-quoted with embedded-quote escaping: the tag is user input
     /// interpolated into a login-shell command -- unquoted (or with a raw `'`
     /// inside), spaces or metacharacters would split or inject.
-    static func buildCommand(tag: String, contextDir: String) -> String {
-        "container build --tag \(SandboxBackend.shellSingleQuoted(tag)) --file \(SandboxBackend.shellSingleQuoted(contextDir + "/Dockerfile")) \(SandboxBackend.shellSingleQuoted(contextDir))"
+    ///
+    /// `noCache` bypasses the layer cache so the `RUN curl install.sh` layer
+    /// re-runs and pulls the latest Claude Code -- a plain rebuild would reuse
+    /// the cached layer and reinstall the same pinned version.
+    static func buildCommand(tag: String, contextDir: String, noCache: Bool = false) -> String {
+        let cacheFlag = noCache ? "--no-cache " : ""
+        return "container build \(cacheFlag)--tag \(SandboxBackend.shellSingleQuoted(tag)) --file \(SandboxBackend.shellSingleQuoted(contextDir + "/Dockerfile")) \(SandboxBackend.shellSingleQuoted(contextDir))"
     }
 
     enum BuildResult: Equatable {
@@ -30,7 +35,10 @@ struct ContainerImageBuilder {
 
     /// Writes the embedded Dockerfile to a temporary directory and runs
     /// `container build`. Returns the tail of the build output on failure.
-    static func build(tag: String) async -> BuildResult {
+    ///
+    /// Pass `noCache: true` to update an existing image to the latest Claude
+    /// Code (the recipe is fixed, so the cache must be busted to re-fetch it).
+    static func build(tag: String, noCache: Bool = false) async -> BuildResult {
         let contextDir = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent("canopy-image-\(UUID().uuidString)")
         do {
@@ -42,7 +50,7 @@ struct ContainerImageBuilder {
         defer { try? FileManager.default.removeItem(atPath: contextDir) }
 
         let result = await runCapturingOutput(
-            buildCommand(tag: tag, contextDir: contextDir),
+            buildCommand(tag: tag, contextDir: contextDir, noCache: noCache),
             timeoutSeconds: 1800
         )
         return result.exitCode == 0 ? .success : .failure(String(result.output.suffix(500)))

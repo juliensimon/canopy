@@ -143,8 +143,13 @@ struct SettingsView: View {
                                                 buildImage()
                                             }
                                             .disabled(buildingImage || containerImage.trimmingCharacters(in: .whitespaces).isEmpty)
+                                            Button("Update") {
+                                                buildImage(noCache: true)
+                                            }
+                                            .disabled(buildingImage || imageExists != true || containerImage.trimmingCharacters(in: .whitespaces).isEmpty)
+                                            .help("Rebuild from scratch to pull the latest Claude Code")
                                         }
-                                        Text("OCI image with claude, node, and git installed. Build Image creates it from Canopy's built-in recipe (a few minutes on first build).")
+                                        Text("OCI image with claude, node, and git installed. Build Image creates it from Canopy's built-in recipe (a few minutes on first build). Update rebuilds it from scratch to pull the latest Claude Code.")
                                             .font(.caption)
                                             .foregroundStyle(.tertiary)
                                         if containerImage.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -391,12 +396,12 @@ struct SettingsView: View {
         }
     }
 
-    private func buildImage() {
+    private func buildImage(noCache: Bool = false) {
         buildingImage = true
         buildError = nil
         let tag = containerImage.trimmingCharacters(in: .whitespaces)
         Task.detached(priority: .utility) {
-            let result = await ContainerImageBuilder.build(tag: tag)
+            let result = await ContainerImageBuilder.build(tag: tag, noCache: noCache)
             await MainActor.run {
                 buildingImage = false
                 switch result {

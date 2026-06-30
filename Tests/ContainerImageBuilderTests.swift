@@ -34,6 +34,21 @@ struct ContainerImageBuilderTests {
         #expect(command.contains(#"--tag 'a'\''b'"#))
     }
 
+    @Test func buildCommandOmitsNoCacheByDefault() {
+        // A normal build reuses cached layers -- fast, and correct for the
+        // create-from-scratch case.
+        let command = ContainerImageBuilder.buildCommand(tag: "canopy-claude", contextDir: "/tmp/ctx")
+        #expect(!command.contains("--no-cache"))
+    }
+
+    @Test func buildCommandAddsNoCacheForUpdates() {
+        // Updating MUST bypass the layer cache: otherwise the cached
+        // `RUN curl install.sh` layer reinstalls the same pinned Claude
+        // version and "Update" is a no-op.
+        let command = ContainerImageBuilder.buildCommand(tag: "canopy-claude", contextDir: "/tmp/ctx", noCache: true)
+        #expect(command.contains("container build --no-cache "))
+    }
+
     @Test func dockerfileSetsRenderingEnvironment() {
         // Sessions inherit the image env when --env flags are absent (custom
         // commands, future paths). Bake sane terminal defaults into the image
