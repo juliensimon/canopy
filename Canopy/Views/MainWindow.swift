@@ -206,9 +206,19 @@ struct SessionView: View {
                     if backend.supportsResume, let sessionId = session.claudeSessionId {
                         command += " --resume \(sessionId)"
                     }
-                    Task { @MainActor in
+                    let launchCommand = command
+                    // Preflight the sandbox before launching. The check spawns
+                    // blocking subprocesses, so run it off the main actor. A
+                    // daemon that stopped after the project was configured
+                    // (e.g. a reboot) would otherwise surface a cryptic runtime
+                    // error in the terminal instead of an actionable hint.
+                    Task.detached(priority: .utility) {
+                        let status = await SandboxChecker.check(backend: backend)
                         try? await Task.sleep(for: .milliseconds(500))
-                        terminalSession.sendCommand(command)
+                        let toSend = SandboxBackendUI.launchCommand(for: status, command: launchCommand)
+                        await MainActor.run {
+                            terminalSession.sendCommand(toSend)
+                        }
                     }
                 }
             }
