@@ -200,7 +200,7 @@ final class AppState: ObservableObject {
         if let existing = terminalSessions[sessionInfo.id] {
             return existing
         }
-        let ts = TerminalSession(id: sessionInfo.id, workingDirectory: sessionInfo.workingDirectory)
+        let ts = TerminalSession(id: sessionInfo.id, workingDirectory: sessionInfo.workingDirectory, disableAltScreen: settings.disableAltScreen)
         ts.onSessionFinished = { [weak self] sessionId, _ in
             self?.postFinishNotification(for: sessionId)
         }
@@ -398,7 +398,7 @@ final class AppState: ObservableObject {
             closeSplitTerminal(for: sessionId)
         } else {
             guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
-            let ts = TerminalSession(id: session.id, workingDirectory: session.workingDirectory)
+            let ts = TerminalSession(id: session.id, workingDirectory: session.workingDirectory, disableAltScreen: settings.disableAltScreen)
             ts.onProcessExit = { [weak self] id in
                 self?.closeSplitTerminal(for: id)
             }
@@ -535,7 +535,8 @@ final class AppState: ObservableObject {
             sbxFlags: project?.sbxFlags ?? settings.sbxFlags,
             containerImage: project?.containerImage ?? settings.containerImage,
             containerFlags: project?.containerFlags ?? settings.containerFlags,
-            extraMountPaths: extraMounts
+            extraMountPaths: extraMounts,
+            disableAltScreen: settings.disableAltScreen
         )
     }
 

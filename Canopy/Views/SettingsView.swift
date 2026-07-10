@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var idePath: String
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
+    @State private var disableAltScreen: Bool
     @State private var checkForUpdatesOnLaunch: Bool
     @State private var sandboxBackend: SandboxBackend
     @State private var sbxFlags: String
@@ -26,6 +27,8 @@ struct SettingsView: View {
     @State private var ghPath: String
     @State private var sbxPath: String
     @State private var containerPath: String
+    @State private var claudeVersion: String?
+    @State private var versionChecked = false
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -34,6 +37,7 @@ struct SettingsView: View {
         self._idePath = State(initialValue: settings.idePath)
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
+        self._disableAltScreen = State(initialValue: settings.disableAltScreen)
         self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
         self._sandboxBackend = State(initialValue: settings.sandboxBackend)
         self._sbxFlags = State(initialValue: settings.sbxFlags)
@@ -64,6 +68,20 @@ struct SettingsView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Toggle("Auto-start Claude Code in new sessions", isOn: $autoStartClaude)
+
+                            HStack(spacing: 4) {
+                                Text("Host CLI version:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(claudeVersion ?? (versionChecked ? "not found" : "checking…"))
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(claudeVersion == nil ? .tertiary : .primary)
+                            }
+                            // One element: a label on the value Text alone
+                            // would replace the version for VoiceOver.
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Claude Code CLI version")
+                            .accessibilityValue(claudeVersion ?? (versionChecked ? "not found" : "checking"))
 
                             if autoStartClaude {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -213,6 +231,10 @@ struct SettingsView: View {
                             Text("When enabled, closing a running session will ask for confirmation.")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
+                            Toggle("Show terminal scroll bar", isOn: $disableAltScreen)
+                            Text("Keeps Claude Code out of the alternate screen buffer so output flows into the terminal scrollback. Applies to new sessions.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                         .padding(4)
                     } label: {
@@ -357,6 +379,10 @@ struct SettingsView: View {
                     }
                 }
             }
+            .task {
+                claudeVersion = await ClaudeVersionChecker.hostVersion()
+                versionChecked = true
+            }
 
             Divider()
                 .padding(.vertical, 8)
@@ -388,7 +414,8 @@ struct SettingsView: View {
             claudeFlags: claudeFlags,
             sbxFlags: sbxFlags,
             containerImage: containerImage,
-            containerFlags: containerFlags
+            containerFlags: containerFlags,
+            disableAltScreen: disableAltScreen
         )
     }
 
@@ -462,6 +489,7 @@ struct SettingsView: View {
         settings.idePath = idePath
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
+        settings.disableAltScreen = disableAltScreen
         settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         settings.sandboxBackend = sandboxBackend
         settings.sbxFlags = sbxFlags

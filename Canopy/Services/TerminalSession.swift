@@ -30,9 +30,21 @@ final class TerminalSession: ObservableObject {
     /// When this terminal session was opened in Canopy (for token counting).
     let openedAt = Date()
 
-    init(id: UUID, workingDirectory: String) {
+    /// See `CanopySettings.disableAltScreen`. Captured at creation: the env
+    /// is built once when the shell starts, so later settings changes only
+    /// affect new sessions.
+    let disableAltScreen: Bool
+
+    /// Scrollback mode: reporting off so plain click-drag selects text.
+    /// Fullscreen mode: reporting on — Claude Code's fullscreen UI is
+    /// mouse-driven (clickable menus, Cmd+click links); Option-drag still
+    /// selects text (#42).
+    var allowMouseReporting: Bool { !disableAltScreen }
+
+    init(id: UUID, workingDirectory: String, disableAltScreen: Bool = true) {
         self.id = id
         self.workingDirectory = workingDirectory
+        self.disableAltScreen = disableAltScreen
     }
 
     func start(frame: CGRect) -> LocalProcessTerminalView {
@@ -48,9 +60,8 @@ final class TerminalSession: ObservableObject {
         view.nativeForegroundColor = NSColor(red: 0.9, green: 0.9, blue: 0.9, alpha: 1.0)
         view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
-        // Disable mouse reporting so text selection works normally.
-        // Claude Code uses keyboard navigation, not mouse clicks, so this is safe.
-        view.allowMouseReporting = false
+        // Coupled to the alt-screen setting: see allowMouseReporting above.
+        view.allowMouseReporting = allowMouseReporting
 
         // Let Option generate characters (e.g. brackets on non-US keyboards)
         // instead of acting as Meta/ESC prefix.
@@ -254,6 +265,12 @@ final class TerminalSession: ObservableObject {
             if let value = parentEnv[key] {
                 env.append("\(key)=\(value)")
             }
+        }
+        // Claude Code ≥ 2.1.206 renders in the alternate screen buffer, where
+        // SwiftTerm has no scrollback and disables its scroller. Opt out so
+        // sessions keep native scrollback and the scroll bar (#40).
+        if disableAltScreen {
+            env.append("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1")
         }
         return env
     }

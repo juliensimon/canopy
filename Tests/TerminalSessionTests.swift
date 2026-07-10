@@ -59,6 +59,32 @@ struct TerminalSessionTests {
         #expect(session.title == "zsh - ~/projects")
     }
 
+    /// Claude Code ≥ 2.1.206 switches to the alternate screen buffer, which
+    /// makes SwiftTerm disable its scroller (no scrollback in the alt buffer).
+    /// Canopy opts out so sessions keep native scrollback and the scroll bar.
+    @Test @MainActor func buildEnvironmentDisablesAlternateScreen() {
+        let session = TerminalSession(id: UUID(), workingDirectory: "/tmp")
+        let env = session.buildEnvironment()
+        #expect(env.contains("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1"))
+    }
+
+    /// Scrollback mode keeps mouse reporting off so plain click-drag selects
+    /// text. Fullscreen mode (alt screen) enables it because Claude Code's
+    /// fullscreen UI is mouse-driven — clickable menus, Cmd+click links (#42).
+    /// Option-drag still selects text when reporting is on.
+    @Test @MainActor func mouseReportingCoupledToAltScreen() {
+        let scrollback = TerminalSession(id: UUID(), workingDirectory: "/tmp")
+        #expect(scrollback.allowMouseReporting == false)
+        let fullscreen = TerminalSession(id: UUID(), workingDirectory: "/tmp", disableAltScreen: false)
+        #expect(fullscreen.allowMouseReporting == true)
+    }
+
+    @Test @MainActor func buildEnvironmentRespectsAltScreenOptOut() {
+        let session = TerminalSession(id: UUID(), workingDirectory: "/tmp", disableAltScreen: false)
+        let env = session.buildEnvironment()
+        #expect(!env.contains { $0.hasPrefix("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN") })
+    }
+
     @Test @MainActor func sendWithoutStartDoesNotCrash() {
         let session = TerminalSession(id: UUID(), workingDirectory: "/tmp")
         // Should silently no-op, not crash

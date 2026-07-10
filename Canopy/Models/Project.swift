@@ -131,7 +131,8 @@ struct Project: Identifiable, Codable {
             claudeFlags: claudeFlags ?? globalSettings.claudeFlags,
             sbxFlags: sbxFlags ?? globalSettings.sbxFlags,
             containerImage: containerImage ?? globalSettings.containerImage,
-            containerFlags: containerFlags ?? globalSettings.containerFlags
+            containerFlags: containerFlags ?? globalSettings.containerFlags,
+            disableAltScreen: globalSettings.disableAltScreen
         )
     }
 }

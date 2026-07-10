@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Update to pull the latest Claude Code" next to the image status. Age-based
   on purpose — Claude Code releases near-daily, so comparing against "latest"
   would nudge constantly.
+- **Host Claude Code CLI version in Settings** (#43): shown in the Claude Code
+  section. CLI behavior changes are keyed to versions (e.g. the ≥ 2.1.132
+  alternate-screen renderer) and the sandbox image can run a different version
+  than the host, so drift is now diagnosable at a glance.
+
+### Changed
+- **Mouse reporting now follows the scroll bar setting** (#42): scrollback mode
+  (default) keeps mouse reporting off so plain click-drag selects text;
+  fullscreen mode enables it so Claude Code's clickable menus and Cmd+click
+  links work (Option-drag still selects text).
+
+### Fixed
+- **Terminal scroll bar restored with Claude Code ≥ 2.1.206** (#40): newer
+  Claude Code renders in the alternate screen buffer, which has no scrollback,
+  so SwiftTerm disabled its scroller. A new **Show terminal scroll bar**
+  setting (Settings → Sessions, default on) opts sessions out via
+  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` — including Apple container
+  sessions, where it's injected as a `--env` flag. Turn it off to keep
+  Claude Code's alt-screen rendering. Applies to new sessions.
 
 ## [1.1.1] - 2026-06-30
 

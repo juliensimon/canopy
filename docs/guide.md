@@ -308,12 +308,14 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | Auto-start Claude | On | Launch Claude Code when opening a session |
+| Host CLI version | *(read-only)* | The `claude --version` of the host CLI, shown in the Claude Code section — useful when diagnosing version-keyed behavior changes or drift against the sandbox image |
 | Claude flags | `--permission-mode auto` | Flags passed to the `claude` command |
 | Sandbox | Off | Backend for isolated sessions: Docker Sandbox (`sbx`, requires Docker Desktop) or Apple container (requires macOS 26+, Apple silicon) |
 | Sandbox flags | *(empty)* | Additional flags passed to `sbx run` (e.g., `--memory 8g`) |
 | Container image | `canopy-claude` | OCI image used by the Apple container backend; **Build Image** creates it from the built-in recipe (see [Sandbox modes](#sandbox-modes)) |
 | Container flags | *(empty)* | Additional flags passed to `container run` (e.g., `--memory 8g --cpus 8`) |
 | Confirm before closing | On | Ask before closing a session |
+| Show terminal scroll bar | On | Keeps Claude Code out of the alternate screen buffer (sets `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`) so output flows into the terminal scrollback. Applies to new sessions. |
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |
 | Terminal path | `/System/Applications/Utilities/Terminal.app` | App used for "Open in Terminal" in session context menus |
 | Notify when sessions finish | On | Show a macOS notification when a background session goes from working to idle |
@@ -357,9 +359,9 @@ All configuration lives in `~/.config/canopy/`:
 
 ## Tips
 
-- **Text selection in the terminal**: Hold `Option` while dragging. Claude Code enables mouse reporting which captures normal clicks -- `Option` bypasses it.
+- **Text selection in the terminal**: With **Show terminal scroll bar** on (the default), plain click-drag selects text — mouse reporting is off. With it off (fullscreen mode), mouse reporting is on so Claude Code's clickable menus and Cmd+click links work; hold `Option` while dragging to select text.
 - **Show Transcript**: Right-click a session > Show Transcript… for a clean scrollable view of the conversation. When Claude Code is running, Canopy reads the structured JSONL session log (`~/.claude/projects/...`) and renders user/assistant turns with markdown formatting. The Copy button (⌘⇧C) puts the formatted markdown on the clipboard -- handy for pasting into PR descriptions or notes.
-- **Scrolling with `CLAUDE_CODE_NO_FLICKER=1`**: That flag puts Claude Code into the alternate screen buffer (DECSET 1049), which has no scrollback by terminal protocol design. The live viewport intentionally can't scroll back in that mode -- use Show Transcript to read history, or `Cmd+F` to search.
+- **Scrolling and the alternate screen buffer**: Claude Code ≥ 2.1.206 renders in the alternate screen buffer (DECSET 1049) by default, which has no scrollback by terminal protocol design -- the scroll bar disappears and the viewport can't scroll back. Canopy opts out by default via the **Show terminal scroll bar** setting (`CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`). Turn it off if you prefer Claude Code's alt-screen rendering; use Show Transcript to read history, or `Cmd+F` to search.
 - **Session resume**: When you reopen an existing worktree, Canopy finds the last Claude session ID automatically. You continue exactly where you left off. Note: Docker Sandbox (sbx) sessions are not resumable -- their session data lives inside the ephemeral microVM and is discarded when the sandbox stops. Apple container sessions resume normally, since `~/.claude` is mounted from the host.
 - **Worktree base directory**: By default, worktrees are created at `../canopy-worktrees/<project>/` (as siblings of your repo). Override this per-project if you prefer a different location.
 - **Quick rebuild**: Run `bash scripts/bundle.sh` then `open /Applications/Canopy.app`.
