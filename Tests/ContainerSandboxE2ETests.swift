@@ -53,7 +53,7 @@ struct ContainerSandboxE2ETests {
         let backend = SandboxBackend.appleContainer
         let full = backend.claudeCommand(
             claudeFlags: "", sbxFlags: "", containerImage: "canopy-claude",
-            containerFlags: "", extraMountPaths: [repo]
+            containerFlags: "", extraMountPaths: [repo], disableAltScreen: true
         )
         // Surgically swap the claude exec for a git probe; guards, env,
         // mounts, workdir, image, and wrapper all stay exactly as generated.

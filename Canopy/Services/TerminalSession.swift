@@ -30,9 +30,15 @@ final class TerminalSession: ObservableObject {
     /// When this terminal session was opened in Canopy (for token counting).
     let openedAt = Date()
 
-    init(id: UUID, workingDirectory: String) {
+    /// See `CanopySettings.disableAltScreen`. Captured at creation: the env
+    /// is built once when the shell starts, so later settings changes only
+    /// affect new sessions.
+    let disableAltScreen: Bool
+
+    init(id: UUID, workingDirectory: String, disableAltScreen: Bool = true) {
         self.id = id
         self.workingDirectory = workingDirectory
+        self.disableAltScreen = disableAltScreen
     }
 
     func start(frame: CGRect) -> LocalProcessTerminalView {
@@ -254,6 +260,12 @@ final class TerminalSession: ObservableObject {
             if let value = parentEnv[key] {
                 env.append("\(key)=\(value)")
             }
+        }
+        // Claude Code ≥ 2.1.206 renders in the alternate screen buffer, where
+        // SwiftTerm has no scrollback and disables its scroller. Opt out so
+        // sessions keep native scrollback and the scroll bar (#40).
+        if disableAltScreen {
+            env.append("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1")
         }
         return env
     }

@@ -59,6 +59,21 @@ struct TerminalSessionTests {
         #expect(session.title == "zsh - ~/projects")
     }
 
+    /// Claude Code ≥ 2.1.206 switches to the alternate screen buffer, which
+    /// makes SwiftTerm disable its scroller (no scrollback in the alt buffer).
+    /// Canopy opts out so sessions keep native scrollback and the scroll bar.
+    @Test @MainActor func buildEnvironmentDisablesAlternateScreen() {
+        let session = TerminalSession(id: UUID(), workingDirectory: "/tmp")
+        let env = session.buildEnvironment()
+        #expect(env.contains("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1"))
+    }
+
+    @Test @MainActor func buildEnvironmentRespectsAltScreenOptOut() {
+        let session = TerminalSession(id: UUID(), workingDirectory: "/tmp", disableAltScreen: false)
+        let env = session.buildEnvironment()
+        #expect(!env.contains { $0.hasPrefix("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN") })
+    }
+
     @Test @MainActor func sendWithoutStartDoesNotCrash() {
         let session = TerminalSession(id: UUID(), workingDirectory: "/tmp")
         // Should silently no-op, not crash
