@@ -135,6 +135,38 @@ struct SettingsTests {
         #expect(decoded.notifyOnFinish == true)
     }
 
+    // MARK: - disableAltScreen (terminal scroll bar)
+
+    @Test func disableAltScreenDefaultTrue() {
+        let settings = CanopySettings()
+        #expect(settings.disableAltScreen == true)
+    }
+
+    @Test func disableAltScreenCodableRoundTrip() throws {
+        var settings = CanopySettings()
+        settings.disableAltScreen = false
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.disableAltScreen == false)
+    }
+
+    @Test func disableAltScreenDecodesFromEmpty() throws {
+        let json = "{}"
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(CanopySettings.self, from: data)
+        #expect(decoded.disableAltScreen == true)
+    }
+
+    /// Container sessions don't inherit the host PTY environment, so the
+    /// opt-out must be injected as a `--env` flag or the setting silently
+    /// no-ops for sandboxed sessions.
+    @Test func claudeCommandAppleContainerOmitsAltScreenEnvWhenOff() {
+        var settings = CanopySettings()
+        settings.sandboxBackend = .appleContainer
+        settings.disableAltScreen = false
+        #expect(!settings.claudeCommand.contains("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"))
+    }
+
     // MARK: - Sandbox (Docker sbx backend)
 
     @Test func claudeCommandWithSandbox() {
@@ -201,7 +233,7 @@ struct SettingsTests {
         var settings = CanopySettings()
         settings.sandboxBackend = .appleContainer
         settings.containerImage = "canopy-claude"
-        #expect(settings.claudeCommand == #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig:ro --workdir "$PWD" 'canopy-claude' sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec claude --permission-mode auto "$@"' claude"#)
+        #expect(settings.claudeCommand == #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --env CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 --volume "$PWD":"$PWD" --volume "$HOME/.claude":/root/.claude --volume "$HOME/.claude.json":/root/.claude.json --volume "$HOME/.gitconfig":/root/.gitconfig:ro --workdir "$PWD" 'canopy-claude' sh -c 'i=0; while [ "$(stty size 2>/dev/null)" = "0 0" ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done; exec claude --permission-mode auto "$@"' claude"#)
     }
 
     @Test func claudeCommandQuotesImageAsSingleToken() {
@@ -224,7 +256,7 @@ struct SettingsTests {
         let backend = SandboxBackend.appleContainer
         let command = backend.claudeCommand(
             claudeFlags: "", sbxFlags: "", containerImage: "img", containerFlags: "",
-            extraMountPaths: [dir]
+            extraMountPaths: [dir], disableAltScreen: true
         )
         #expect(command.contains(#"--volume "/private\#(dir)":"/private\#(dir)""#))
     }

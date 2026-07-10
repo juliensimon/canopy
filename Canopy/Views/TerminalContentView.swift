@@ -35,6 +35,7 @@ final class TerminalViewController: NSViewController {
     private var terminalView: LocalProcessTerminalView?
     private var hasStartedProcess = false
     private var keyEventMonitor: Any?
+    private var mouseEventMonitor: Any?
 
     init(session: TerminalSession) {
         self.session = session
@@ -78,6 +79,34 @@ final class TerminalViewController: NSViewController {
 
         grabFocus()
         installKeyEventMonitor()
+        installMouseEventMonitor()
+    }
+
+    /// SwiftTerm 1.13 mis-encodes buttonless SGR hover motion as a button
+    /// release (see SwiftTermMouseEncodingTests): with any-event tracking
+    /// (DECSET 1003) active, every pointer move reads as a completed click
+    /// and dismisses Claude Code's fullscreen menus. Swallow hover motion
+    /// over this terminal — presses, releases, and drags encode correctly
+    /// and still report (#42). `mouseMoved` isn't `open` in SwiftTerm, so
+    /// this is a local monitor rather than an override. Costs the Cmd-hover
+    /// link preview only while 1003 is active. Remove (with its test) when
+    /// upstream fixes Terminal.sendEvent's SGR branch.
+    private func installMouseEventMonitor() {
+        guard mouseEventMonitor == nil else { return }
+        mouseEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+            guard let self,
+                  let tv = self.terminalView,
+                  let window = tv.window,
+                  event.window === window else {
+                return event
+            }
+            let point = tv.convert(event.locationInWindow, from: nil)
+            guard tv.bounds.contains(point) else { return event }
+            if tv.getTerminal().mouseMode.sendMotionEvent() {
+                return nil
+            }
+            return event
+        }
     }
 
     private func grabFocus() {
@@ -214,6 +243,7 @@ final class TerminalViewController: NSViewController {
         if keyEventMonitor == nil {
             installKeyEventMonitor()
         }
+        installMouseEventMonitor()
     }
 
     override func viewWillDisappear() {
@@ -221,6 +251,10 @@ final class TerminalViewController: NSViewController {
         if let monitor = keyEventMonitor {
             NSEvent.removeMonitor(monitor)
             keyEventMonitor = nil
+        }
+        if let monitor = mouseEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseEventMonitor = nil
         }
     }
 
