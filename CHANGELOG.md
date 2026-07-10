@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mouse reporting now follows the scroll bar setting** (#42): scrollback mode
+  (default) keeps mouse reporting off so plain click-drag selects text;
+  fullscreen mode enables it so Claude Code's clickable menus and Cmd+click
+  links work (Option-drag still selects text).
+
 ### Fixed
 - **Terminal scroll bar restored with Claude Code ≥ 2.1.206** (#40): newer
   Claude Code renders in the alternate screen buffer, which has no scrollback,

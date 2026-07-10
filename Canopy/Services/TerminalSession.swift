@@ -35,6 +35,12 @@ final class TerminalSession: ObservableObject {
     /// affect new sessions.
     let disableAltScreen: Bool
 
+    /// Scrollback mode: reporting off so plain click-drag selects text.
+    /// Fullscreen mode: reporting on — Claude Code's fullscreen UI is
+    /// mouse-driven (clickable menus, Cmd+click links); Option-drag still
+    /// selects text (#42).
+    var allowMouseReporting: Bool { !disableAltScreen }
+
     init(id: UUID, workingDirectory: String, disableAltScreen: Bool = true) {
         self.id = id
         self.workingDirectory = workingDirectory
@@ -54,9 +60,8 @@ final class TerminalSession: ObservableObject {
         view.nativeForegroundColor = NSColor(red: 0.9, green: 0.9, blue: 0.9, alpha: 1.0)
         view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
-        // Disable mouse reporting so text selection works normally.
-        // Claude Code uses keyboard navigation, not mouse clicks, so this is safe.
-        view.allowMouseReporting = false
+        // Coupled to the alt-screen setting: see allowMouseReporting above.
+        view.allowMouseReporting = allowMouseReporting
 
         // Let Option generate characters (e.g. brackets on non-US keyboards)
         // instead of acting as Meta/ESC prefix.

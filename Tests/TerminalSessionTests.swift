@@ -68,6 +68,17 @@ struct TerminalSessionTests {
         #expect(env.contains("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1"))
     }
 
+    /// Scrollback mode keeps mouse reporting off so plain click-drag selects
+    /// text. Fullscreen mode (alt screen) enables it because Claude Code's
+    /// fullscreen UI is mouse-driven — clickable menus, Cmd+click links (#42).
+    /// Option-drag still selects text when reporting is on.
+    @Test @MainActor func mouseReportingCoupledToAltScreen() {
+        let scrollback = TerminalSession(id: UUID(), workingDirectory: "/tmp")
+        #expect(scrollback.allowMouseReporting == false)
+        let fullscreen = TerminalSession(id: UUID(), workingDirectory: "/tmp", disableAltScreen: false)
+        #expect(fullscreen.allowMouseReporting == true)
+    }
+
     @Test @MainActor func buildEnvironmentRespectsAltScreenOptOut() {
         let session = TerminalSession(id: UUID(), workingDirectory: "/tmp", disableAltScreen: false)
         let env = session.buildEnvironment()
