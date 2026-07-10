@@ -28,4 +28,15 @@ struct ClaudeVersionCheckerTests {
         // e.g. a shell error like "command not found: claude"
         #expect(ClaudeVersionChecker.parse("zsh: command not found: claude") == nil)
     }
+
+    /// Exercises the real CLI path end to end (repo convention, like
+    /// `imageExistsFalseForBogusImage`): on machines without claude the
+    /// login shell exits non-zero → nil; where it exists, the result must
+    /// be a clean semver token (parse is idempotent on its own output).
+    @Test func hostVersionReturnsNilOrSemver() async {
+        let version = await ClaudeVersionChecker.hostVersion()
+        if let version {
+            #expect(ClaudeVersionChecker.parse(version) == version)
+        }
+    }
 }
