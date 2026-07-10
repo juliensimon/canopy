@@ -73,8 +73,12 @@ struct SettingsView: View {
                                 Text(claudeVersion ?? (versionChecked ? "not found" : "checking…"))
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundStyle(claudeVersion == nil ? .tertiary : .primary)
-                                    .accessibilityLabel("Claude Code CLI version")
                             }
+                            // One element: a label on the value Text alone
+                            // would replace the version for VoiceOver.
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Claude Code CLI version")
+                            .accessibilityValue(claudeVersion ?? (versionChecked ? "not found" : "checking"))
 
                             if autoStartClaude {
                                 VStack(alignment: .leading, spacing: 4) {
