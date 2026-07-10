@@ -103,6 +103,13 @@ struct ContainerImageBuilderTests {
         #expect(ContainerImageBuilder.parseCreationDate(fromInspectJSON: Data(#"[{"configuration":{}}]"#.utf8)) == nil)
     }
 
+    /// End-to-end over the real CLI path (like `imageExistsFalseForBogusImage`):
+    /// nil whether the container CLI is missing (CI) or the image isn't present.
+    @Test func imageCreationDateNilForBogusOrEmptyImage() async {
+        #expect(await ContainerImageBuilder.imageCreationDate("definitely-not-an-image-xyz-123") == nil)
+        #expect(await ContainerImageBuilder.imageCreationDate("  ") == nil)
+    }
+
     @Test func freshImageHasNoStalenessMessage() {
         let now = Date()
         #expect(ContainerImageBuilder.stalenessMessage(created: now, now: now) == nil)
