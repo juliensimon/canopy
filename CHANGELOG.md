@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-07-10
+
 ### Added
 - **Staleness nudge for the sandbox image** (#44): when the Apple container
   image is more than 30 days old, Settings shows "Image built N days ago —
@@ -23,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default) keeps mouse reporting off so plain click-drag selects text;
   fullscreen mode enables it so Claude Code's clickable menus and Cmd+click
   links work (Option-drag still selects text).
+- **Release CI now asserts `BuildInfo.version` matches `VERSION`** before
+  signing, so a forgotten regeneration fails fast instead of shipping a stale
+  About panel. (#39)
 
 ### Fixed
 - **Terminal scroll bar restored with Claude Code ≥ 2.1.206** (#40): newer
