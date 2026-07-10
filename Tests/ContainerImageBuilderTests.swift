@@ -76,11 +76,16 @@ struct ContainerImageBuilderTests {
         #expect(result.output.contains("timed out"))
     }
 
-    @Test func imageExistsFalseForBogusImage() async {
-        // Stable on any machine: false whether the container CLI is
-        // missing or the image is simply not present.
-        let exists = await ContainerImageBuilder.imageExists("definitely-not-an-image-xyz-123")
-        #expect(exists == false)
+    @Test func imageStatusFalseForBogusOrEmptyImage() async {
+        // Stable on any machine: not-found whether the container CLI is
+        // missing or the image is simply not present. One inspect call
+        // answers both existence and creation date.
+        let bogus = await ContainerImageBuilder.imageStatus("definitely-not-an-image-xyz-123")
+        #expect(bogus.exists == false)
+        #expect(bogus.created == nil)
+        let empty = await ContainerImageBuilder.imageStatus("  ")
+        #expect(empty.exists == false)
+        #expect(empty.created == nil)
     }
 
     // MARK: - Image staleness nudge (#44)
@@ -103,19 +108,21 @@ struct ContainerImageBuilderTests {
         #expect(ContainerImageBuilder.parseCreationDate(fromInspectJSON: Data(#"[{"configuration":{}}]"#.utf8)) == nil)
     }
 
-    /// End-to-end over the real CLI path (like `imageExistsFalseForBogusImage`):
-    /// nil whether the container CLI is missing (CI) or the image isn't present.
-    @Test func imageCreationDateNilForBogusOrEmptyImage() async {
-        #expect(await ContainerImageBuilder.imageCreationDate("definitely-not-an-image-xyz-123") == nil)
-        #expect(await ContainerImageBuilder.imageCreationDate("  ") == nil)
-    }
-
     @Test func freshImageHasNoStalenessMessage() {
         let now = Date()
         #expect(ContainerImageBuilder.stalenessMessage(created: now, now: now) == nil)
         // Boundary: exactly at the threshold is not yet stale.
         let atThreshold = now.addingTimeInterval(-30 * 86_400)
         #expect(ContainerImageBuilder.stalenessMessage(created: atThreshold, now: now) == nil)
+    }
+
+    @Test func justOverThresholdIsStale() {
+        // The threshold compares the raw interval, not floored days:
+        // flooring first would silently extend "more than 30 days" to 31.
+        let now = Date()
+        let justOver = now.addingTimeInterval(-(30 * 86_400 + 1))
+        let message = ContainerImageBuilder.stalenessMessage(created: justOver, now: now)
+        #expect(message == "Image built 30 days ago — Update to pull the latest Claude Code.")
     }
 
     @Test func staleImageMessageNamesAgeAndAction() {

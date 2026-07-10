@@ -397,11 +397,10 @@ struct SettingsView: View {
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         let image = containerImage
-        let exists = await ContainerImageBuilder.imageExists(image)
-        let created = exists ? await ContainerImageBuilder.imageCreationDate(image) : nil
+        let status = await ContainerImageBuilder.imageStatus(image)
         if containerImage == image {
-            imageExists = exists
-            imageCreated = created
+            imageExists = status.exists
+            imageCreated = status.created
         }
     }
 
