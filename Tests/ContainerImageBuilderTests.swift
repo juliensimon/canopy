@@ -82,4 +82,39 @@ struct ContainerImageBuilderTests {
         let exists = await ContainerImageBuilder.imageExists("definitely-not-an-image-xyz-123")
         #expect(exists == false)
     }
+
+    // MARK: - Image staleness nudge (#44)
+
+    /// Real shape of `container image inspect` output (fields we don't
+    /// read omitted): an array with `configuration.creationDate`.
+    private static let inspectJSON = Data("""
+    [{"configuration": {"creationDate": "2026-06-30T10:32:18Z", "name": "canopy-claude:latest"}, "id": "abc"}]
+    """.utf8)
+
+    @Test func parsesCreationDateFromInspectJSON() {
+        let date = ContainerImageBuilder.parseCreationDate(fromInspectJSON: Self.inspectJSON)
+        #expect(date != nil)
+        #expect(date.map { Calendar(identifier: .gregorian).component(.year, from: $0) } == 2026)
+    }
+
+    @Test func parseCreationDateRejectsGarbage() {
+        #expect(ContainerImageBuilder.parseCreationDate(fromInspectJSON: Data("not json".utf8)) == nil)
+        #expect(ContainerImageBuilder.parseCreationDate(fromInspectJSON: Data("[]".utf8)) == nil)
+        #expect(ContainerImageBuilder.parseCreationDate(fromInspectJSON: Data(#"[{"configuration":{}}]"#.utf8)) == nil)
+    }
+
+    @Test func freshImageHasNoStalenessMessage() {
+        let now = Date()
+        #expect(ContainerImageBuilder.stalenessMessage(created: now, now: now) == nil)
+        // Boundary: exactly at the threshold is not yet stale.
+        let atThreshold = now.addingTimeInterval(-30 * 86_400)
+        #expect(ContainerImageBuilder.stalenessMessage(created: atThreshold, now: now) == nil)
+    }
+
+    @Test func staleImageMessageNamesAgeAndAction() {
+        let now = Date()
+        let created = now.addingTimeInterval(-47 * 86_400)
+        let message = ContainerImageBuilder.stalenessMessage(created: created, now: now)
+        #expect(message == "Image built 47 days ago — Update to pull the latest Claude Code.")
+    }
 }

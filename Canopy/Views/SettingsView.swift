@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
     @State private var imageExists: Bool?
+    @State private var imageCreated: Date?
     @State private var buildingImage = false
     @State private var buildError: String?
     @State private var saveError: String?
@@ -173,6 +174,12 @@ struct SettingsView: View {
                                             Text("Image found locally.")
                                                 .font(.caption)
                                                 .foregroundStyle(.green)
+                                            if let created = imageCreated,
+                                               let staleness = ContainerImageBuilder.stalenessMessage(created: created, now: Date()) {
+                                                Text(staleness)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.orange)
+                                            }
                                         }
                                     }
                                     // Re-check when the image NAME changes too,
@@ -391,8 +398,10 @@ struct SettingsView: View {
         guard !Task.isCancelled else { return }
         let image = containerImage
         let exists = await ContainerImageBuilder.imageExists(image)
+        let created = exists ? await ContainerImageBuilder.imageCreationDate(image) : nil
         if containerImage == image {
             imageExists = exists
+            imageCreated = created
         }
     }
 
@@ -407,9 +416,13 @@ struct SettingsView: View {
                 switch result {
                 case .success:
                     imageExists = true
+                    // A rebuild resets the image age — clear any staleness
+                    // nudge immediately rather than waiting for a re-inspect.
+                    imageCreated = Date()
                 case .failure(let output):
                     buildError = output
                     imageExists = false
+                    imageCreated = nil
                 }
             }
         }

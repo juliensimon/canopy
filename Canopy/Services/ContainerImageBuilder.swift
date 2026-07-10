@@ -148,4 +148,45 @@ struct ContainerImageBuilder {
         guard !trimmed.isEmpty else { return false }
         return await SandboxChecker.succeeds("container image inspect \(SandboxBackend.shellSingleQuoted(trimmed))")
     }
+
+    // MARK: - Image staleness nudge (#44)
+
+    /// Claude Code is baked into the image with its auto-updater disabled,
+    /// so the version is frozen at build time while the host CLI updates
+    /// daily. Past this age, Settings nudges toward the Update button.
+    static let stalenessThresholdDays = 30
+
+    /// When the image was created, from `container image inspect`.
+    /// nil when the CLI is missing, the image doesn't exist, or the JSON
+    /// doesn't carry a creation date.
+    static func imageCreationDate(_ name: String) async -> Date? {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        let result = await runCapturingOutput(
+            "container image inspect \(SandboxBackend.shellSingleQuoted(trimmed))",
+            timeoutSeconds: 15
+        )
+        guard result.exitCode == 0 else { return nil }
+        return parseCreationDate(fromInspectJSON: Data(result.output.utf8))
+    }
+
+    /// Extracts `configuration.creationDate` from `container image inspect`
+    /// JSON (an array of image descriptions).
+    static func parseCreationDate(fromInspectJSON data: Data) -> Date? {
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+              let configuration = array.first?["configuration"] as? [String: Any],
+              let creationDate = configuration["creationDate"] as? String else {
+            return nil
+        }
+        return ClaudeSessionFinder.parseTimestamp(creationDate)
+    }
+
+    /// The nudge shown next to Build/Update, or nil while the image is
+    /// fresh. Age-based on purpose: version comparisons against "latest"
+    /// would nudge constantly given daily Claude Code releases.
+    static func stalenessMessage(created: Date, now: Date) -> String? {
+        let days = Int(now.timeIntervalSince(created) / 86_400)
+        guard days > stalenessThresholdDays else { return nil }
+        return "Image built \(days) days ago — Update to pull the latest Claude Code."
+    }
 }
