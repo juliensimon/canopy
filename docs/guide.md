@@ -103,7 +103,7 @@ ENV PATH="/root/.local/bin:$PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 DISABLE_AUTOUPDATE
 
 Claude Code is installed with the native installer (not npm) on purpose: your host `~/.claude.json` is mounted into the container and declares a native install, so `/doctor` inside the sandbox expects a binary at `/root/.local/bin/claude`. You can also point the image field at any custom image that has claude, node, and git installed.
 
-To pull a newer Claude Code into the image later, click **Update** (next to Build Image). Claude Code is baked into an image layer with its auto-updater disabled, so the version is frozen until you rebuild — and **Update** rebuilds with `--no-cache` so the install layer actually re-fetches the latest version (a plain **Build Image** reuses the cached layer and reinstalls the same version).
+To pull a newer Claude Code into the image later, click **Update** (next to Build Image). Claude Code is baked into an image layer with its auto-updater disabled, so the version is frozen until you rebuild — and **Update** rebuilds with `--no-cache` so the install layer actually re-fetches the latest version (a plain **Build Image** reuses the cached layer and reinstalls the same version). When the image is more than 30 days old, Settings shows a reminder next to the image status ("Image built N days ago — Update to pull the latest Claude Code").
 
 What Canopy mounts into the VM (all at their host paths, so everything lines up):
 

@@ -142,10 +142,48 @@ struct ContainerImageBuilder {
         }
     }
 
-    /// Returns true if the image is present in the local store.
-    static func imageExists(_ name: String) async -> Bool {
+    /// Whether the image is present in the local store, and when it was
+    /// built. One `container image inspect` answers both — existence from
+    /// the exit code, creation date from the JSON. `created` is nil for a
+    /// missing image or JSON without a creation date.
+    static func imageStatus(_ name: String) async -> (exists: Bool, created: Date?) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return false }
-        return await SandboxChecker.succeeds("container image inspect \(SandboxBackend.shellSingleQuoted(trimmed))")
+        guard !trimmed.isEmpty else { return (false, nil) }
+        let result = await runCapturingOutput(
+            "container image inspect \(SandboxBackend.shellSingleQuoted(trimmed))",
+            timeoutSeconds: 15
+        )
+        guard result.exitCode == 0 else { return (false, nil) }
+        return (true, parseCreationDate(fromInspectJSON: Data(result.output.utf8)))
+    }
+
+    // MARK: - Image staleness nudge (#44)
+
+    /// Claude Code is baked into the image with its auto-updater disabled,
+    /// so the version is frozen at build time while the host CLI updates
+    /// daily. Past this age, Settings nudges toward the Update button.
+    static let stalenessThresholdDays = 30
+
+    /// Extracts `configuration.creationDate` from `container image inspect`
+    /// JSON (an array of image descriptions).
+    static func parseCreationDate(fromInspectJSON data: Data) -> Date? {
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+              let configuration = array.first?["configuration"] as? [String: Any],
+              let creationDate = configuration["creationDate"] as? String else {
+            return nil
+        }
+        return ClaudeSessionFinder.parseTimestamp(creationDate)
+    }
+
+    /// The nudge shown next to Build/Update, or nil while the image is
+    /// fresh. Age-based on purpose: version comparisons against "latest"
+    /// would nudge constantly given daily Claude Code releases.
+    static func stalenessMessage(created: Date, now: Date) -> String? {
+        // Threshold on the raw interval — flooring to days first would
+        // silently extend "more than 30 days" to 31.
+        let age = now.timeIntervalSince(created)
+        guard age > TimeInterval(stalenessThresholdDays) * 86_400 else { return nil }
+        let days = Int(age / 86_400)
+        return "Image built \(days) days ago — Update to pull the latest Claude Code."
     }
 }

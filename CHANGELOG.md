@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Staleness nudge for the sandbox image** (#44): when the Apple container
+  image is more than 30 days old, Settings shows "Image built N days ago —
+  Update to pull the latest Claude Code" next to the image status. Age-based
+  on purpose — Claude Code releases near-daily, so comparing against "latest"
+  would nudge constantly.
 - **Host Claude Code CLI version in Settings** (#43): shown in the Claude Code
   section. CLI behavior changes are keyed to versions (e.g. the ≥ 2.1.132
   alternate-screen renderer) and the sandbox image can run a different version
