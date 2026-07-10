@@ -44,7 +44,10 @@ enum SandboxBackend: String, Codable {
     /// Used to mount the project's MAIN repository into worktree sessions --
     /// a worktree's `.git` file points at the main repo, so without that
     /// mount every git operation inside the container fails.
-    func claudeCommand(claudeFlags: String, sbxFlags: String, containerImage: String, containerFlags: String, extraMountPaths: [String] = []) -> String {
+    /// `disableAltScreen`: containers don't inherit the host PTY environment,
+    /// so the alternate-screen opt-out (see `CanopySettings.disableAltScreen`)
+    /// must be injected as a `--env` flag here.
+    func claudeCommand(claudeFlags: String, sbxFlags: String, containerImage: String, containerFlags: String, extraMountPaths: [String] = [], disableAltScreen: Bool) -> String {
         var parts: [String]
         let flags = claudeFlags.trimmingCharacters(in: .whitespaces)
         switch self {
@@ -58,7 +61,11 @@ enum SandboxBackend: String, Codable {
             }
             parts.append("claude --")
         case .appleContainer:
-            var run = #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1 --volume "$PWD":"$PWD""#
+            var run = #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1"#
+            if disableAltScreen {
+                run += " --env CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1"
+            }
+            run += #" --volume "$PWD":"$PWD""#
             for path in extraMountPaths {
                 // Mount the path git recorded: macOS /tmp-style symlinks must
                 // resolve or the in-container path won't match .git contents.
@@ -149,6 +156,12 @@ struct CanopySettings: Codable {
     /// Whether to show macOS notifications when a session finishes.
     var notifyOnFinish: Bool
 
+    /// Keep the terminal scroll bar by opting Claude Code out of the
+    /// alternate screen buffer (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1).
+    /// Claude Code ≥ 2.1.206 renders in the alt buffer, where SwiftTerm has
+    /// no scrollback and disables its scroller (#40).
+    var disableAltScreen: Bool
+
     /// Whether to check GitHub for a newer Canopy release on launch (rate-limited to once per day).
     var checkForUpdatesOnLaunch: Bool
 
@@ -182,13 +195,14 @@ struct CanopySettings: Codable {
         ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, checkForUpdatesOnLaunch: Bool = true, sandboxBackend: SandboxBackend = .off, sbxFlags: String = "", containerImage: String = "canopy-claude", containerFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil, containerPath: String? = nil) {
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, disableAltScreen: Bool = true, checkForUpdatesOnLaunch: Bool = true, sandboxBackend: SandboxBackend = .off, sbxFlags: String = "", containerImage: String = "canopy-claude", containerFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil, containerPath: String? = nil) {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
         self.idePath = idePath
         self.terminalPath = terminalPath
         self.notifyOnFinish = notifyOnFinish
+        self.disableAltScreen = disableAltScreen
         self.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         self.sandboxBackend = sandboxBackend
         self.sbxFlags = sbxFlags
@@ -222,6 +236,7 @@ struct CanopySettings: Codable {
         idePath = try container.decodeIfPresent(String.self, forKey: .idePath) ?? "/Applications/Cursor.app"
         terminalPath = try container.decodeIfPresent(String.self, forKey: .terminalPath) ?? "/System/Applications/Utilities/Terminal.app"
         notifyOnFinish = try container.decodeIfPresent(Bool.self, forKey: .notifyOnFinish) ?? true
+        disableAltScreen = try container.decodeIfPresent(Bool.self, forKey: .disableAltScreen) ?? true
         checkForUpdatesOnLaunch = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdatesOnLaunch) ?? true
         if let raw = try container.decodeIfPresent(String.self, forKey: .sandboxBackend) {
             // Tolerant of unknown rawValues (config written by a newer
@@ -248,7 +263,8 @@ struct CanopySettings: Codable {
             claudeFlags: claudeFlags,
             sbxFlags: sbxFlags,
             containerImage: containerImage,
-            containerFlags: containerFlags
+            containerFlags: containerFlags,
+            disableAltScreen: disableAltScreen
         )
     }
 

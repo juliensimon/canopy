@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var idePath: String
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
+    @State private var disableAltScreen: Bool
     @State private var checkForUpdatesOnLaunch: Bool
     @State private var sandboxBackend: SandboxBackend
     @State private var sbxFlags: String
@@ -33,6 +34,7 @@ struct SettingsView: View {
         self._idePath = State(initialValue: settings.idePath)
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
+        self._disableAltScreen = State(initialValue: settings.disableAltScreen)
         self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
         self._sandboxBackend = State(initialValue: settings.sandboxBackend)
         self._sbxFlags = State(initialValue: settings.sbxFlags)
@@ -204,6 +206,10 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Toggle("Confirm before closing a session", isOn: $confirmBeforeClosing)
                             Text("When enabled, closing a running session will ask for confirmation.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Toggle("Show terminal scroll bar", isOn: $disableAltScreen)
+                            Text("Keeps Claude Code out of the alternate screen buffer so output flows into the terminal scrollback. Applies to new sessions.")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
@@ -381,7 +387,8 @@ struct SettingsView: View {
             claudeFlags: claudeFlags,
             sbxFlags: sbxFlags,
             containerImage: containerImage,
-            containerFlags: containerFlags
+            containerFlags: containerFlags,
+            disableAltScreen: disableAltScreen
         )
     }
 
@@ -450,6 +457,7 @@ struct SettingsView: View {
         settings.idePath = idePath
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
+        settings.disableAltScreen = disableAltScreen
         settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         settings.sandboxBackend = sandboxBackend
         settings.sbxFlags = sbxFlags
