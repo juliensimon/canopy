@@ -25,6 +25,8 @@ struct SettingsView: View {
     @State private var ghPath: String
     @State private var sbxPath: String
     @State private var containerPath: String
+    @State private var claudeVersion: String?
+    @State private var versionChecked = false
 
     init(settings: CanopySettings) {
         self._autoStartClaude = State(initialValue: settings.autoStartClaude)
@@ -63,6 +65,16 @@ struct SettingsView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Toggle("Auto-start Claude Code in new sessions", isOn: $autoStartClaude)
+
+                            HStack(spacing: 4) {
+                                Text("Host CLI version:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(claudeVersion ?? (versionChecked ? "not found" : "checking…"))
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(claudeVersion == nil ? .tertiary : .primary)
+                                    .accessibilityLabel("Claude Code CLI version")
+                            }
 
                             if autoStartClaude {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -349,6 +361,10 @@ struct SettingsView: View {
                         Label("Updates", systemImage: "arrow.down.circle")
                     }
                 }
+            }
+            .task {
+                claudeVersion = await ClaudeVersionChecker.hostVersion()
+                versionChecked = true
             }
 
             Divider()

@@ -308,6 +308,7 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | Auto-start Claude | On | Launch Claude Code when opening a session |
+| Host CLI version | *(read-only)* | The `claude --version` of the host CLI, shown in the Claude Code section — useful when diagnosing version-keyed behavior changes or drift against the sandbox image |
 | Claude flags | `--permission-mode auto` | Flags passed to the `claude` command |
 | Sandbox | Off | Backend for isolated sessions: Docker Sandbox (`sbx`, requires Docker Desktop) or Apple container (requires macOS 26+, Apple silicon) |
 | Sandbox flags | *(empty)* | Additional flags passed to `sbx run` (e.g., `--memory 8g`) |

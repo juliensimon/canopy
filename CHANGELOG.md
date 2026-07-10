@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Host Claude Code CLI version in Settings** (#43): shown in the Claude Code
+  section. CLI behavior changes are keyed to versions (e.g. the ≥ 2.1.132
+  alternate-screen renderer) and the sandbox image can run a different version
+  than the host, so drift is now diagnosable at a glance.
+
 ## [1.1.1] - 2026-06-30
 
 ### Added
