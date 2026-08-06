@@ -933,6 +933,31 @@ struct SessionInfo: Identifiable, Codable {
 
     var isWorktreeSession: Bool { worktreePath != nil }
 
+    /// A shell-safe Claude Code display-name flag for worktree sessions.
+    /// Plain sessions start with generic names that may be renamed
+    /// asynchronously, so passing those names would race the rename.
+    var claudeNameFlag: String? {
+        guard isWorktreeSession,
+              let sanitized = Self.sanitizedClaudeName(name) else { return nil }
+        return "--name \(SandboxBackend.shellSingleQuoted(sanitized))"
+    }
+
+    /// Removes terminal control characters, normalizes whitespace, and keeps
+    /// Claude's display name compact. Shell quoting happens only after this
+    /// validation step.
+    static func sanitizedClaudeName(_ name: String) -> String? {
+        let withoutControls = name.filter { character in
+            !character.unicodeScalars.contains {
+                CharacterSet.controlCharacters.contains($0)
+            }
+        }
+        let collapsed = withoutControls
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let sanitized = String(collapsed.prefix(64))
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
     /// Claude Code session ID to resume (UUID from ~/.claude/projects/).
     /// When set, Claude is started with `--resume <id>`.
     var claudeSessionId: String?
