@@ -11,19 +11,25 @@ private final class CapturingDelegate: TerminalDelegate {
     }
 }
 
-/// Pins the upstream SwiftTerm 1.13 bug behind WatchableTerminalView's
-/// hover-motion workaround (#42): SGR motion-without-button (flags 3 + the
-/// motion bit) is encoded as a button RELEASE (`CSI<32;…m`) instead of
-/// motion (`CSI<35;…M`). With any-event tracking (DECSET 1003) active,
-/// every pointer move therefore reads to a TUI app as a completed click —
-/// Claude Code's /model picker closes as the mouse hovers it.
+/// Guards the SwiftTerm behaviour that lets Canopy ship NO hover workaround.
 ///
-/// When this test FAILS after a SwiftTerm bump, upstream fixed the SGR
-/// encoding: delete WatchableTerminalView.mouseMoved and this test.
+/// SwiftTerm ≤ 1.13 encoded buttonless SGR hover motion as a button RELEASE
+/// (`CSI<32;…m`) instead of motion (`CSI<35;…M`). With any-event tracking
+/// (DECSET 1003) active — which Claude Code enables in fullscreen mode —
+/// every pointer move read to the app as a completed click, so the /model
+/// picker and permission menus closed as the mouse crossed them (#42).
+/// Canopy carried a local `mouseMoved` monitor that swallowed hover motion
+/// to compensate; upstream fixed the encoding in #520 (shipped in 1.14.0)
+/// and the workaround was removed in #48.
+///
+/// If this test FAILS after a SwiftTerm bump, upstream regressed the SGR
+/// branch of `Terminal.sendEvent`: hover will start dismissing Claude Code's
+/// fullscreen menus again and the workaround must come back. Do not "fix"
+/// the expectation to match.
 @Suite("SwiftTerm mouse encoding")
 struct SwiftTermMouseEncodingTests {
 
-    @Test func upstreamEncodesHoverMotionAsRelease() {
+    @Test func encodesButtonlessHoverAsMotionNotRelease() {
         let delegate = CapturingDelegate()
         let terminal = Terminal(delegate: delegate)
         // The application side enables any-event tracking + SGR encoding.
@@ -32,8 +38,7 @@ struct SwiftTermMouseEncodingTests {
         // encodeButton(release: true) == 3, sendMotion adds the motion bit.
         terminal.sendMotion(buttonFlags: 3, x: 4, y: 2, pixelX: 0, pixelY: 0)
         let sent = String(decoding: delegate.sent, as: UTF8.self)
-        // Buggy: release final byte 'm' and stripped button bits.
-        // Correct would be "\u{1b}[<35;5;3M".
-        #expect(sent == "\u{1b}[<32;5;3m")
+        // 35 = 3 (no button) + 32 (motion bit); 'M' = press/motion, not 'm'.
+        #expect(sent == "\u{1b}[<35;5;3M")
     }
 }

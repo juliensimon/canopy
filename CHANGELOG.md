@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped SwiftTerm to 1.15.0 and removed the hover-motion workaround. Upstream
+  fixed the SGR encoding bug (migueldeicaza/SwiftTerm#520, shipped in 1.14.0)
+  that made buttonless hover motion read as a button release, so Canopy no
+  longer swallows `mouseMoved` events while any-event tracking is active.
+  Hover highlighting in Claude Code's fullscreen menus now works, and the
+  Cmd-hover link preview is no longer suppressed. (#48)
+
 ## [1.1.2] - 2026-07-10
 
 ### Added
