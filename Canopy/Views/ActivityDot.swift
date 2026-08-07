@@ -29,6 +29,22 @@ struct ActivityDot: View {
                     .onDisappear { isSpinning = false }
             }
 
+            // Pulsing amber ring: a blocked session must be findable at a
+            // glance across eight tabs, and must not look like the blue
+            // checkmark of a finished one.
+            if activity == .needsInput {
+                Circle()
+                    .stroke(Color.orange, lineWidth: 1.5)
+                    .frame(width: 12, height: 12)
+                    .opacity(isSpinning ? 0.35 : 1.0)
+                    .animation(
+                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                        value: isSpinning
+                    )
+                    .onAppear { isSpinning = true }
+                    .onDisappear { isSpinning = false }
+            }
+
             // Glow for justFinished
             if activity == .justFinished {
                 Circle()
@@ -37,11 +53,15 @@ struct ActivityDot: View {
                     .blur(radius: 4)
             }
 
-            // Center dot or checkmark
+            // Center dot, checkmark, or raised hand
             if activity == .justFinished {
                 Image(systemName: "checkmark")
                     .font(.system(size: 6, weight: .bold))
                     .foregroundStyle(.blue)
+            } else if activity == .needsInput {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 6, weight: .bold))
+                    .foregroundStyle(.orange)
             } else {
                 Circle()
                     .fill(centerColor)
@@ -57,6 +77,7 @@ struct ActivityDot: View {
         switch activity {
         case .idle: return 0.15
         case .working: return 0.3
+        case .needsInput: return 0.0
         case .justFinished: return 0.0
         }
     }
@@ -65,6 +86,7 @@ struct ActivityDot: View {
         switch activity {
         case .idle: return .gray
         case .working: return .green
+        case .needsInput: return .orange
         case .justFinished: return .blue
         }
     }
@@ -73,6 +95,7 @@ struct ActivityDot: View {
         switch activity {
         case .idle: return 0.4
         case .working: return 1.0
+        case .needsInput: return 1.0
         case .justFinished: return 1.0
         }
     }

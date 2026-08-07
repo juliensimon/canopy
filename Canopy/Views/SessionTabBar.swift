@@ -132,9 +132,11 @@ struct SessionTab: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            // Project color dot (replaces ActivityDot in tabs)
+            // Project color dot (replaces ActivityDot in tabs). A blocked
+            // session is tinted amber rather than the project colour --
+            // otherwise it looks identical to one that is working.
             Circle()
-                .fill(projectColor)
+                .fill(activity == .needsInput ? Color.orange : projectColor)
                 .opacity(activity == .idle ? 0.5 : 1.0)
                 .frame(width: 7, height: 7)
 

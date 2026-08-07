@@ -97,4 +97,30 @@ struct NotificationServiceTests {
     // Note: we can't instantiate NotificationService.shared under `swift test` —
     // UNUserNotificationCenter.current() requires a bundled app and crashes
     // otherwise. The post methods are therefore only exercised via the real app.
+
+    /// "Session finished" for a permission prompt is actively misleading:
+    /// nothing finished, the agent is stalled and stays stalled.
+    @Test func needsInputNotificationBodyDiffersFromFinished() {
+        let id = UUID()
+        let finished = NotificationService.makeContent(title: "p", subtitle: "s", sessionId: id)
+        let needsInput = NotificationService.makeContent(
+            title: "p", subtitle: "s", sessionId: id,
+            body: NotificationService.needsInputBody
+        )
+        #expect(finished.body == NotificationService.finishedBody)
+        #expect(needsInput.body != finished.body)
+    }
+
+    /// Routing must be identical so clicking either notification selects the
+    /// same session.
+    @Test func needsInputNotificationRoutesToSession() {
+        let id = UUID()
+        let content = NotificationService.makeContent(
+            title: "p", subtitle: "s", sessionId: id,
+            body: NotificationService.needsInputBody
+        )
+        #expect(content.threadIdentifier == id.uuidString)
+        #expect(content.userInfo["sessionId"] as? String == id.uuidString)
+    }
+
 }

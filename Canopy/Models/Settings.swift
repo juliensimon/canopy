@@ -156,6 +156,11 @@ struct CanopySettings: Codable {
     /// Whether to show macOS notifications when a session finishes.
     var notifyOnFinish: Bool
 
+    /// Notify when a session becomes blocked waiting on the user. Separate
+    /// from notifyOnFinish because it is the more urgent of the two: a
+    /// finished session costs you nothing, a stalled one costs you the turn.
+    var notifyOnNeedsInput: Bool
+
     /// Keep the terminal scroll bar by opting Claude Code out of the
     /// alternate screen buffer (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1).
     /// Claude Code ≥ 2.1.206 renders in the alt buffer, where SwiftTerm has
@@ -195,13 +200,14 @@ struct CanopySettings: Codable {
         ((terminalPath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, disableAltScreen: Bool = true, checkForUpdatesOnLaunch: Bool = true, sandboxBackend: SandboxBackend = .off, sbxFlags: String = "", containerImage: String = "canopy-claude", containerFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil, containerPath: String? = nil) {
+    init(autoStartClaude: Bool = true, claudeFlags: String = "--permission-mode auto", confirmBeforeClosing: Bool = true, idePath: String = "/Applications/Cursor.app", terminalPath: String = "/System/Applications/Utilities/Terminal.app", notifyOnFinish: Bool = true, notifyOnNeedsInput: Bool = true, disableAltScreen: Bool = true, checkForUpdatesOnLaunch: Bool = true, sandboxBackend: SandboxBackend = .off, sbxFlags: String = "", containerImage: String = "canopy-claude", containerFlags: String = "", ghPath: String? = nil, sbxPath: String? = nil, containerPath: String? = nil) {
         self.autoStartClaude = autoStartClaude
         self.claudeFlags = claudeFlags
         self.confirmBeforeClosing = confirmBeforeClosing
         self.idePath = idePath
         self.terminalPath = terminalPath
         self.notifyOnFinish = notifyOnFinish
+        self.notifyOnNeedsInput = notifyOnNeedsInput
         self.disableAltScreen = disableAltScreen
         self.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         self.sandboxBackend = sandboxBackend
@@ -236,6 +242,8 @@ struct CanopySettings: Codable {
         idePath = try container.decodeIfPresent(String.self, forKey: .idePath) ?? "/Applications/Cursor.app"
         terminalPath = try container.decodeIfPresent(String.self, forKey: .terminalPath) ?? "/System/Applications/Utilities/Terminal.app"
         notifyOnFinish = try container.decodeIfPresent(Bool.self, forKey: .notifyOnFinish) ?? true
+        // Absent in settings saved before this existed -> default on.
+        notifyOnNeedsInput = try container.decodeIfPresent(Bool.self, forKey: .notifyOnNeedsInput) ?? true
         disableAltScreen = try container.decodeIfPresent(Bool.self, forKey: .disableAltScreen) ?? true
         checkForUpdatesOnLaunch = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdatesOnLaunch) ?? true
         if let raw = try container.decodeIfPresent(String.self, forKey: .sandboxBackend) {

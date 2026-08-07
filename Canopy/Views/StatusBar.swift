@@ -175,31 +175,49 @@ struct StatusBar: View {
             return (session.id, activity)
         }
         let workingCount = activities.filter { $0.1 == .working }.count
+        let needsInputCount = activities.filter { $0.1 == .needsInput }.count
         let totalCount = sessions.count
 
         HStack(spacing: 4) {
             ForEach(activities, id: \.0) { _, activity in
                 Circle()
-                    .fill(activity == .working ? Color.green : Color.gray.opacity(0.4))
+                    .fill(Self.dotColor(for: activity))
                     .frame(width: 5, height: 5)
             }
 
             if totalCount > 0 {
-                Text(summaryText(working: workingCount, total: totalCount))
+                Text(Self.summaryText(working: workingCount, needsInput: needsInputCount, total: totalCount))
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
         }
     }
 
-    private func summaryText(working: Int, total: Int) -> String {
-        if working == 0 {
-            return "\(total) session\(total == 1 ? "" : "s")"
-        } else if working == total {
-            return "\(total) working"
-        } else {
-            return "\(working) working, \(total - working) idle"
+    static func dotColor(for activity: SessionActivity) -> Color {
+        switch activity {
+        case .working: return .green
+        // A blocked session used to be counted and coloured as idle, which is
+        // exactly backwards: it is the one that needs you.
+        case .needsInput: return .orange
+        case .idle, .justFinished: return .gray.opacity(0.4)
         }
+    }
+
+    /// "N need input" leads: with eight worktrees open, which one is blocked
+    /// is the single most valuable thing the status bar can say.
+    static func summaryText(working: Int, needsInput: Int, total: Int) -> String {
+        var parts: [String] = []
+        if needsInput > 0 { parts.append("\(needsInput) need\(needsInput == 1 ? "s" : "") input") }
+        if working > 0 { parts.append("\(working) working") }
+
+        let accounted = needsInput + working
+        if parts.isEmpty {
+            return "\(total) session\(total == 1 ? "" : "s")"
+        }
+        if accounted < total {
+            parts.append("\(total - accounted) idle")
+        }
+        return parts.joined(separator: ", ")
     }
 
     // MARK: - Helpers

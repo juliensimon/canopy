@@ -191,8 +191,24 @@ final class TerminalSession: ObservableObject {
         }
 
         guard Self.containsVisibleContent(data) else { return }
-        activity = .working
+        // .needsInput is sticky against PTY output. A permission prompt keeps
+        // redrawing (spinner, caret blink), and treating those bytes as
+        // progress would stomp the state back to .working every frame. Only
+        // authoritative data may clear it.
+        if activity != .needsInput {
+            activity = .working
+        }
         restartIdleTimer()
+    }
+
+    /// Applies activity reported by Claude Code itself, which outranks the
+    /// PTY-silence heuristic. Cancels the pending timers so the two mechanisms
+    /// cannot fight: without this, the 5-second timer would still fire
+    /// `.justFinished` over an authoritative `.needsInput`.
+    func setAuthoritativeActivity(_ newActivity: SessionActivity) {
+        idleTimer?.cancel()
+        justFinishedTimer?.cancel()
+        activity = newActivity
     }
 
     /// Returns true if data contains printable characters beyond terminal control sequences.
@@ -292,12 +308,18 @@ final class TerminalSession: ObservableObject {
 enum SessionActivity: String {
     case idle
     case working
+    /// Claude is blocked waiting on the user -- a permission prompt, a
+    /// sandbox request, any open dialog. Only ever set from authoritative
+    /// data (`claude agents --json`), never guessed from the PTY, because a
+    /// waiting prompt is indistinguishable from silence at the byte level.
+    case needsInput
     case justFinished
 
     var label: String {
         switch self {
         case .idle: return "Idle"
         case .working: return "Working"
+        case .needsInput: return "Needs Input"
         case .justFinished: return "Just Finished"
         }
     }

@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var idePath: String
     @State private var terminalPath: String
     @State private var notifyOnFinish: Bool
+    @State private var notifyOnNeedsInput: Bool
     @State private var disableAltScreen: Bool
     @State private var checkForUpdatesOnLaunch: Bool
     @State private var sandboxBackend: SandboxBackend
@@ -37,6 +38,7 @@ struct SettingsView: View {
         self._idePath = State(initialValue: settings.idePath)
         self._terminalPath = State(initialValue: settings.terminalPath)
         self._notifyOnFinish = State(initialValue: settings.notifyOnFinish)
+        self._notifyOnNeedsInput = State(initialValue: settings.notifyOnNeedsInput)
         self._disableAltScreen = State(initialValue: settings.disableAltScreen)
         self._checkForUpdatesOnLaunch = State(initialValue: settings.checkForUpdatesOnLaunch)
         self._sandboxBackend = State(initialValue: settings.sandboxBackend)
@@ -246,6 +248,10 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Toggle("Notify when sessions finish", isOn: $notifyOnFinish)
                             Text("Show a macOS notification when a session transitions from working to idle while Canopy is in the background.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Toggle("Notify when sessions need input", isOn: $notifyOnNeedsInput)
+                            Text("Show a notification when Claude blocks on a permission prompt. Also fires while Canopy is in front, since the blocked session is usually not the tab you are looking at. Requires the unsandboxed backend.")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
@@ -489,6 +495,7 @@ struct SettingsView: View {
         settings.idePath = idePath
         settings.terminalPath = terminalPath
         settings.notifyOnFinish = notifyOnFinish
+        settings.notifyOnNeedsInput = notifyOnNeedsInput
         settings.disableAltScreen = disableAltScreen
         settings.checkForUpdatesOnLaunch = checkForUpdatesOnLaunch
         settings.sandboxBackend = sandboxBackend
