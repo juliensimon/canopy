@@ -936,8 +936,12 @@ struct SessionInfo: Identifiable, Codable {
     /// A shell-safe Claude Code display-name flag for worktree sessions.
     /// Plain sessions start with generic names that may be renamed
     /// asynchronously, so passing those names would race the rename.
+    /// A branch is required too: `openWorktreeSession` names detached-HEAD
+    /// worktrees the literal "session", and labelling every one of them
+    /// identically in the /resume picker is worse than letting Claude
+    /// generate its own name.
     var claudeNameFlag: String? {
-        guard isWorktreeSession,
+        guard isWorktreeSession, branchName != nil,
               let sanitized = Self.sanitizedClaudeName(name) else { return nil }
         return "--name \(SandboxBackend.shellSingleQuoted(sanitized))"
     }
@@ -946,12 +950,16 @@ struct SessionInfo: Identifiable, Codable {
     /// Claude's display name compact. Shell quoting happens only after this
     /// validation step.
     static func sanitizedClaudeName(_ name: String) -> String? {
-        let withoutControls = name.filter { character in
-            !character.unicodeScalars.contains {
-                CharacterSet.controlCharacters.contains($0)
-            }
+        // Whitespace controls (\n, \t, \r) are separators: map them to a space
+        // so the collapse below keeps word boundaries. Dropping them outright
+        // welds words together ("line\nbreak" -> "linebreak"). Other controls
+        // carry no width and are removed.
+        let scalars = name.unicodeScalars.compactMap { scalar -> Unicode.Scalar? in
+            if CharacterSet.whitespacesAndNewlines.contains(scalar) { return " " }
+            if CharacterSet.controlCharacters.contains(scalar) { return nil }
+            return scalar
         }
-        let collapsed = withoutControls
+        let collapsed = String(String.UnicodeScalarView(scalars))
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
         let sanitized = String(collapsed.prefix(64))
