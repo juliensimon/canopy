@@ -87,7 +87,24 @@ enum SandboxBackend: String, Codable {
             if !sbx.isEmpty {
                 parts.append(sbx)
             }
-            parts.append("claude --")
+            parts.append("claude")
+            // Extra workspaces are POSITIONAL arguments to `sbx run`
+            // (`sbx run [AGENT] [PATH...]`), and naming any of them means
+            // naming the cwd as "." too. Without this the worktree's `.git`
+            // pointer dangles inside the sandbox and every git command fails
+            // with "not a git repository" (reproduced on sbx 0.38.0).
+            //
+            // Writable, NOT ":ro": a worktree commit writes objects into the
+            // main repo's .git, so a read-only mount would break committing.
+            let workspaces = extraMountPaths
+                .map { Self.realResolvedPath($0) }
+                .filter { !$0.isEmpty }
+            if !workspaces.isEmpty {
+                parts.append(".")
+                parts.append(contentsOf: workspaces.map { Self.shellSingleQuoted($0) })
+            }
+            // Everything after this reaches claude, not sbx.
+            parts.append("--")
         case .appleContainer:
             var run = #"mkdir -p "$HOME/.claude"; [ -f "$HOME/.claude.json" ] || printf '{}' > "$HOME/.claude.json"; [ -f "$HOME/.gitconfig" ] || touch "$HOME/.gitconfig"; container run -it --rm --env TERM=xterm-256color --env COLORTERM=truecolor --env LANG=C.UTF-8 --env LC_ALL=C.UTF-8 --env DISABLE_AUTOUPDATER=1"#
             if disableAltScreen {

@@ -521,4 +521,93 @@ struct SettingsTests {
         #expect(CanopySettings().sandboxBackend == .off)
     }
 
+
+    // MARK: - Sandbox — Docker sbx extra workspaces
+
+    /// Reproduced against sbx 0.38.0 before writing this: with only the
+    /// worktree as workspace, the main repo's .git is absent inside the
+    /// sandbox, so the worktree's `.git` pointer dangles and EVERY git command
+    /// fails --
+    ///
+    ///   fatal: not a git repository: .../repo/.git/worktrees/wt   (exit 128)
+    ///
+    /// Canopy computed and passed the main-repo path for every backend, but
+    /// the .dockerSbx branch silently dropped it. `sbx run` takes extra
+    /// workspaces as POSITIONAL arguments, and naming any of them means
+    /// naming the cwd too.
+    @Test func dockerSbxMountsMainRepositoryAsExtraWorkspace() {
+        let command = SandboxBackend.dockerSbx.claudeCommand(
+            claudeFlags: "--permission-mode auto", sbxFlags: "",
+            containerImage: "", containerFlags: "",
+            extraMountPaths: ["/Users/x/dev/repo"], disableAltScreen: false
+        )
+        #expect(command == "sbx run claude . '/Users/x/dev/repo' -- --permission-mode auto")
+    }
+
+    /// Writable, not `:ro`: a worktree commit writes objects into the MAIN
+    /// repo's .git, so a read-only mount would break committing rather than
+    /// fix anything.
+    @Test func dockerSbxExtraWorkspaceIsNotReadOnly() {
+        let command = SandboxBackend.dockerSbx.claudeCommand(
+            claudeFlags: "", sbxFlags: "", containerImage: "", containerFlags: "",
+            extraMountPaths: ["/Users/x/dev/repo"], disableAltScreen: false
+        )
+        #expect(!command.contains(":ro"))
+    }
+
+    /// Sessions with nothing extra to mount must emit exactly what they did
+    /// before, so this cannot regress the common case.
+    @Test func dockerSbxWithoutExtraMountsIsUnchanged() {
+        let command = SandboxBackend.dockerSbx.claudeCommand(
+            claudeFlags: "--permission-mode auto", sbxFlags: "",
+            containerImage: "", containerFlags: "", disableAltScreen: false
+        )
+        #expect(command == "sbx run claude -- --permission-mode auto")
+    }
+
+    /// The paths are `sbx` arguments, so they must land BEFORE the `--`
+    /// terminator. After it they would be handed to claude as flags.
+    @Test func dockerSbxExtraWorkspacesPrecedeTheTerminator() throws {
+        let command = SandboxBackend.dockerSbx.claudeCommand(
+            claudeFlags: "--verbose", sbxFlags: "", containerImage: "",
+            containerFlags: "", extraMountPaths: ["/Users/x/dev/repo"],
+            disableAltScreen: false
+        )
+        let path = try #require(command.range(of: "/Users/x/dev/repo"))
+        let terminator = try #require(command.range(of: " -- "))
+        #expect(path.upperBound < terminator.lowerBound)
+    }
+
+    /// The repo path is user-supplied and reaches a shell command. Replay the
+    /// real host-shell parse rather than asserting on escaped text: the token
+    /// must come back as exactly one argv element, spaces and quote included.
+    @Test func dockerSbxExtraWorkspaceIsOneShellToken() throws {
+        let hostile = "/Users/x/o'brien dev"
+        let command = SandboxBackend.dockerSbx.claudeCommand(
+            claudeFlags: "", sbxFlags: "", containerImage: "", containerFlags: "",
+            extraMountPaths: [hostile], disableAltScreen: false
+        )
+        // The workspace token sits between "claude . " and " --".
+        let start = try #require(command.range(of: "claude . ")).upperBound
+        let end = try #require(command.range(of: " --", options: .backwards)).lowerBound
+        let token = String(command[start..<end])
+
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "printf %s \(token)"]
+        process.standardOutput = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        #expect(String(decoding: data, as: UTF8.self) == hostile)
+    }
+
+    /// The mount fixes git, not session persistence: JSONLs still live inside
+    /// the ephemeral microVM, so --resume must stay off for this backend.
+    @Test func dockerSbxStillDoesNotSupportResume() {
+        #expect(!SandboxBackend.dockerSbx.supportsResume)
+    }
+
 }

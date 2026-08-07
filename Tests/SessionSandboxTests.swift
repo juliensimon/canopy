@@ -262,6 +262,41 @@ struct SessionSandboxTests {
         #expect(command.contains(#"exec claude --model fable "$@""#))
     }
 
+    // MARK: - Worktree + Docker sbx
+
+    /// AppState computed and passed the main-repo path for every backend, but
+    /// the .dockerSbx branch dropped it -- so worktree sessions on that
+    /// backend had a dangling `.git` pointer and every git command inside the
+    /// sandbox failed, with nothing surfaced to the user. Reproduced against
+    /// sbx 0.38.0 before this test was written.
+    @Test func worktreeSessionOnDockerSbxMountsMainRepository() {
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/canopy-worktrees/repo/feat",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/canopy-worktrees/repo/feat",
+            sandboxBackend: .dockerSbx
+        )
+
+        let command = state.claudeCommand(for: session)
+        #expect(command.contains("claude . '/Users/x/dev/repo' --"))
+    }
+
+    @Test func nonWorktreeSessionOnDockerSbxGetsNoExtraWorkspace() {
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/repo",
+            projectId: project.id,
+            sandboxBackend: .dockerSbx
+        )
+
+        #expect(!state.claudeCommand(for: session).contains("claude . "))
+    }
+
     // MARK: - Main-repo tool access (--add-dir)
 
     /// Mounting the main repo fixes the *filesystem*; Claude Code's own tool
