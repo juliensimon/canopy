@@ -21,7 +21,23 @@ enum SandboxBackend: String, Codable {
     case claudeNative
 
     /// The `--settings` payload enabling Claude Code's own Bash sandbox.
-    private var sandboxSettingsJSON: String { #"{"sandbox":{"enabled":true}}"# }
+    ///
+    /// `allowUnsandboxedCommands` is explicitly false because the CLI defaults
+    /// it to TRUE: with `enabled` alone, the model may retry any blocked
+    /// command via `dangerouslyDisableSandbox`, and Canopy's default
+    /// `--permission-mode auto` auto-approves that retry. Observed end to end:
+    /// a `touch ~/probe.txt` denied by the sandbox succeeded immediately on
+    /// the unsandboxed retry, so the picker was promising isolation it did not
+    /// deliver.
+    ///
+    /// This is a different thing from inventing an allowlist. `allowedDomains`
+    /// and `excludedCommands` are user preferences and are deliberately left
+    /// to merge from the user's own settings; this key is the difference
+    /// between "sandboxed" and "sandboxed unless the agent asks nicely", and
+    /// the user picked a sandbox.
+    private var sandboxSettingsJSON: String {
+        #"{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false}}"#
+    }
 
     /// Whether `claude` runs as a plain host process, so the host's
     /// `claude agents --json` registry actually describes it.

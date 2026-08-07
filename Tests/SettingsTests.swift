@@ -443,7 +443,7 @@ struct SettingsTests {
             claudeFlags: "--permission-mode auto", sbxFlags: "",
             containerImage: "", containerFlags: "", disableAltScreen: false
         )
-        #expect(command == #"claude --settings '{"sandbox":{"enabled":true}}' --permission-mode auto"#)
+        #expect(command == #"claude --settings '{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false}}' --permission-mode auto"#)
     }
 
     /// Malformed JSON makes claude exit at startup with an error the user
@@ -619,6 +619,36 @@ struct SettingsTests {
         #expect(SandboxBackend.claudeNative.reportsToHostAgentRegistry)
         #expect(!SandboxBackend.appleContainer.reportsToHostAgentRegistry)
         #expect(!SandboxBackend.dockerSbx.reportsToHostAgentRegistry)
+    }
+
+
+    /// The escape hatch must be shut, or the picker lies.
+    ///
+    /// `allowUnsandboxedCommands` defaults to TRUE in the CLI
+    /// (`allowUnsandboxedCommands ?? true`), so with only `enabled: true` the
+    /// model may retry any blocked command via `dangerouslyDisableSandbox` --
+    /// and Canopy's default `--permission-mode auto` auto-approves the retry.
+    /// Observed end to end: a `touch ~/probe.txt` denied by the sandbox
+    /// succeeded on the immediate unsandboxed retry.
+    ///
+    /// This is not Canopy overriding a user preference the way an invented
+    /// allowlist would be. It is the difference between "sandboxed" and
+    /// "sandboxed unless the agent asks", and the user picked a sandbox.
+    @Test func claudeNativeForbidsUnsandboxedRetries() throws {
+        let command = SandboxBackend.claudeNative.claudeCommand(
+            claudeFlags: "", sbxFlags: "", containerImage: "",
+            containerFlags: "", disableAltScreen: false
+        )
+        let start = try #require(command.range(of: "'"))
+        let end = try #require(command.range(of: "'", options: .backwards))
+        let blob = String(command[start.upperBound..<end.lowerBound])
+
+        let parsed = try #require(
+            try JSONSerialization.jsonObject(with: Data(blob.utf8)) as? [String: Any]
+        )
+        let sandbox = try #require(parsed["sandbox"] as? [String: Any])
+        #expect(sandbox["enabled"] as? Bool == true)
+        #expect(sandbox["allowUnsandboxedCommands"] as? Bool == false)
     }
 
 }
