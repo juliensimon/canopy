@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00B294BB543063C18696691C /* ClaudeLaunchCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C0B65E7E197C57411BA159 /* ClaudeLaunchCommandTests.swift */; };
 		05AF5195350C4C67FF9FA5BC /* PromptLibrarySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497546CA25721070281597DB /* PromptLibrarySettingsView.swift */; };
 		06DB2B91D0DFC978E1F49EF1 /* CreateWorktreeTrimTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949F9A98DDF728757AFD830A /* CreateWorktreeTrimTests.swift */; };
 		07478539E82EBBAE81225E0D /* ProjectColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DF06DA3F5EC110B202E67A /* ProjectColor.swift */; };
@@ -147,6 +148,7 @@
 		449CEEDE520CA879418BFDB0 /* ActivityData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityData.swift; sourceTree = "<group>"; };
 		46D422E570979B7E618CD81A /* ProjectResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectResolutionTests.swift; sourceTree = "<group>"; };
 		497546CA25721070281597DB /* PromptLibrarySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptLibrarySettingsView.swift; sourceTree = "<group>"; };
+		49C0B65E7E197C57411BA159 /* ClaudeLaunchCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeLaunchCommandTests.swift; sourceTree = "<group>"; };
 		4A4D3C785D57591E26D53FD6 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		4B876C5FDA76283957B8E9C5 /* SessionCostServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCostServiceTests.swift; sourceTree = "<group>"; };
 		4C85444255E7242BE9164BC3 /* PromptLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptLibrary.swift; sourceTree = "<group>"; };
@@ -333,6 +335,7 @@
 				CACD793440D91EF9CE9D003D /* AppStateSelectionTests.swift */,
 				8BB4608E6506BCC0DD38B91D /* AppStateTests.swift */,
 				2A50AE6A4115D9E40781BA5E /* BundleScriptTests.swift */,
+				49C0B65E7E197C57411BA159 /* ClaudeLaunchCommandTests.swift */,
 				BC1CBBF86B23C79D577B9030 /* ClaudeSessionFinderTests.swift */,
 				D2C77430DB7DAF98B328FF59 /* ClaudeTranscriptLoaderTests.swift */,
 				35FE3AB3398096E42931EF0C /* ClaudeVersionCheckerTests.swift */,
@@ -549,6 +552,7 @@
 				E9221CF570EFEDB632B60747 /* AppStateSelectionTests.swift in Sources */,
 				C03B5B8ACB810576799B8653 /* AppStateTests.swift in Sources */,
 				C4AE8BB890EB915996AB56DD /* BundleScriptTests.swift in Sources */,
+				00B294BB543063C18696691C /* ClaudeLaunchCommandTests.swift in Sources */,
 				248F3097C1BB13616D1D98BC /* ClaudeSessionFinderTests.swift in Sources */,
 				5D863827233D39FB0F204643 /* ClaudeTranscriptLoaderTests.swift in Sources */,
 				C3E5AE9F5279191992C52ECD /* ClaudeVersionCheckerTests.swift in Sources */,

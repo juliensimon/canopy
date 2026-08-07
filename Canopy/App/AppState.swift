@@ -558,6 +558,64 @@ final class AppState: ObservableObject {
         )
     }
 
+    /// The full command used to launch `claude` for a session, plus the
+    /// Claude session ID this call newly assigned (nil when none was).
+    ///
+    /// This lived inside a SwiftUI `.onAppear`, where it could not be tested.
+    /// It also carries three rules that are easy to get wrong:
+    ///
+    /// 1. `--session-id` and `--resume` are mutually exclusive absent
+    ///    `--fork-session`, so exactly one is emitted.
+    /// 2. Reusing a session ID in the same project directory aborts the CLI
+    ///    ("Session ID <id> is already in use"). An app restart re-runs this
+    ///    path with the same persisted `SessionInfo.id`, so once an id is
+    ///    known the flags must swap to `--resume`.
+    /// 3. `claudeSessionId` is decoded straight from sessions.json and gets
+    ///    interpolated into a shell command. The discovery path validates it
+    ///    as a UUID; this one must too, or a junk value reaches the shell.
+    ///
+    /// The id is seeded from `SessionInfo.id` -- already a stable persisted
+    /// per-tab UUID -- so there is no new Codable field and no migration.
+    /// Uniqueness is scoped per project directory, so reuse across worktrees
+    /// is a non-issue.
+    func claudeLaunchCommand(for session: SessionInfo) -> (command: String, assignedId: String?) {
+        var command = claudeCommand(for: session)
+        let backend = sandboxBackend(for: session)
+        var assignedId: String?
+
+        // Skipped for sbx -- its session files live inside the ephemeral
+        // microVM, so neither resuming nor assigning means anything there.
+        // The Apple container backend mounts ~/.claude from the host.
+        if backend.supportsResume {
+            if let existing = session.claudeSessionId, UUID(uuidString: existing) != nil {
+                command += " --resume \(existing)"
+            } else {
+                if let junk = session.claudeSessionId {
+                    NSLog("Canopy: discarding non-UUID claudeSessionId %@ for session %@",
+                          junk, session.id.uuidString)
+                }
+                let fresh = session.id.uuidString
+                command += " --session-id \(fresh)"
+                assignedId = fresh
+            }
+        }
+
+        if let nameFlag = session.claudeNameFlag {
+            command += " \(nameFlag)"
+        }
+        return (command, assignedId)
+    }
+
+    /// Records an assigned Claude session ID. Must be called before the
+    /// command is actually sent: a crash in between would otherwise leave a
+    /// session file on disk that the next launch collides with.
+    func assignClaudeSessionId(_ claudeSessionId: String, to sessionId: UUID) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionId }),
+              sessions[index].claudeSessionId != claudeSessionId else { return }
+        sessions[index].claudeSessionId = claudeSessionId
+        saveSessions()
+    }
+
     func createWorktreeSession(
         project: Project,
         branchName: String,
