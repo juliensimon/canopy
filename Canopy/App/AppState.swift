@@ -530,8 +530,20 @@ final class AppState: ObservableObject {
                != SandboxBackend.realResolvedPath(session.workingDirectory) {
             extraMounts.append(repoPath)
         }
+        // Mounting the main repo fixes the filesystem, but Claude Code's own
+        // tool boundary is cwd-scoped independently of what is mounted:
+        // verified on CLI 2.1.224, reading a main-repo file from a worktree
+        // session under `--permission-mode manual` is refused outright.
+        // --add-dir grants it, using the path we already resolved above.
+        var resolvedFlags = project?.claudeFlags ?? settings.claudeFlags
+        for path in extraMounts {
+            let resolved = SandboxBackend.realResolvedPath(path)
+            if !resolved.isEmpty {
+                resolvedFlags += " --add-dir \(SandboxBackend.shellSingleQuoted(resolved))"
+            }
+        }
         return sandboxBackend(for: session).claudeCommand(
-            claudeFlags: project?.claudeFlags ?? settings.claudeFlags,
+            claudeFlags: resolvedFlags,
             sbxFlags: project?.sbxFlags ?? settings.sbxFlags,
             containerImage: project?.containerImage ?? settings.containerImage,
             containerFlags: project?.containerFlags ?? settings.containerFlags,
@@ -855,8 +867,12 @@ final class AppState: ObservableObject {
             NSLog("Canopy: sessions.json failed to decode; previous content kept at %@", backupPath)
             return
         }
-        // Refresh Claude session IDs from disk
-        for i in decoded.indices {
+        // Fill in missing Claude session IDs from disk -- never overwrite one
+        // we already have. An established id is user data: the newest-mtime
+        // heuristic cannot tell which conversation belongs to which tab, so an
+        // unrelated `claude` run in the same directory would otherwise hijack
+        // the tab and get `--resume`d into on the next launch.
+        for i in decoded.indices where decoded[i].claudeSessionId == nil {
             decoded[i].claudeSessionId = ClaudeSessionFinder.findLatestSessionId(
                 for: decoded[i].workingDirectory
             )

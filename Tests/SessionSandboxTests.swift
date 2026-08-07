@@ -123,6 +123,100 @@ struct SessionSandboxTests {
         #expect(!state.claudeCommand(for: session).contains(#"--volume "/Users/x/dev/repo""#))
     }
 
+    // MARK: - Main-repo tool access (--add-dir)
+
+    /// Mounting the main repo fixes the *filesystem*; Claude Code's own tool
+    /// boundary is cwd-scoped independently of what is mounted. Verified on
+    /// CLI 2.1.224: from a worktree, reading a file in the main repo under
+    /// `--permission-mode manual` is refused ("outside the paths this session
+    /// is permitted to read") and `--add-dir <repo>` grants it. Canopy's
+    /// `auto` default masks this, but #55 makes per-session `manual` a
+    /// first-class choice, so the flag must be there.
+    @Test func worktreeSessionAllowsToolAccessToMainRepository() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/canopy-worktrees/repo/feat",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/canopy-worktrees/repo/feat"
+        )
+
+        #expect(state.claudeCommand(for: session).contains("--add-dir '/Users/x/dev/repo'"))
+    }
+
+    @Test func nonWorktreeSessionGetsNoAddDir() {
+        // A main-repo session already has the repo as its cwd.
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/repo",
+            projectId: project.id
+        )
+
+        #expect(!state.claudeCommand(for: session).contains("--add-dir"))
+    }
+
+    /// The repo path is user-supplied and reaches the security-load-bearing
+    /// escape at Settings.swift:97. Replay the real host-shell parse: the
+    /// emitted token must come back as exactly one argv element.
+    @Test func addDirPathIsOneShellTokenEvenWithMetacharacters() throws {
+        let hostile = "/Users/x/dev/o'brien $(whoami) `id`;a|b&c"
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        let project = Project(name: "p", repositoryPath: hostile)
+        state.projects = [project]
+        state.settings.claudeFlags = ""
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/wt",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/wt"
+        )
+
+        let command = state.claudeCommand(for: session)
+        let token = try #require(command.range(of: "--add-dir ")).upperBound
+        #expect(try shellOutput("printf %s \(command[token...])") == hostile)
+    }
+
+    /// For .appleContainer the flags land INSIDE the `sh -c '...'` wrapper, so
+    /// the path is quoted once by shellSingleQuoted and escaped again at
+    /// Settings.swift:97. The wrapper must not terminate early.
+    @Test func addDirSurvivesContainerWrapperEscaping() throws {
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/o'brien")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/wt",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/wt",
+            sandboxBackend: .appleContainer
+        )
+
+        let command = state.claudeCommand(for: session)
+        // Every quote in the flags region is POSIX-escaped, so the wrapper's
+        // own closing quote is still the last one.
+        #expect(command.contains(#"'\''"#))
+        #expect(command.hasSuffix(#""$@"' claude"#))
+    }
+
+    private func shellOutput(_ command: String) throws -> String {
+        let process = Process()
+        let out = Pipe()
+        let err = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.standardOutput = out
+        process.standardError = err
+        try process.run()
+        process.waitUntilExit()
+        let errText = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        #expect(process.terminationStatus == 0, "Shell failed: \(errText)")
+        return String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    }
+
     @Test func openWorktreeSessionStoresOverride() {
         // Reopening a worktree must be able to carry a sandbox override,
         // like createWorktreeSession -- otherwise the override is silently
