@@ -198,18 +198,17 @@ struct SessionView: View {
                         }
                         return
                     }
-                    var command = appState.claudeCommand(for: session)
-                    // Resume a specific Claude session if we have its ID.
-                    // Skipped for sbx -- its session files live inside the
-                    // ephemeral microVM. The Apple container backend mounts
-                    // ~/.claude from the host, so resume works there.
-                    if backend.supportsResume, let sessionId = session.claudeSessionId {
-                        command += " --resume \(sessionId)"
+                    // Flag selection (assign vs resume, and the validation
+                    // behind it) lives in AppState so it can be tested.
+                    let launch = appState.claudeLaunchCommand(for: session)
+                    // Persist BEFORE the command is sent below: a crash in
+                    // between must not leave claude holding a session ID that
+                    // Canopy has forgotten, which the next launch would then
+                    // collide with ("Session ID ... is already in use").
+                    if let assignedId = launch.assignedId {
+                        appState.assignClaudeSessionId(assignedId, to: session.id)
                     }
-                    if let nameFlag = session.claudeNameFlag {
-                        command += " \(nameFlag)"
-                    }
-                    let launchCommand = command
+                    let launchCommand = launch.command
                     // Preflight the sandbox before launching. SandboxChecker.check
                     // is nonisolated, so awaiting it from this MainActor task runs
                     // its blocking subprocess off the main actor while the UI stays
