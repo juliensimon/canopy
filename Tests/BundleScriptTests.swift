@@ -14,9 +14,16 @@ import Foundation
 @Suite("bundle.sh BuildInfo handling")
 struct BundleScriptTests {
 
+    /// Derived from this file's location, not the process working directory.
+    /// `swift test` happens to run from the package root, but the Xcode test
+    /// target runs from DerivedData, where `scripts/bundle.sh` and
+    /// `BuildInfo.swift` would not be found and every test here would fail
+    /// for a reason unrelated to what it checks.
     private var repoRoot: String {
-        // Tests run from the package root under `swift test`.
-        FileManager.default.currentDirectoryPath
+        URL(fileURLWithPath: #filePath)   // <repo>/Tests/BundleScriptTests.swift
+            .deletingLastPathComponent()  // <repo>/Tests
+            .deletingLastPathComponent()  // <repo>
+            .path
     }
 
     @Test func dryRunLeavesBuildInfoUnchangedInGit() throws {
