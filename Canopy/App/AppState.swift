@@ -483,7 +483,7 @@ final class AppState: ObservableObject {
     /// Creates a session in an existing worktree directory (no git worktree
     /// add), resuming the most recent Claude session found for it.
     /// `sandboxBackend` nil = inherit project/global, like everywhere else.
-    func openWorktreeSession(project: Project, worktreePath: String, branch: String?, sandboxBackend: SandboxBackend? = nil) {
+    func openWorktreeSession(project: Project, worktreePath: String, branch: String?, claudeFlags: String? = nil, sandboxBackend: SandboxBackend? = nil) {
         let sessionId = ClaudeSessionFinder.findLatestSessionId(for: worktreePath)
         let session = SessionInfo(
             name: branch ?? "session",
@@ -492,6 +492,7 @@ final class AppState: ObservableObject {
             branchName: branch,
             worktreePath: worktreePath,
             claudeSessionId: sessionId,
+            claudeFlags: claudeFlags,
             sandboxBackend: sandboxBackend
         )
         sessions.append(session)
@@ -535,7 +536,10 @@ final class AppState: ObservableObject {
         // verified on CLI 2.1.224, reading a main-repo file from a worktree
         // session under `--permission-mode manual` is refused outright.
         // --add-dir grants it, using the path we already resolved above.
-        var resolvedFlags = project?.claudeFlags ?? settings.claudeFlags
+        // session → project → global, mirroring sandboxBackend(for:) above.
+        // `??` and not a blank check: a session that explicitly sets "" means
+        // "no flags", which is different from inheriting.
+        var resolvedFlags = session.claudeFlags ?? project?.claudeFlags ?? settings.claudeFlags
         for path in extraMounts {
             let resolved = SandboxBackend.realResolvedPath(path)
             if !resolved.isEmpty {
@@ -556,6 +560,7 @@ final class AppState: ObservableObject {
         project: Project,
         branchName: String,
         baseBranch: String,
+        claudeFlags: String? = nil,
         sandboxBackend: SandboxBackend? = nil
     ) async throws {
         worktreeSetupInProgress = true
@@ -618,6 +623,7 @@ final class AppState: ObservableObject {
                 projectId: project.id,
                 branchName: branchName,
                 worktreePath: worktreePath,
+                claudeFlags: claudeFlags,
                 sandboxBackend: sandboxBackend
             )
             withAnimation(.easeOut(duration: 0.25)) {
@@ -990,6 +996,14 @@ struct SessionInfo: Identifiable, Codable {
     /// nil = inherit the project/global setting.
     var sandboxBackend: SandboxBackend?
 
+    /// Per-session `claude` flags chosen at creation time, mirroring the
+    /// sandbox override's session → project → global chain.
+    ///
+    /// nil (inherit) and "" (explicitly no flags) are DIFFERENT: collapsing
+    /// them with `?? ""` reintroduces the bug ClaudeOverrideDefaults exists to
+    /// prevent, where a seeded value silently becomes an override.
+    var claudeFlags: String?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -998,6 +1012,7 @@ struct SessionInfo: Identifiable, Codable {
         branchName: String? = nil,
         worktreePath: String? = nil,
         claudeSessionId: String? = nil,
+        claudeFlags: String? = nil,
         sandboxBackend: SandboxBackend? = nil,
         createdAt: Date = Date()
     ) {
@@ -1008,6 +1023,7 @@ struct SessionInfo: Identifiable, Codable {
         self.branchName = branchName
         self.worktreePath = worktreePath
         self.claudeSessionId = claudeSessionId
+        self.claudeFlags = claudeFlags
         self.sandboxBackend = sandboxBackend
         self.createdAt = createdAt
     }

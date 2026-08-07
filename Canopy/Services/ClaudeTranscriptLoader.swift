@@ -20,11 +20,41 @@ struct TranscriptMessage: Equatable, Identifiable {
     let id: String
     let role: Role
     let blocks: [Block]
+    /// Model that produced this turn, e.g. `claude-opus-5`. Assistant-only,
+    /// and nil for Claude Code's own `<synthetic>` error/interrupt entries.
+    let model: String?
+    /// Reasoning effort for this turn, e.g. `xhigh`. Assistant-only, and
+    /// legitimately absent both on CLIs older than ~2.1.212 and for models
+    /// with no effort concept (sonnet-4-5, haiku-4-5, opus-4-8), so
+    /// half-populated attribution is a valid state, not a parse failure.
+    let effort: String?
 
-    init(id: String = UUID().uuidString, role: Role, blocks: [Block]) {
+    init(
+        id: String = UUID().uuidString,
+        role: Role,
+        blocks: [Block],
+        model: String? = nil,
+        effort: String? = nil
+    ) {
         self.id = id
         self.role = role
         self.blocks = blocks
+        self.model = model
+        self.effort = effort
+    }
+
+    /// Compact attribution for display, e.g. `opus-5 · xhigh`. Nil when
+    /// neither field is present, so old transcripts render exactly as before.
+    var attribution: String? {
+        let shortModel = model.map {
+            $0.hasPrefix("claude-") ? String($0.dropFirst("claude-".count)) : $0
+        }
+        switch (shortModel, effort) {
+        case let (model?, effort?): return "\(model) · \(effort)"
+        case let (model?, nil): return model
+        case let (nil, effort?): return effort
+        case (nil, nil): return nil
+        }
     }
 }
 
@@ -69,12 +99,21 @@ enum ClaudeTranscriptLoader {
     static func plainText(messages: [TranscriptMessage]) -> String {
         var lines: [String] = []
         var currentRole: TranscriptMessage.Role?
+        var currentAttribution: String?
         for message in messages {
-            if message.role != currentRole {
+            // A new header on attribution change as well as role change: the
+            // model can switch mid-transcript via /model, and a transcript
+            // pasted into an issue must say which model produced which turn.
+            if message.role != currentRole || message.attribution != currentAttribution {
                 if !lines.isEmpty { lines.append("") }
-                lines.append("## " + (message.role == .user ? "You" : "Claude"))
+                var header = "## " + (message.role == .user ? "You" : "Claude")
+                if let attribution = message.attribution {
+                    header += " — \(attribution)"
+                }
+                lines.append(header)
                 lines.append("")
                 currentRole = message.role
+                currentAttribution = message.attribution
             }
             for block in message.blocks {
                 switch block {
@@ -124,7 +163,19 @@ enum ClaudeTranscriptLoader {
         } else {
             id = "synth-" + fnv1a(line)
         }
-        return TranscriptMessage(id: id, role: role, blocks: blocks)
+        // `effort` is TOP-LEVEL on assistant entries -- a sibling of type/uuid,
+        // NOT inside `message` (verified: 4,170 real entries carry it at the
+        // top level, zero carry `message.effort`). `model` is inside `message`.
+        // Attribution is assistant-only; a user turn has no model.
+        var model: String?
+        var effort: String?
+        if role == .assistant {
+            // Claude Code's own error/interrupt entries claim `<synthetic>`.
+            let raw = message["model"] as? String
+            model = raw == "<synthetic>" ? nil : raw
+            effort = obj["effort"] as? String
+        }
+        return TranscriptMessage(id: id, role: role, blocks: blocks, model: model, effort: effort)
     }
 
     /// Deterministic 64-bit FNV-1a hash for synthetic ids. Stable across
