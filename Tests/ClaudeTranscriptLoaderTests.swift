@@ -52,6 +52,129 @@ struct ClaudeTranscriptLoaderTests {
         return String(arr.dropFirst().dropLast())
     }
 
+    // MARK: - Model & effort attribution
+
+    /// `effort` is a TOP-LEVEL field on assistant entries -- a sibling of
+    /// `type`/`uuid`/`version` -- while `model` lives inside `message`.
+    /// Surveyed across 60 real transcripts: 4,170 assistant entries carry a
+    /// top-level `effort`, zero carry `message.effort`. Reading it from the
+    /// wrong nesting level is the one thing easy to get wrong here, so assert
+    /// the level, not just the value.
+    @Test func parsesEffortFromTopLevelAssistantField() throws {
+        let path = tempJSONL([
+            #"{"type":"assistant","effort":"xhigh","message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"hi"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let messages = try ClaudeTranscriptLoader.load(path: path)
+        #expect(messages.first?.effort == "xhigh")
+        #expect(messages.first?.model == "claude-opus-5")
+    }
+
+    /// A CLI older than ~2.1.212 emits no `effort` at all. Old transcripts
+    /// must render exactly as they did before this feature existed.
+    @Test func effortAbsentOnOlderTranscriptsYieldsNil() throws {
+        let path = tempJSONL([
+            #"{"type":"assistant","version":"2.1.196","message":{"role":"assistant","model":"claude-fable-5","content":[{"type":"text","text":"hi"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let messages = try ClaudeTranscriptLoader.load(path: path)
+        #expect(messages.first?.effort == nil)
+        #expect(messages.first?.model == "claude-fable-5")
+    }
+
+    /// Some models have no effort concept even on a current CLI (sonnet-4-5,
+    /// haiku-4-5, opus-4-8 all observed this way). Half-populated is a VALID
+    /// state, which is why this is per-message and never a session header.
+    @Test func effortAbsentForModelsWithoutEffort() throws {
+        let path = tempJSONL([
+            #"{"type":"assistant","version":"2.1.215","message":{"role":"assistant","model":"claude-sonnet-4-5-20250929","content":[{"type":"text","text":"hi"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let messages = try ClaudeTranscriptLoader.load(path: path)
+        #expect(messages.first?.model == "claude-sonnet-4-5-20250929")
+        #expect(messages.first?.effort == nil)
+    }
+
+    /// Claude Code writes `<synthetic>` for its own error/interrupt entries.
+    /// Rendering that as a model name would be noise, not attribution.
+    @Test func syntheticModelSuppressesBadge() throws {
+        let path = tempJSONL([
+            #"{"type":"assistant","message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Request interrupted"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        #expect(try ClaudeTranscriptLoader.load(path: path).first?.model == nil)
+    }
+
+    @Test func userMessagesCarryNoModelOrEffort() throws {
+        let path = tempJSONL([userTextLine("hello")])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let message = try #require(try ClaudeTranscriptLoader.load(path: path).first)
+        #expect(message.model == nil)
+        #expect(message.effort == nil)
+    }
+
+    /// The copied transcript is what gets pasted into a GitHub issue. Losing
+    /// the model attribution there defeats the point of showing it at all.
+    @Test func plainTextRecordsModelAndEffortInClaudeHeader() throws {
+        let path = tempJSONL([
+            userTextLine("question"),
+            #"{"type":"assistant","effort":"xhigh","message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"answer"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let text = ClaudeTranscriptLoader.plainText(
+            messages: try ClaudeTranscriptLoader.load(path: path)
+        )
+        #expect(text.contains("## Claude — opus-5 · xhigh"))
+        #expect(text.contains("## You"))
+    }
+
+    /// Both fields absent -> the header is byte-identical to today's output.
+    @Test func plainTextHeaderUnchangedWithoutAttribution() throws {
+        let path = tempJSONL([assistantTextLine("answer")])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let text = ClaudeTranscriptLoader.plainText(
+            messages: try ClaudeTranscriptLoader.load(path: path)
+        )
+        #expect(text.hasPrefix("## Claude\n"))
+    }
+
+    /// Model present, effort absent must not leave a dangling separator.
+    @Test func plainTextOmitsSeparatorWhenEffortMissing() throws {
+        let path = tempJSONL([
+            #"{"type":"assistant","message":{"role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"text","text":"a"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let text = ClaudeTranscriptLoader.plainText(
+            messages: try ClaudeTranscriptLoader.load(path: path)
+        )
+        #expect(text.hasPrefix("## Claude — sonnet-4-5\n"))
+        #expect(!text.contains("·"))
+    }
+
+    /// The model can change mid-transcript via `/model`, so a new header must
+    /// be emitted when attribution changes even though the role has not.
+    @Test func plainTextStartsNewHeaderWhenModelChangesMidTranscript() throws {
+        let path = tempJSONL([
+            #"{"type":"assistant","effort":"xhigh","message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"a"}]}}"#,
+            #"{"type":"assistant","message":{"role":"assistant","model":"claude-fable-5","content":[{"type":"text","text":"b"}]}}"#
+        ])
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let text = ClaudeTranscriptLoader.plainText(
+            messages: try ClaudeTranscriptLoader.load(path: path)
+        )
+        #expect(text.contains("## Claude — opus-5 · xhigh"))
+        #expect(text.contains("## Claude — fable-5"))
+    }
+
     // MARK: - Empty / malformed
 
     @Test func parseEmptyFileYieldsEmptyTranscript() throws {
