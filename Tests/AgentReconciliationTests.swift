@@ -266,4 +266,24 @@ struct AgentReconciliationTests {
         #expect(terminal.activity == .working)
     }
 
+
+    // MARK: - Poll gating
+
+    /// The poll skips its subprocess entirely when nothing could be
+    /// reconciled. On a 2-second loop that is the difference between an idle
+    /// app and one spawning a process every 2 seconds for no reason.
+    @Test func pollIsSkippedWhenNoSessionQualifies() {
+        let state = makeState()
+        #expect(!state.hasReconcilableSessions)          // no sessions at all
+
+        addSession(to: state, dir: "/tmp/wt-v", backend: .appleContainer)
+        #expect(!state.hasReconcilableSessions)          // sandboxed: invisible to the host
+
+        addSession(to: state, dir: "/tmp/wt-w", backend: .dockerSbx)
+        #expect(!state.hasReconcilableSessions)
+
+        addSession(to: state, dir: "/tmp/wt-x")          // .off
+        #expect(state.hasReconcilableSessions)
+    }
+
 }

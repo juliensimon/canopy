@@ -326,6 +326,14 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Whether any session's activity could be reconciled from the host
+    /// registry. When nothing qualifies -- no sessions, or every one of them
+    /// sandboxed -- the poll's subprocess would be pure waste on a 2-second
+    /// loop, so the cycle skips it entirely.
+    var hasReconcilableSessions: Bool {
+        sessions.contains { sandboxBackend(for: $0) == .off }
+    }
+
     /// Polls Claude Code for live session state. Separate from the 10 s git
     /// poll because this drives the activity dots and wants to be responsive.
     ///
@@ -337,10 +345,7 @@ final class AppState: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled, let self else { break }
-                // Nothing to reconcile if every session is sandboxed: the
-                // subprocess would be pure waste on a 2-second loop.
-                guard self.sessions.contains(where: { self.sandboxBackend(for: $0) == .off })
-                else { continue }
+                guard self.hasReconcilableSessions else { continue }
 
                 guard let agents = await ClaudeAgentsService.fetch() else {
                     consecutiveFailures += 1

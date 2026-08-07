@@ -175,4 +175,38 @@ struct ClaudeAgentsServiceTests {
     @Test func unknownStatusMapsToNil() {
         #expect(ClaudeAgentsService.activity(for: "teleporting") == nil)
     }
+
+    // MARK: - fetch (the impure edge)
+
+    /// Runs the real subprocess path: shell resolution, spawn, watchdog,
+    /// drain-before-wait, and parse. Deliberately tolerant of the outcome,
+    /// because it legitimately differs by machine -- a developer box has
+    /// `claude` on PATH and gets an array, a CI runner does not and gets nil.
+    /// What it pins is that BOTH are handled: no hang, no crash, and never a
+    /// half-decoded entry.
+    @Test func fetchCompletesAndReturnsNilOrWellFormedAgents() async {
+        let started = Date()
+        let result = await ClaudeAgentsService.fetch()
+        let elapsed = Date().timeIntervalSince(started)
+
+        // The watchdog terminates at 5s; anything beyond that means it hung.
+        #expect(elapsed < 15, "fetch() took \(elapsed)s -- watchdog did not fire")
+
+        guard let agents = result else { return }   // claude not installed: valid
+        for agent in agents {
+            #expect(!agent.cwd.isEmpty)
+            #expect(!agent.sessionId.isEmpty)
+        }
+    }
+
+    /// Second call must be cheap: the resolved claude path is cached, so this
+    /// exercises the cache-hit branch rather than re-resolving through a
+    /// login shell.
+    @Test func fetchIsRepeatableAndUsesTheCachedPath() async {
+        _ = await ClaudeAgentsService.fetch()
+        let started = Date()
+        _ = await ClaudeAgentsService.fetch()
+        #expect(Date().timeIntervalSince(started) < 15)
+    }
+
 }
