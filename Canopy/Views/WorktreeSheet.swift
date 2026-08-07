@@ -15,6 +15,7 @@ struct WorktreeSheet: View {
     @State private var baseBranch = ""
     @State private var branches: [BranchInfo] = []
     @State private var sandboxOverride: SandboxBackend?
+    @State private var claudeFlags = ""
     @State private var sandboxStatus: SandboxChecker.Status?
     @State private var checkingSandbox = false
     @State private var errorMessage: String?
@@ -28,6 +29,26 @@ struct WorktreeSheet: View {
 
     var selectedProject: Project? {
         appState.projects.first { $0.id == selectedProjectId }
+    }
+
+    /// Shows the value this session would inherit, so an empty field is
+    /// obviously "same as the project" rather than "no flags".
+    private var claudeFlagsPlaceholder: String {
+        let inherited = (selectedProject?.claudeFlags ?? appState.settings.claudeFlags)
+            .trimmingCharacters(in: .whitespaces)
+        // Naming an example flag when nothing is inherited would read as a
+        // real default -- say plainly that nothing is inherited, and keep the
+        // example only as a format hint.
+        return inherited.isEmpty
+            ? "No flags inherited — e.g. --model fable"
+            : "\(inherited) (inherited)"
+    }
+
+    /// Blank means "inherit", so store nil rather than letting an empty string
+    /// become an override that suppresses the project/global flags.
+    private func nilIfBlank(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var isProjectLocked: Bool { preselectedProjectId != nil }
@@ -168,6 +189,19 @@ struct WorktreeSheet: View {
                 }
             }
 
+            // Per-session claude flags override
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Claude Flags")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                TextField(claudeFlagsPlaceholder, text: $claudeFlags)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                Text("Any `claude` flag, e.g. --model fable, --effort xhigh. Empty inherits.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
             // Config summary
             if let project = selectedProject {
                 VStack(alignment: .leading, spacing: 4) {
@@ -257,6 +291,7 @@ struct WorktreeSheet: View {
                     project: project,
                     branchName: branchName,
                     baseBranch: baseBranch,
+                    claudeFlags: nilIfBlank(claudeFlags),
                     sandboxBackend: sandboxOverride
                 )
                 await MainActor.run { dismiss() }

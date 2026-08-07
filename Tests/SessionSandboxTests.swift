@@ -123,6 +123,145 @@ struct SessionSandboxTests {
         #expect(!state.claudeCommand(for: session).contains(#"--volume "/Users/x/dev/repo""#))
     }
 
+    // MARK: - Per-session Claude flags
+
+    /// The sandbox backend already resolves session → project → global, but
+    /// claudeFlags stopped at project → global. That is the wrong asymmetry
+    /// for an app whose premise is N agents on N worktrees: "opus on the hard
+    /// branch, fable on the chore branch" required editing a PROJECT-wide
+    /// setting that hit every sibling session.
+    @Test func sessionFlagsOverrideProjectFlags() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--global"
+        let project = Project(name: "p", repositoryPath: "/tmp", claudeFlags: "--project")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/tmp", projectId: project.id,
+            claudeFlags: "--model fable"
+        )
+
+        #expect(state.claudeCommand(for: session) == "claude --model fable")
+    }
+
+    @Test func sessionWithoutFlagsFallsBackToProject() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--global"
+        let project = Project(name: "p", repositoryPath: "/tmp", claudeFlags: "--project")
+        state.projects = [project]
+        let session = SessionInfo(name: "s", workingDirectory: "/tmp", projectId: project.id)
+
+        #expect(state.claudeCommand(for: session) == "claude --project")
+    }
+
+    @Test func sessionWithoutFlagsOrProjectFallsBackToGlobal() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--global"
+        let project = Project(name: "p", repositoryPath: "/tmp")
+        state.projects = [project]
+        let session = SessionInfo(name: "s", workingDirectory: "/tmp", projectId: project.id)
+
+        #expect(state.claudeCommand(for: session) == "claude --global")
+    }
+
+    /// nil (inherit) and "" (explicitly no flags) must stay distinct. This is
+    /// the ClaudeOverrideDefaults bug class documented in Project.swift, and
+    /// it fails the moment someone "simplifies" the override to `?? ""`.
+    @Test func sessionEmptyFlagsMeansNoFlagsNotInherit() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--global"
+        let project = Project(name: "p", repositoryPath: "/tmp", claudeFlags: "--verbose")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/tmp", projectId: project.id,
+            claudeFlags: ""
+        )
+
+        #expect(state.claudeCommand(for: session) == "claude")
+    }
+
+    @Test func sessionFlagsRoundTripThroughSessionsJSON() throws {
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/tmp", claudeFlags: "--model fable"
+        )
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(SessionInfo.self, from: data)
+        #expect(decoded.claudeFlags == "--model fable")
+    }
+
+    /// Sessions saved before the field existed must decode to nil (inherit),
+    /// not "" (no flags) -- assert it rather than assuming the synthesized
+    /// Codable does the right thing.
+    @Test func sessionsJSONWithoutClaudeFlagsDecodesToNil() throws {
+        let json = """
+        {
+            "id": "\(UUID().uuidString)",
+            "name": "old",
+            "workingDirectory": "/tmp",
+            "createdAt": 0
+        }
+        """
+        let session = try JSONDecoder().decode(SessionInfo.self, from: json.data(using: .utf8)!)
+        #expect(session.claudeFlags == nil)
+    }
+
+    /// The picker and the resolution chain are useless if the sheet's value
+    /// never reaches the stored session -- that is the silent-drop the
+    /// sandbox override already had (see openWorktreeSessionStoresOverride).
+    @Test func openWorktreeSessionStoresClaudeFlags() {
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/tmp")
+        state.projects = [project]
+        state.openWorktreeSession(
+            project: project, worktreePath: "/tmp/wt", branch: "b",
+            claudeFlags: "--model fable"
+        )
+
+        #expect(state.sessions.first?.claudeFlags == "--model fable")
+    }
+
+    /// Per-session flags are new untrusted input reaching the
+    /// security-load-bearing escape at Settings.swift:97.
+    @Test func sessionFlagsWithSingleQuoteAreEscapedInContainerWrapper() {
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/tmp")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/tmp", projectId: project.id,
+            claudeFlags: "--model 'o'pus",
+            sandboxBackend: .appleContainer
+        )
+
+        let command = state.claudeCommand(for: session)
+        #expect(command.contains(#"'\''"#))
+        // The wrapper's own closing quote is still the last one.
+        #expect(command.hasSuffix(#""$@"' claude"#))
+    }
+
+    /// --resume is appended AFTER claudeCommand builds the string, so it lands
+    /// outside the wrapper and reaches claude through "$@". Per-session flags
+    /// must not disturb that composition.
+    @Test func sessionFlagsCompoundWithResumeForContainer() throws {
+        let state = makeState()
+        let project = Project(name: "p", repositoryPath: "/tmp")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/tmp", projectId: project.id,
+            claudeFlags: "--model fable",
+            sandboxBackend: .appleContainer
+        )
+
+        let uuid = UUID().uuidString
+        let command = state.claudeCommand(for: session) + " --resume \(uuid)"
+        let wrapperEnd = try #require(command.range(of: "' claude"))
+        let resume = try #require(command.range(of: "--resume"))
+        #expect(resume.lowerBound > wrapperEnd.lowerBound)
+        #expect(command.contains(#"exec claude --model fable "$@""#))
+    }
+
     // MARK: - Main-repo tool access (--add-dir)
 
     /// Mounting the main repo fixes the *filesystem*; Claude Code's own tool

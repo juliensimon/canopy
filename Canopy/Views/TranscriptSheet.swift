@@ -329,6 +329,14 @@ struct TranscriptMessageView: View {
                 Text(message.role == .user ? "You" : "Claude")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                // Per-message, never a session-level header: the model can
+                // change mid-transcript via /model, and effort is absent both
+                // on older CLIs and for models with no effort concept.
+                if let attribution = message.attribution {
+                    Text(attribution)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
             }
             ForEach(Array(message.blocks.enumerated()), id: \.offset) { _, block in
                 blockView(block)
