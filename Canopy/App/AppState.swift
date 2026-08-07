@@ -32,7 +32,12 @@ final class AppState: ObservableObject {
     @Published var splitSessionIds: Set<UUID> = []
 
     /// App settings (auto-start claude, flags, etc.)
-    @Published var settings = CanopySettings.load()
+    ///
+    /// Loaded in `init` rather than as a stored-property default, because a
+    /// property initializer cannot see the injected `configDir` -- it always
+    /// resolved the real ~/.config/canopy/settings.json, so a test with a temp
+    /// config dir was isolated for sessions and projects but not for settings.
+    @Published var settings: CanopySettings
 
     /// Saved prompts for the prompt library.
     @Published var prompts: [SavedPrompt] = []
@@ -95,7 +100,12 @@ final class AppState: ObservableObject {
     private let configDir: String
 
     init(configDir: String? = nil) {
-        self.configDir = configDir ?? (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
+        let resolvedConfigDir = configDir
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
+        self.configDir = resolvedConfigDir
+        self.settings = CanopySettings.load(
+            from: (resolvedConfigDir as NSString).appendingPathComponent("settings.json")
+        )
         installKeyboardShortcutObservers()
     }
 
@@ -250,7 +260,9 @@ final class AppState: ObservableObject {
     }
 
     /// Consecutive idle observations per session, for the flap guard above.
-    private var agentIdleObservations: [UUID: Int] = [:]
+    /// Cleared in performCloseSession alongside the other per-session
+    /// dictionaries, so it cannot outlive the sessions it describes.
+    private(set) var agentIdleObservations: [UUID: Int] = [:]
 
     /// Applies a poll of `claude agents --json` to the live sessions.
     ///
@@ -265,7 +277,7 @@ final class AppState: ObservableObject {
     /// their status cannot be trusted. `.dockerSbx` shares nothing at all.
     func applyAgents(_ agents: [ClaudeAgent]) {
         for session in sessions {
-            guard sandboxBackend(for: session) == .off,
+            guard sandboxBackend(for: session).reportsToHostAgentRegistry,
                   let terminal = terminalSessions[session.id] else { continue }
 
             // Ambiguous means two claudes under one directory (a split
@@ -276,13 +288,25 @@ final class AppState: ObservableObject {
                 forWorktree: session.workingDirectory, in: agents
             ) else {
                 agentIdleObservations[session.id] = 0
+                // No live agent speaks for this tab. .needsInput is sticky
+                // against PTY output, so if it is not released here nothing
+                // ever will: quitting claude back to the shell prompt makes
+                // the agent vanish while the PTY lives on, and the tab would
+                // sit amber (and counted in "N need input") for the rest of
+                // the app's life.
+                releaseNeedsInput(terminal)
                 continue
             }
 
-            // Adopt an id only from a conversation that started after this tab
-            // opened. Without this, a claude the user has had running in that
-            // worktree since yesterday would be adopted on the first poll.
-            if let startedAt = agent.startedAt,
+            // Fill in a missing id only -- never replace one we already have.
+            // Overwriting would reintroduce exactly the hijack loadSessions
+            // was hardened against: the tab's claude exits, the user runs a
+            // plain `claude` in that worktree, and Canopy adopts a stranger's
+            // conversation and --resumes into it. An established id is user
+            // data. The startedAt guard additionally rejects a claude that was
+            // already running in the worktree before this tab opened.
+            if session.claudeSessionId == nil,
+               let startedAt = agent.startedAt,
                Date(timeIntervalSince1970: startedAt / 1000) >= terminal.openedAt {
                 assignClaudeSessionId(agent.sessionId, to: session.id)
             }
@@ -331,7 +355,7 @@ final class AppState: ObservableObject {
     /// sandboxed -- the poll's subprocess would be pure waste on a 2-second
     /// loop, so the cycle skips it entirely.
     var hasReconcilableSessions: Bool {
-        sessions.contains { sandboxBackend(for: $0) == .off }
+        sessions.contains { sandboxBackend(for: $0).reportsToHostAgentRegistry }
     }
 
     /// Polls Claude Code for live session state. Separate from the 10 s git
@@ -353,6 +377,7 @@ final class AppState: ObservableObject {
                         // Not an error state: the fallback is the behaviour
                         // Canopy shipped with. Say so once and stop trying.
                         NSLog("Canopy: `claude agents --json` unavailable; using the PTY heuristic")
+                        self.abandonAgentReconciliation()
                         return
                     }
                     continue
@@ -363,9 +388,33 @@ final class AppState: ObservableObject {
         }
     }
 
-    func stopAgentPolling() {
-        agentsPollTask?.cancel()
-        agentsPollTask = nil
+    /// Hands control back to the PTY heuristic when live data stops arriving.
+    ///
+    /// `.needsInput` is deliberately sticky against PTY output, so ONLY
+    /// authoritative data can clear it. If the poll gives up while a session
+    /// is blocked, nothing ever would -- the tab would sit amber forever.
+    /// Resetting to `.idle` is safe: the next byte on the PTY moves it to
+    /// `.working` again.
+    func abandonAgentReconciliation() {
+        agentIdleObservations.removeAll()
+        // Every state we imposed is frozen, not just .needsInput:
+        // setAuthoritativeActivity cancels the PTY idle and justFinished
+        // timers, so a session left .working has nothing left to move it and
+        // would sit there until the next byte arrives -- which for a session
+        // waiting on a long API turn may be minutes, or never.
+        // .idle is the safe resting state; the next byte restarts the
+        // heuristic normally.
+        for terminal in terminalSessions.values where terminal.activity != .idle {
+            terminal.setAuthoritativeActivity(.idle)
+        }
+    }
+
+    /// Hands a blocked session back to the PTY heuristic. Safe unconditionally:
+    /// the next byte on the PTY moves it to `.working` again.
+    private func releaseNeedsInput(_ terminal: TerminalSession) {
+        if terminal.activity == .needsInput {
+            terminal.setAuthoritativeActivity(.idle)
+        }
     }
 
     // MARK: - Git Status Polling
@@ -735,14 +784,23 @@ final class AppState: ObservableObject {
         // microVM, so neither resuming nor assigning means anything there.
         // The Apple container backend mounts ~/.claude from the host.
         if backend.supportsResume {
-            if let existing = session.claudeSessionId, UUID(uuidString: existing) != nil {
+            if let existing = session.claudeSessionId, UUID(uuidString: existing) != nil,
+               Self.transcriptExists(for: session, claudeSessionId: existing) {
                 command += " --resume \(existing)"
             } else {
                 if let junk = session.claudeSessionId {
-                    NSLog("Canopy: discarding non-UUID claudeSessionId %@ for session %@",
+                    NSLog("Canopy: discarding unusable claudeSessionId %@ for session %@",
                           junk, session.id.uuidString)
                 }
-                let fresh = session.id.uuidString
+                // Seeded from SessionInfo.id so no new Codable field is
+                // needed -- but only while that id is still free. If its
+                // transcript already exists (an earlier launch used it, and
+                // the persisted id has since moved on) reusing it would abort
+                // with "Session ID ... is already in use".
+                let seed = session.id.uuidString
+                let fresh = Self.transcriptExists(for: session, claudeSessionId: seed)
+                    ? UUID().uuidString
+                    : seed
                 command += " --session-id \(fresh)"
                 assignedId = fresh
             }
@@ -752,6 +810,21 @@ final class AppState: ObservableObject {
             command += " \(nameFlag)"
         }
         return (command, assignedId)
+    }
+
+    /// Whether the transcript an id names actually exists on disk.
+    ///
+    /// `claude --resume <unknown-id>` prints "No conversation found with
+    /// session ID: <id>" and exits, so the tab never starts claude at all.
+    /// Canopy can bank an unusable id by its own hand: the id is persisted
+    /// before the command is sent, but a failed sandbox preflight echoes a
+    /// warning INSTEAD of running claude, so nothing ever creates the session.
+    /// Mirrors the check TranscriptSheet.computeJSONLPath already makes.
+    private static func transcriptExists(for session: SessionInfo, claudeSessionId: String) -> Bool {
+        FileManager.default.fileExists(atPath: ClaudeTranscriptLoader.sessionFilePath(
+            workingDirectory: session.workingDirectory,
+            sessionId: claudeSessionId
+        ))
     }
 
     /// Records an assigned Claude session ID. Must be called before the
@@ -872,6 +945,7 @@ final class AppState: ObservableObject {
         sessionDiffStats.removeValue(forKey: id)
         sessionCommitsAhead.removeValue(forKey: id)
         sessionPRCount.removeValue(forKey: id)
+        agentIdleObservations.removeValue(forKey: id)
         withAnimation(.easeOut(duration: 0.25)) {
             sessions.removeAll { $0.id == id }
             if activeSessionId == id {
@@ -992,6 +1066,14 @@ final class AppState: ObservableObject {
     private var sessionsFilePath: String {
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         return (configDir as NSString).appendingPathComponent("sessions.json")
+    }
+
+    /// Settings live in the same injected dir as sessions and projects, so a
+    /// temp config dir isolates all three. Not private: SettingsView writes
+    /// through this rather than the global default path.
+    var settingsFilePath: String {
+        try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+        return (configDir as NSString).appendingPathComponent("settings.json")
     }
 
     private var promptsFilePath: String {

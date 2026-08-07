@@ -21,7 +21,34 @@ enum SandboxBackend: String, Codable {
     case claudeNative
 
     /// The `--settings` payload enabling Claude Code's own Bash sandbox.
-    private var sandboxSettingsJSON: String { #"{"sandbox":{"enabled":true}}"# }
+    ///
+    /// `allowUnsandboxedCommands` is explicitly false because the CLI defaults
+    /// it to TRUE: with `enabled` alone, the model may retry any blocked
+    /// command via `dangerouslyDisableSandbox`, and Canopy's default
+    /// `--permission-mode auto` auto-approves that retry. Observed end to end:
+    /// a `touch ~/probe.txt` denied by the sandbox succeeded immediately on
+    /// the unsandboxed retry, so the picker was promising isolation it did not
+    /// deliver.
+    ///
+    /// This is a different thing from inventing an allowlist. `allowedDomains`
+    /// and `excludedCommands` are user preferences and are deliberately left
+    /// to merge from the user's own settings; this key is the difference
+    /// between "sandboxed" and "sandboxed unless the agent asks nicely", and
+    /// the user picked a sandbox.
+    private var sandboxSettingsJSON: String {
+        #"{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false}}"#
+    }
+
+    /// Whether `claude` runs as a plain host process, so the host's
+    /// `claude agents --json` registry actually describes it.
+    ///
+    /// `.claudeNative` qualifies: Seatbelt confines what Bash may touch, but
+    /// the process is an ordinary host grandchild of Canopy's PTY shell.
+    /// `.appleContainer` does not -- it writes its registry entry into the
+    /// bind-mounted host ~/.claude, but the pid is a guest-namespace pid and
+    /// the peer socket is unreachable from the host. `.dockerSbx` shares
+    /// nothing of ~/.claude at all.
+    var reportsToHostAgentRegistry: Bool { self == .off || self == .claudeNative }
 
     /// Whether `--resume` works for this backend. Session JSONLs must
     /// persist on the host: sbx microVMs are ephemeral, while the Apple

@@ -165,7 +165,8 @@ struct EditProjectSheet: View {
                             }
                         )) {
                             Text("Off").tag(SandboxBackend.off)
-                            Text("Docker Sandbox (sbx)").tag(SandboxBackend.dockerSbx)
+                            Text("Claude sandbox (Bash only)").tag(SandboxBackend.claudeNative)
+                            Text("Docker Sandbox (sbx) — legacy, no session resume").tag(SandboxBackend.dockerSbx)
                             Text("Apple container").tag(SandboxBackend.appleContainer)
                         }
                             .font(.subheadline)

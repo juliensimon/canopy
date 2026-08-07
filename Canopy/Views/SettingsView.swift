@@ -508,8 +508,10 @@ struct SettingsView: View {
         settings.containerPath = containerPath
         // A failed write must keep the sheet open: dismissing would let the
         // user believe their (possibly security-relevant) choice persisted.
-        guard settings.save() else {
-            saveError = "Could not write ~/.config/canopy/settings.json"
+        // Through appState's path, not the global default: otherwise a save
+        // would escape an injected config dir and hit the real file.
+        guard settings.save(to: appState.settingsFilePath) else {
+            saveError = "Could not write \(appState.settingsFilePath)"
             return
         }
         appState.settings = settings

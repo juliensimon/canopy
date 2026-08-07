@@ -6,6 +6,10 @@ struct ActivityDot: View {
     var projectColor: Color = .gray
 
     @State private var isSpinning = false
+    /// Separate from isSpinning: sharing one flag let a working → needsInput
+    /// transition deliver the spinner's onDisappear AFTER the ring's onAppear,
+    /// leaving no value change to drive repeatForever and freezing both.
+    @State private var isPulsing = false
 
     var body: some View {
         ZStack {
@@ -36,13 +40,13 @@ struct ActivityDot: View {
                 Circle()
                     .stroke(Color.orange, lineWidth: 1.5)
                     .frame(width: 12, height: 12)
-                    .opacity(isSpinning ? 0.35 : 1.0)
+                    .opacity(isPulsing ? 0.35 : 1.0)
                     .animation(
                         .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                        value: isSpinning
+                        value: isPulsing
                     )
-                    .onAppear { isSpinning = true }
-                    .onDisappear { isSpinning = false }
+                    .onAppear { isPulsing = true }
+                    .onDisappear { isPulsing = false }
             }
 
             // Glow for justFinished

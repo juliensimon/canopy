@@ -48,8 +48,12 @@ struct ClaudeLaunchCommandTests {
     /// "Session ID ... is already in use", so the flags must swap over.
     @Test func resumesInsteadOfAssigningWhenIdKnown() {
         let state = makeState()
+        let workDir = "/tmp/canopy-known-\(UUID().uuidString)"
         let known = UUID().uuidString
-        let session = SessionInfo(name: "s", workingDirectory: "/tmp/wt", claudeSessionId: known)
+        let projectDir = makeTranscript(workDir: workDir, sessionId: known)
+        defer { try? FileManager.default.removeItem(atPath: projectDir) }
+
+        let session = SessionInfo(name: "s", workingDirectory: workDir, claudeSessionId: known)
         state.sessions = [session]
 
         let launch = state.claudeLaunchCommand(for: session)
@@ -60,21 +64,40 @@ struct ClaudeLaunchCommandTests {
 
     /// The highest-value test here: an app restart re-runs the launch path
     /// with the same persisted session. Drive it twice, persisting between,
-    /// exactly as MainWindow does.
+    /// exactly as MainWindow does -- and create the transcript in between,
+    /// because that is what claude does with the id it was handed.
     @Test func secondLaunchResumesRatherThanColliding() {
         let state = makeState()
-        let session = SessionInfo(name: "s", workingDirectory: "/tmp/wt")
+        let workDir = "/tmp/canopy-second-\(UUID().uuidString)"
+        let session = SessionInfo(name: "s", workingDirectory: workDir)
         state.sessions = [session]
 
         let first = state.claudeLaunchCommand(for: session)
         let assigned = try! #require(first.assignedId)
         state.assignClaudeSessionId(assigned, to: session.id)
 
+        // claude now owns that id and has written its transcript.
+        let projectDir = makeTranscript(workDir: workDir, sessionId: assigned)
+        defer { try? FileManager.default.removeItem(atPath: projectDir) }
+
         let reloaded = state.sessions[0]
         let second = state.claudeLaunchCommand(for: reloaded)
         #expect(second.command.contains("--resume \(assigned)"))
         #expect(!second.command.contains("--session-id"))
         #expect(second.assignedId == nil)
+    }
+
+    /// Simulates claude having created the transcript for `sessionId`.
+    /// Returns the project directory so callers can clean it up.
+    @discardableResult
+    private func makeTranscript(workDir: String, sessionId: String) -> String {
+        let projectDir = ClaudeSessionFinder.projectDirectory(for: workDir)
+        try? FileManager.default.createDirectory(atPath: projectDir, withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: (projectDir as NSString).appendingPathComponent("\(sessionId).jsonl"),
+            contents: Data("{}".utf8)
+        )
+        return projectDir
     }
 
     /// sbx session files live inside the ephemeral microVM, which is why
@@ -125,6 +148,57 @@ struct ClaudeLaunchCommandTests {
         let assigned = state.claudeLaunchCommand(for: session).assignedId
         #expect(assigned == session.id.uuidString)
         #expect(assigned == assigned?.uppercased())
+    }
+
+    // MARK: - Stale ids
+
+    /// Verified against the CLI: resuming an id that has no transcript prints
+    ///
+    ///   No conversation found with session ID: <id>
+    ///
+    /// and exits, so the tab never starts claude at all.
+    ///
+    /// Canopy can reach that state by its own hand: the id is persisted before
+    /// the command is sent, but the sandbox-preflight path echoes a warning
+    /// INSTEAD of running claude (SandboxBackendUI.launchCommand). A failed
+    /// preflight therefore banked an id that was never used, and every later
+    /// launch resumed into nothing. Deleting ~/.claude/projects gets there too.
+    ///
+    /// So an id is only worth resuming if its transcript exists -- the same
+    /// check TranscriptSheet.computeJSONLPath already makes before rendering.
+    @Test func doesNotResumeASessionWhoseTranscriptIsMissing() {
+        let state = makeState()
+        let workDir = "/tmp/canopy-stale-\(UUID().uuidString)"
+        let session = SessionInfo(
+            name: "s", workingDirectory: workDir,
+            claudeSessionId: UUID().uuidString   // valid UUID, no file on disk
+        )
+        state.sessions = [session]
+
+        let launch = state.claudeLaunchCommand(for: session)
+        #expect(!launch.command.contains("--resume"))
+        #expect(launch.command.contains("--session-id \(session.id.uuidString)"))
+        #expect(launch.assignedId == session.id.uuidString)
+    }
+
+    @Test func resumesWhenTheTranscriptExists() throws {
+        let state = makeState()
+        let workDir = "/tmp/canopy-live-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: workDir) }
+
+        let known = UUID().uuidString
+        let projectDir = makeTranscript(workDir: workDir, sessionId: known)
+        defer { try? FileManager.default.removeItem(atPath: projectDir) }
+
+        let session = SessionInfo(
+            name: "s", workingDirectory: workDir, claudeSessionId: known
+        )
+        state.sessions = [session]
+
+        let launch = state.claudeLaunchCommand(for: session)
+        #expect(launch.command.contains("--resume \(known)"))
+        #expect(!launch.command.contains("--session-id"))
     }
 
     // MARK: - Adversarial
