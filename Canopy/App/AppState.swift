@@ -735,10 +735,7 @@ final class AppState: ObservableObject {
         // verified on CLI 2.1.224, reading a main-repo file from a worktree
         // session under `--permission-mode manual` is refused outright.
         // --add-dir grants it, using the path we already resolved above.
-        // session → project → global, mirroring sandboxBackend(for:) above.
-        // `??` and not a blank check: a session that explicitly sets "" means
-        // "no flags", which is different from inheriting.
-        var resolvedFlags = session.claudeFlags ?? project?.claudeFlags ?? settings.claudeFlags
+        var resolvedFlags = resolvedClaudeFlags(for: session)
         for path in extraMounts {
             let resolved = SandboxBackend.realResolvedPath(path)
             if !resolved.isEmpty {
@@ -835,6 +832,17 @@ final class AppState: ObservableObject {
               sessions[index].claudeSessionId != claudeSessionId else { return }
         sessions[index].claudeSessionId = claudeSessionId
         saveSessions()
+    }
+
+    /// The `claude` flags a session runs with: session → project → global,
+    /// mirroring sandboxBackend(for:). `??` and not a blank check -- a session
+    /// that explicitly sets "" means "no flags", which differs from inheriting.
+    ///
+    /// Shared with Session Info rather than resolved inline, so the value the
+    /// user is shown cannot drift from the one actually sent.
+    func resolvedClaudeFlags(for session: SessionInfo) -> String {
+        let project = projects.first { $0.id == session.projectId }
+        return session.claudeFlags ?? project?.claudeFlags ?? settings.claudeFlags
     }
 
     func createWorktreeSession(

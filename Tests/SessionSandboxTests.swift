@@ -417,4 +417,60 @@ struct SessionSandboxTests {
         let session = try JSONDecoder().decode(SessionInfo.self, from: json.data(using: .utf8)!)
         #expect(session.sandboxBackend == nil)
     }
+
+    // MARK: - Session Info visibility
+
+    /// The value Session Info shows must be the value actually sent. Resolving
+    /// the chain in two places is how they drift.
+    @Test func resolvedFlagsMatchWhatTheCommandUses() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--global"
+        let project = Project(name: "p", repositoryPath: "/tmp", claudeFlags: "--project")
+        state.projects = [project]
+
+        let inherited = SessionInfo(name: "s", workingDirectory: "/tmp", projectId: project.id)
+        #expect(state.resolvedClaudeFlags(for: inherited) == "--project")
+        #expect(state.claudeCommand(for: inherited).contains("--project"))
+
+        let overridden = SessionInfo(
+            name: "s", workingDirectory: "/tmp", projectId: project.id,
+            claudeFlags: "--model fable"
+        )
+        #expect(state.resolvedClaudeFlags(for: overridden) == "--model fable")
+        #expect(state.claudeCommand(for: overridden) == "claude --model fable")
+    }
+
+    /// "" is a real state meaning "no flags", distinct from inheriting.
+    @Test func resolvedFlagsPreserveExplicitlyEmpty() {
+        let state = makeState()
+        state.settings.claudeFlags = "--global"
+        let session = SessionInfo(name: "s", workingDirectory: "/tmp", claudeFlags: "")
+        #expect(state.resolvedClaudeFlags(for: session).isEmpty)
+    }
+
+    /// Every backend needs a name, and they must be distinct -- Session Info
+    /// showing the same string for two backends would be worse than useless.
+    @Test func everySandboxBackendHasADistinctDisplayName() {
+        let all: [SandboxBackend] = [.off, .claudeNative, .dockerSbx, .appleContainer]
+        let names = all.map(\.displayName)
+        #expect(Set(names).count == all.count)
+        #expect(!names.contains(where: { $0.isEmpty }))
+    }
+
+    /// The row must report the RESOLVED backend, override included -- that is
+    /// the whole question being answered.
+    @Test func displayedSandboxReflectsTheSessionOverride() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        let project = Project(name: "p", repositoryPath: "/tmp", sandboxBackend: .dockerSbx)
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/tmp", projectId: project.id,
+            sandboxBackend: .claudeNative
+        )
+
+        #expect(state.sandboxBackend(for: session).displayName == "Claude sandbox (Bash only)")
+    }
+
 }
