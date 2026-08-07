@@ -610,4 +610,15 @@ struct SettingsTests {
         #expect(!SandboxBackend.dockerSbx.supportsResume)
     }
 
+
+    /// Which backends the host's `claude agents --json` can actually describe.
+    /// Container pids are guest-namespace pids and sbx shares no ~/.claude;
+    /// .claudeNative is an ordinary host process.
+    @Test func onlyHostBackendsReportToTheAgentRegistry() {
+        #expect(SandboxBackend.off.reportsToHostAgentRegistry)
+        #expect(SandboxBackend.claudeNative.reportsToHostAgentRegistry)
+        #expect(!SandboxBackend.appleContainer.reportsToHostAgentRegistry)
+        #expect(!SandboxBackend.dockerSbx.reportsToHostAgentRegistry)
+    }
+
 }

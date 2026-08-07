@@ -23,6 +23,17 @@ enum SandboxBackend: String, Codable {
     /// The `--settings` payload enabling Claude Code's own Bash sandbox.
     private var sandboxSettingsJSON: String { #"{"sandbox":{"enabled":true}}"# }
 
+    /// Whether `claude` runs as a plain host process, so the host's
+    /// `claude agents --json` registry actually describes it.
+    ///
+    /// `.claudeNative` qualifies: Seatbelt confines what Bash may touch, but
+    /// the process is an ordinary host grandchild of Canopy's PTY shell.
+    /// `.appleContainer` does not -- it writes its registry entry into the
+    /// bind-mounted host ~/.claude, but the pid is a guest-namespace pid and
+    /// the peer socket is unreachable from the host. `.dockerSbx` shares
+    /// nothing of ~/.claude at all.
+    var reportsToHostAgentRegistry: Bool { self == .off || self == .claudeNative }
+
     /// Whether `--resume` works for this backend. Session JSONLs must
     /// persist on the host: sbx microVMs are ephemeral, while the Apple
     /// container backend bind-mounts ~/.claude from the host.

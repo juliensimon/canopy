@@ -277,7 +277,7 @@ final class AppState: ObservableObject {
     /// their status cannot be trusted. `.dockerSbx` shares nothing at all.
     func applyAgents(_ agents: [ClaudeAgent]) {
         for session in sessions {
-            guard sandboxBackend(for: session) == .off,
+            guard sandboxBackend(for: session).reportsToHostAgentRegistry,
                   let terminal = terminalSessions[session.id] else { continue }
 
             // Ambiguous means two claudes under one directory (a split
@@ -288,13 +288,25 @@ final class AppState: ObservableObject {
                 forWorktree: session.workingDirectory, in: agents
             ) else {
                 agentIdleObservations[session.id] = 0
+                // No live agent speaks for this tab. .needsInput is sticky
+                // against PTY output, so if it is not released here nothing
+                // ever will: quitting claude back to the shell prompt makes
+                // the agent vanish while the PTY lives on, and the tab would
+                // sit amber (and counted in "N need input") for the rest of
+                // the app's life.
+                releaseNeedsInput(terminal)
                 continue
             }
 
-            // Adopt an id only from a conversation that started after this tab
-            // opened. Without this, a claude the user has had running in that
-            // worktree since yesterday would be adopted on the first poll.
-            if let startedAt = agent.startedAt,
+            // Fill in a missing id only -- never replace one we already have.
+            // Overwriting would reintroduce exactly the hijack loadSessions
+            // was hardened against: the tab's claude exits, the user runs a
+            // plain `claude` in that worktree, and Canopy adopts a stranger's
+            // conversation and --resumes into it. An established id is user
+            // data. The startedAt guard additionally rejects a claude that was
+            // already running in the worktree before this tab opened.
+            if session.claudeSessionId == nil,
+               let startedAt = agent.startedAt,
                Date(timeIntervalSince1970: startedAt / 1000) >= terminal.openedAt {
                 assignClaudeSessionId(agent.sessionId, to: session.id)
             }
@@ -343,7 +355,7 @@ final class AppState: ObservableObject {
     /// sandboxed -- the poll's subprocess would be pure waste on a 2-second
     /// loop, so the cycle skips it entirely.
     var hasReconcilableSessions: Bool {
-        sessions.contains { sandboxBackend(for: $0) == .off }
+        sessions.contains { sandboxBackend(for: $0).reportsToHostAgentRegistry }
     }
 
     /// Polls Claude Code for live session state. Separate from the 10 s git
@@ -385,7 +397,15 @@ final class AppState: ObservableObject {
     /// `.working` again.
     func abandonAgentReconciliation() {
         agentIdleObservations.removeAll()
-        for terminal in terminalSessions.values where terminal.activity == .needsInput {
+        for terminal in terminalSessions.values {
+            releaseNeedsInput(terminal)
+        }
+    }
+
+    /// Hands a blocked session back to the PTY heuristic. Safe unconditionally:
+    /// the next byte on the PTY moves it to `.working` again.
+    private func releaseNeedsInput(_ terminal: TerminalSession) {
+        if terminal.activity == .needsInput {
             terminal.setAuthoritativeActivity(.idle)
         }
     }
@@ -765,7 +785,15 @@ final class AppState: ObservableObject {
                     NSLog("Canopy: discarding unusable claudeSessionId %@ for session %@",
                           junk, session.id.uuidString)
                 }
-                let fresh = session.id.uuidString
+                // Seeded from SessionInfo.id so no new Codable field is
+                // needed -- but only while that id is still free. If its
+                // transcript already exists (an earlier launch used it, and
+                // the persisted id has since moved on) reusing it would abort
+                // with "Session ID ... is already in use".
+                let seed = session.id.uuidString
+                let fresh = Self.transcriptExists(for: session, claudeSessionId: seed)
+                    ? UUID().uuidString
+                    : seed
                 command += " --session-id \(fresh)"
                 assignedId = fresh
             }

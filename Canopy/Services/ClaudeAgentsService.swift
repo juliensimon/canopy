@@ -52,7 +52,20 @@ enum ClaudeAgentsService {
     /// **detected** rather than read as "zero sessions running" -- the latter
     /// would push every tab to a wrong state at once.
     static func parse(_ data: Data) -> [ClaudeAgent]? {
-        try? JSONDecoder().decode([ClaudeAgent].self, from: data)
+        guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+            return nil
+        }
+        // Per element, not all-or-nothing. Decoding the array as a whole means
+        // ONE entry of a shape Canopy does not care about -- a future kind
+        // without `cwd`, say -- returns nil for the entire poll, and three of
+        // those in a row permanently disable reconciliation.
+        let decoder = JSONDecoder()
+        return elements.compactMap { element in
+            guard let elementData = try? JSONSerialization.data(withJSONObject: element) else {
+                return nil
+            }
+            return try? decoder.decode(ClaudeAgent.self, from: elementData)
+        }
     }
 
     /// Resolves both sides before comparing: /tmp is a symlink to /private/tmp
@@ -94,16 +107,26 @@ enum ClaudeAgentsService {
     /// `nonisolated(unsafe)` matches the shared-formatter precedent in
     /// ClaudeSessionFinder: written once from the poll loop, read from it.
     private nonisolated(unsafe) static var cachedClaudePath: String?
+    /// Cache the FAILURE too. Without this, a claude exposed only as a shell
+    /// function or alias (which `isExecutableFile` rightly rejects) makes every
+    /// poll spawn two login shells instead of one -- re-sourcing the user's rc
+    /// files ~3600x/hour, the precise cost this resolution exists to avoid.
+    private nonisolated(unsafe) static var didAttemptClaudePathResolution = false
 
     private static func resolvedClaudePath() async -> String? {
         // Re-check the cached path is still executable. claude auto-updates
         // and can be moved or removed while Canopy runs; a stale path would
         // fail every poll, and consecutive failures disable reconciliation for
-        // the rest of the session.
+        // the rest of the session. A stale entry re-opens the resolution.
         if let cached = cachedClaudePath {
             if FileManager.default.isExecutableFile(atPath: cached) { return cached }
             cachedClaudePath = nil
+            didAttemptClaudePathResolution = false
         }
+        // Nothing cached and we already tried: don't spawn a login shell every
+        // poll only to fail the same way.
+        if didAttemptClaudePathResolution { return nil }
+        didAttemptClaudePathResolution = true
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: SandboxChecker.loginShell())
@@ -113,8 +136,15 @@ enum ClaudeAgentsService {
         process.standardError = FileHandle.nullDevice
 
         guard (try? process.run()) != nil else { return nil }
+        // Same watchdog as fetch(): a hung rc file must not wedge the poll
+        // loop, and this process is spawned before fetch()'s own watchdog.
+        let watchdog = DispatchWorkItem { [weak process] in
+            if process?.isRunning == true { process?.terminate() }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: watchdog)
         let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
         process.waitUntilExit()
+        watchdog.cancel()
         guard process.terminationStatus == 0 else { return nil }
 
         let path = String(decoding: data, as: UTF8.self)

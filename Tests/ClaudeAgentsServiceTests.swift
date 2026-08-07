@@ -209,4 +209,28 @@ struct ClaudeAgentsServiceTests {
         #expect(Date().timeIntervalSince(started) < 15)
     }
 
+    // MARK: - Review findings
+
+    /// One undecodable entry must not blind Canopy to every other session.
+    /// Decoding the array as a whole meant a single future entry without
+    /// `cwd` returned nil for the entire poll -- and three such polls in a
+    /// row permanently disable reconciliation.
+    @Test func oneUndecodableElementDoesNotDiscardTheRest() throws {
+        let agents = try #require(ClaudeAgentsService.parse(data("""
+        [
+          {"cwd":"/tmp/wt","sessionId":"good-1","status":"busy"},
+          {"kind":"some-future-thing","startedAt":123},
+          {"cwd":"/tmp/other","sessionId":"good-2","status":"idle"}
+        ]
+        """)))
+
+        #expect(agents.map(\.sessionId) == ["good-1", "good-2"])
+    }
+
+    /// Still a hard failure, not an empty result: a non-array must remain
+    /// distinguishable from "no claude running".
+    @Test func nonArrayStillReturnsNilAfterPerElementDecoding() {
+        #expect(ClaudeAgentsService.parse(data(#"{"cwd":"/tmp","sessionId":"x"}"#)) == nil)
+    }
+
 }

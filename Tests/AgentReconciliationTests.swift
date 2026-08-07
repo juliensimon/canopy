@@ -301,6 +301,70 @@ struct AgentReconciliationTests {
         #expect(terminal.activity == .working)
     }
 
+    // MARK: - Review findings
+
+    /// Quitting claude back to the shell prompt makes the agent vanish while
+    /// the PTY lives on, so onProcessExit never fires. .needsInput is sticky
+    /// against PTY output, so without an explicit handback the tab sat amber
+    /// -- and counted in "N need input" -- for the rest of the app's life.
+    @Test func agentDisappearingReleasesStuckNeedsInput() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-p")
+        let terminal = try! #require(state.terminalSessions[state.sessions[0].id])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-p", status: "waiting")])
+        #expect(terminal.activity == .needsInput)
+
+        state.applyAgents([])
+        #expect(terminal.activity == .idle)
+    }
+
+    /// Same hole via the other skip path: a second claude in the directory
+    /// makes the match ambiguous, and ambiguity must not mean "stay amber".
+    @Test func ambiguousMatchReleasesStuckNeedsInput() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-q")
+        let terminal = try! #require(state.terminalSessions[state.sessions[0].id])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-q", status: "waiting")])
+        #expect(terminal.activity == .needsInput)
+
+        state.applyAgents([
+            agent(cwd: "/tmp/wt-q", sessionId: "a", status: "waiting"),
+            agent(cwd: "/tmp/wt-q/sub", sessionId: "b", status: "busy"),
+        ])
+        #expect(terminal.activity == .idle)
+    }
+
+    /// .claudeNative runs claude as an ordinary host process -- Seatbelt
+    /// confines Bash, not the process's registry entry. Gating literally on
+    /// .off silently removed the whole needs-input feature from the backend
+    /// this milestone promotes.
+    @Test func claudeNativeSessionIsReconciled() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-r", backend: .claudeNative)
+        let live = UUID().uuidString
+
+        state.applyAgents([agent(cwd: "/tmp/wt-r", sessionId: live, status: "waiting")])
+
+        #expect(state.sessions[0].claudeSessionId == live)
+        #expect(state.terminalSessions[state.sessions[0].id]?.activity == .needsInput)
+    }
+
+    /// An established id is user data -- the principle loadSessions was
+    /// hardened around. Replacing it here would reintroduce the same hijack:
+    /// the tab's claude exits, the user runs a plain `claude` in that
+    /// worktree, and Canopy --resumes into a stranger's conversation.
+    @Test func doesNotReplaceAnEstablishedSessionId() {
+        let state = makeState()
+        let owned = UUID().uuidString
+        addSession(to: state, dir: "/tmp/wt-s", claudeSessionId: owned)
+
+        state.applyAgents([agent(cwd: "/tmp/wt-s", sessionId: "stranger", status: "idle")])
+
+        #expect(state.sessions[0].claudeSessionId == owned)
+    }
+
 
     // MARK: - Poll gating
 
