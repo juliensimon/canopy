@@ -248,4 +248,22 @@ struct AgentReconciliationTests {
         try await Task.sleep(for: .milliseconds(50))
         #expect(terminal.activity == .needsInput)
     }
+
+    /// "Two consecutive idle polls" must mean consecutive. A poll with no
+    /// opinion (absent or unknown status) between two idles is a gap, and
+    /// pairing across it would confirm a finish that never happened.
+    @Test func opinionlessPollResetsTheIdleCounter() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-t")
+        let terminal = try! #require(state.terminalSessions[state.sessions[0].id])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-t", status: "busy")])
+        state.applyAgents([agent(cwd: "/tmp/wt-t", status: "idle")])
+        state.applyAgents([agent(cwd: "/tmp/wt-t", status: nil)])   // no opinion
+        state.applyAgents([agent(cwd: "/tmp/wt-t", status: "idle")])
+
+        // Without the reset this reaches two idles and fires .justFinished.
+        #expect(terminal.activity == .working)
+    }
+
 }

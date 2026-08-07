@@ -287,8 +287,15 @@ final class AppState: ObservableObject {
                 assignClaudeSessionId(agent.sessionId, to: session.id)
             }
 
-            // No opinion -> leave the PTY heuristic in charge.
-            guard let reported = ClaudeAgentsService.activity(for: agent.status) else { continue }
+            // No opinion -> leave the PTY heuristic in charge. Reset the
+            // counter too: "two consecutive idle polls" must mean consecutive.
+            // Keeping a stale count across an opinion-less poll lets an idle
+            // from before the gap pair with one after it and confirm a finish
+            // that never happened.
+            guard let reported = ClaudeAgentsService.activity(for: agent.status) else {
+                agentIdleObservations[session.id] = 0
+                continue
+            }
 
             let previous = terminal.activity
             guard reported == .idle else {

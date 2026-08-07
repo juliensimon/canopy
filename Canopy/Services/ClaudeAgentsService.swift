@@ -96,7 +96,14 @@ enum ClaudeAgentsService {
     private nonisolated(unsafe) static var cachedClaudePath: String?
 
     private static func resolvedClaudePath() async -> String? {
-        if let cached = cachedClaudePath { return cached }
+        // Re-check the cached path is still executable. claude auto-updates
+        // and can be moved or removed while Canopy runs; a stale path would
+        // fail every poll, and consecutive failures disable reconciliation for
+        // the rest of the session.
+        if let cached = cachedClaudePath {
+            if FileManager.default.isExecutableFile(atPath: cached) { return cached }
+            cachedClaudePath = nil
+        }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: SandboxChecker.loginShell())
