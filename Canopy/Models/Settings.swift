@@ -278,8 +278,9 @@ struct CanopySettings: Codable {
             // Tolerant of unknown rawValues (config written by a newer
             // version): throwing here would fail the whole-file decode and
             // load()'s fallback would silently factory-reset all settings.
-            sandboxBackend = SandboxBackend(rawValue: raw) ?? .off
-            if SandboxBackend(rawValue: raw) == nil {
+            let decodedBackend = SandboxBackend(rawValue: raw)
+            sandboxBackend = decodedBackend ?? .off
+            if decodedBackend == nil {
                 // Fail-safe direction, but not a silent one: a user who picked
                 // a sandbox and then downgraded Canopy ends up UNSANDBOXED,
                 // which is exactly what the save() return-value guard exists

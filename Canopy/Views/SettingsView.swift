@@ -90,7 +90,7 @@ struct SettingsView: View {
                                     Text("Default CLI flags")
                                         .font(.subheadline)
                                         .fontWeight(.medium)
-                                    TextField("e.g. --model sonnet --verbose", text: $claudeFlags)
+                                    TextField("e.g. --model fable --verbose", text: $claudeFlags)
                                         .textFieldStyle(.roundedBorder)
                                         .font(.system(size: 12, design: .monospaced))
                                     Text("These flags are appended to the `claude` command. Any `claude` flag works, e.g. --model fable, --effort xhigh, --safe-mode. Per-project and per-session overrides take precedence.")
