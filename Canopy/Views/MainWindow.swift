@@ -45,6 +45,7 @@ struct MainWindow: View {
             .navigationSplitViewStyle(.balanced)
             .onAppear {
                 appState.startGitStatusPolling()
+                appState.startAgentPolling()
             }
             .onChange(of: appState.activeSessionId) { _, _ in
                 appState.activeGitStatus = nil

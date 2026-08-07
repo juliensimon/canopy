@@ -81,6 +81,7 @@ final class AppState: ObservableObject {
     private var cachedPRsByRepo: [String: [GitPRInfo]] = [:]
     private var lastPRRefreshByRepo: [String: Date] = [:]
     private var gitPollTask: Task<Void, Never>?
+    private var agentsPollTask: Task<Void, Never>?
 
     private let lastUpdateCheckKey = "canopy.lastUpdateCheck"
     private let updateCheckInterval: TimeInterval = 24 * 60 * 60
@@ -218,6 +219,141 @@ final class AppState: ObservableObject {
             subtitle: session.name,
             sessionId: sessionId
         )
+    }
+
+    /// Unlike the finish notification, this fires even when Canopy is the
+    /// active app -- you are usually looking at a DIFFERENT tab while another
+    /// one blocks, and a blocked session stays blocked forever until answered.
+    private func postNeedsInputNotification(for sessionId: UUID) {
+        guard settings.notifyOnNeedsInput else { return }
+        guard !NSApp.isActive || sessionId != activeSessionId else { return }
+        guard let session = sessions.first(where: { $0.id == sessionId }) else { return }
+
+        let projectName = projects.first(where: { $0.id == session.projectId })?.name
+        NotificationService.shared.postSessionNeedsInput(
+            title: projectName ?? "Canopy",
+            subtitle: session.name,
+            sessionId: sessionId
+        )
+    }
+
+    // MARK: - Live Agent Reconciliation
+
+    /// Consecutive idle observations required before a turn counts as
+    /// finished. Status flaps to idle between tool calls inside a single
+    /// turn, so one observation is not a turn boundary.
+    static let confirmedIdlePolls = 2
+
+    /// Whether a busy → idle transition is confirmed rather than a flap.
+    static func confirmsFinish(wasWorking: Bool, consecutiveIdleObservations: Int) -> Bool {
+        wasWorking && consecutiveIdleObservations >= confirmedIdlePolls
+    }
+
+    /// Consecutive idle observations per session, for the flap guard above.
+    private var agentIdleObservations: [UUID: Int] = [:]
+
+    /// Applies a poll of `claude agents --json` to the live sessions.
+    ///
+    /// Claude Code reports what it is actually doing, which the PTY cannot:
+    /// a permission prompt emits no bytes, so the 5-second silence heuristic
+    /// declared such sessions finished mid-turn and then decayed them to a
+    /// grey dot indistinguishable from an empty prompt.
+    ///
+    /// Gated on the `.off` backend. Container sessions write their registry
+    /// entry into the bind-mounted host ~/.claude, but `pid` is a guest
+    /// namespace pid and the peer socket is unreachable from the host, so
+    /// their status cannot be trusted. `.dockerSbx` shares nothing at all.
+    func applyAgents(_ agents: [ClaudeAgent]) {
+        for session in sessions {
+            guard sandboxBackend(for: session) == .off,
+                  let terminal = terminalSessions[session.id] else { continue }
+
+            // Ambiguous means two claudes under one directory (a split
+            // terminal, or one the user started by hand). Canopy cannot know
+            // which is this tab's, and guessing binds it to the wrong
+            // transcript -- so keep the existing behaviour.
+            guard case .one(let agent) = ClaudeAgentsService.agent(
+                forWorktree: session.workingDirectory, in: agents
+            ) else {
+                agentIdleObservations[session.id] = 0
+                continue
+            }
+
+            // Adopt an id only from a conversation that started after this tab
+            // opened. Without this, a claude the user has had running in that
+            // worktree since yesterday would be adopted on the first poll.
+            if let startedAt = agent.startedAt,
+               Date(timeIntervalSince1970: startedAt / 1000) >= terminal.openedAt {
+                assignClaudeSessionId(agent.sessionId, to: session.id)
+            }
+
+            // No opinion -> leave the PTY heuristic in charge.
+            guard let reported = ClaudeAgentsService.activity(for: agent.status) else { continue }
+
+            let previous = terminal.activity
+            guard reported == .idle else {
+                agentIdleObservations[session.id] = 0
+                terminal.setAuthoritativeActivity(reported)
+                // Only on the transition: a session sits in `waiting` for as
+                // long as the prompt is open, and re-notifying every poll
+                // would be a 2-second alarm clock.
+                if reported == .needsInput, previous != .needsInput {
+                    postNeedsInputNotification(for: session.id)
+                }
+                continue
+            }
+
+            let idleCount = (agentIdleObservations[session.id] ?? 0) + 1
+            agentIdleObservations[session.id] = idleCount
+            let wasWorking = previous == .working || previous == .needsInput
+            guard Self.confirmsFinish(wasWorking: wasWorking, consecutiveIdleObservations: idleCount)
+                    || !wasWorking else { continue }
+
+            if wasWorking {
+                terminal.setAuthoritativeActivity(.justFinished)
+                postFinishNotification(for: session.id)
+            } else if previous != .idle {
+                // Decays the checkmark on the following poll.
+                terminal.setAuthoritativeActivity(.idle)
+            }
+        }
+    }
+
+    /// Polls Claude Code for live session state. Separate from the 10 s git
+    /// poll because this drives the activity dots and wants to be responsive.
+    ///
+    /// One `claude agents --json` invocation per cycle covers every session.
+    func startAgentPolling() {
+        agentsPollTask?.cancel()
+        agentsPollTask = Task { @MainActor [weak self] in
+            var consecutiveFailures = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, let self else { break }
+                // Nothing to reconcile if every session is sandboxed: the
+                // subprocess would be pure waste on a 2-second loop.
+                guard self.sessions.contains(where: { self.sandboxBackend(for: $0) == .off })
+                else { continue }
+
+                guard let agents = await ClaudeAgentsService.fetch() else {
+                    consecutiveFailures += 1
+                    if consecutiveFailures >= 3 {
+                        // Not an error state: the fallback is the behaviour
+                        // Canopy shipped with. Say so once and stop trying.
+                        NSLog("Canopy: `claude agents --json` unavailable; using the PTY heuristic")
+                        return
+                    }
+                    continue
+                }
+                consecutiveFailures = 0
+                self.applyAgents(agents)
+            }
+        }
+    }
+
+    func stopAgentPolling() {
+        agentsPollTask?.cancel()
+        agentsPollTask = nil
     }
 
     // MARK: - Git Status Polling

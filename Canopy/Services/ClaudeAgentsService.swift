@@ -1,0 +1,167 @@
+import Foundation
+
+/// One live `claude` process, as reported by `claude agents --json`.
+///
+/// Only the fields Canopy actually uses are decoded. The real payload also
+/// carries `pid`, `kind` and `name`; `pid` is useless to us (a container
+/// session's pid is a guest-namespace pid, meaningless on the host) and
+/// decoding fields we don't read only adds ways for a schema change to break
+/// the whole array.
+///
+/// `status` and `startedAt` are optional because they really are absent in
+/// practice: sdk-cli entries carry no `status` key at all.
+struct ClaudeAgent: Decodable, Equatable, Sendable {
+    let cwd: String
+    let sessionId: String
+    let status: String?
+    let startedAt: Double?
+}
+
+/// Asks Claude Code which conversations are live, rather than inferring it.
+///
+/// Shaped like `ClaudeVersionChecker` / `SandboxChecker`: a `nonisolated` enum
+/// of pure functions plus one impure `fetch()`. No protocol, no injected
+/// provider -- the seam for tests is the pure functions.
+enum ClaudeAgentsService {
+
+    /// Which live agent, if any, belongs to a given worktree.
+    enum Match: Equatable {
+        case none
+        case one(ClaudeAgent)
+        /// Two or more agents under the same directory. Canopy cannot know
+        /// which is this tab's, and guessing would bind the tab to the wrong
+        /// transcript, so callers must fall back rather than pick.
+        case ambiguous
+    }
+
+    /// Status values the CLI can report, from its own union
+    /// (`["busy","shell","idle","waiting"]`).
+    private enum Status {
+        static let busy = "busy"
+        /// A Bash tool call is running. Still working, not idle.
+        static let shell = "shell"
+        /// Blocked on a dialog -- which includes permission prompts. This is
+        /// the signal the PTY cannot provide: a waiting prompt emits no bytes,
+        /// so the silence heuristic reads it as "finished".
+        static let waiting = "waiting"
+        static let idle = "idle"
+    }
+
+    /// Decodes the CLI's output. Returns nil for anything that is not a
+    /// top-level array, so an old CLI printing usage text or a shell error is
+    /// **detected** rather than read as "zero sessions running" -- the latter
+    /// would push every tab to a wrong state at once.
+    static func parse(_ data: Data) -> [ClaudeAgent]? {
+        try? JSONDecoder().decode([ClaudeAgent].self, from: data)
+    }
+
+    /// Resolves both sides before comparing: /tmp is a symlink to /private/tmp
+    /// on macOS and claude reports its resolved cwd. Matches "at or under" the
+    /// worktree, mirroring the CLI's own `--cwd` semantics -- but never
+    /// upward, since a claude in the parent directory is a different session.
+    static func agent(forWorktree worktree: String, in agents: [ClaudeAgent]) -> Match {
+        let target = SandboxBackend.realResolvedPath(worktree)
+        guard !target.isEmpty else { return .none }
+
+        let matches = agents.filter { agent in
+            let resolved = SandboxBackend.realResolvedPath(agent.cwd)
+            return resolved == target || resolved.hasPrefix(target + "/")
+        }
+        switch matches.count {
+        case 0: return .none
+        case 1: return .one(matches[0])
+        default: return .ambiguous
+        }
+    }
+
+    /// Maps a reported status to an activity, or nil for "no opinion".
+    ///
+    /// Unknown and absent both map to nil deliberately. Treating them as
+    /// `.idle` would fire a false "finished" notification for every sdk-cli
+    /// entry and for every status value the CLI adds in future; nil leaves the
+    /// existing PTY heuristic in charge, which is the current behaviour and
+    /// therefore always a safe fallback.
+    static func activity(for status: String?) -> SessionActivity? {
+        switch status {
+        case Status.busy, Status.shell: return .working
+        case Status.waiting: return .needsInput
+        case Status.idle: return .idle
+        default: return nil
+        }
+    }
+
+    /// Cached absolute path to `claude`, resolved through a login shell.
+    /// `nonisolated(unsafe)` matches the shared-formatter precedent in
+    /// ClaudeSessionFinder: written once from the poll loop, read from it.
+    private nonisolated(unsafe) static var cachedClaudePath: String?
+
+    private static func resolvedClaudePath() async -> String? {
+        if let cached = cachedClaudePath { return cached }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: SandboxChecker.loginShell())
+        process.arguments = ["-ilc", "command -v claude"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        guard (try? process.run()) != nil else { return nil }
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+
+        let path = String(decoding: data, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) else { return nil }
+        cachedClaudePath = path
+        return path
+    }
+
+    /// Runs `claude agents --json` and decodes it. Returns nil on any failure,
+    /// which callers treat as "no data this cycle", not as "no sessions".
+    ///
+    /// ONE invocation per poll cycle for ALL sessions -- deliberately no
+    /// `--cwd`. At ~0.3 s per call, filtering per worktree would cost
+    /// 0.3 × N for data a single call already contains.
+    static func fetch() async -> [ClaudeAgent]? {
+        let process = Process()
+        // Resolve claude through a login shell ONCE, then invoke it directly.
+        // The GUI PATH is not the shell PATH (claude is usually only on PATH
+        // via .zshrc), but re-sourcing the rc files on a 2-second loop costs
+        // ~0.1 s of the 0.33 s per call and re-runs the user's shell startup
+        // 1800 times an hour for a path that does not change.
+        if let path = await resolvedClaudePath() {
+            process.executableURL = URL(fileURLWithPath: path)
+            process.arguments = ["agents", "--json"]
+        } else {
+            process.executableURL = URL(fileURLWithPath: SandboxChecker.loginShell())
+            process.arguments = ["-ilc", "claude agents --json"]
+        }
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+        } catch {
+            NSLog("Canopy: could not run `claude agents --json` (%@)", "\(error)")
+            return nil
+        }
+
+        // A hung rc file would otherwise wedge the poll loop forever.
+        let watchdog = DispatchWorkItem { [weak process] in
+            if process?.isRunning == true { process?.terminate() }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: watchdog)
+
+        // Read to EOF BEFORE waiting: a full pipe buffer with the parent
+        // blocked in waitUntilExit is the classic deadlock, and this repo has
+        // a regression test for exactly that shape in GitService.
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        process.waitUntilExit()
+        watchdog.cancel()
+
+        guard process.terminationStatus == 0 else { return nil }
+        return parse(data)
+    }
+}

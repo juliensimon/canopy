@@ -1,0 +1,178 @@
+import Testing
+import Foundation
+@testable import Canopy
+
+/// `claude agents --json` reports every live `claude` process on the machine.
+/// Canopy uses it to answer two questions it previously guessed at:
+/// which conversation a tab is running, and whether that conversation is busy,
+/// idle, or blocked waiting on the user.
+///
+/// Fixtures are literal JSON copied from real output, including a real
+/// status-less sdk-cli entry (3 of 11 live entries had no `status` key when
+/// this was written).
+@Suite("ClaudeAgentsService")
+struct ClaudeAgentsServiceTests {
+
+    private func data(_ json: String) -> Data { Data(json.utf8) }
+
+    // MARK: - Parsing
+
+    @Test func parsesRealWorldArray() throws {
+        let agents = try #require(ClaudeAgentsService.parse(data("""
+        [
+          {"pid":69798,"cwd":"/Users/julien/Development/canopy","kind":"interactive",
+           "startedAt":1786035803954,"sessionId":"28619ed8-8eb5-4461-883b-b9dc15f2a591",
+           "name":"canopy-b5","status":"busy"},
+          {"pid":21880,"cwd":"/Users/julien/Development/repos/ghost","kind":"interactive",
+           "startedAt":1785410059006,"sessionId":"4927529c-7991-4eaf-a9c3-d40e876ed2ee",
+           "name":"ghost-20","status":"idle"}
+        ]
+        """)))
+
+        #expect(agents.count == 2)
+        #expect(agents[0].sessionId == "28619ed8-8eb5-4461-883b-b9dc15f2a591")
+        #expect(agents[0].cwd == "/Users/julien/Development/canopy")
+        #expect(agents[0].status == "busy")
+        #expect(agents[0].startedAt == 1786035803954)
+    }
+
+    /// sdk-cli entries carry no `status` key at all. One odd entry must never
+    /// blind Canopy to every other session, so `status` is optional -- this
+    /// fails the moment someone makes it required.
+    @Test func missingStatusDecodesRatherThanFailing() throws {
+        let agents = try #require(ClaudeAgentsService.parse(data("""
+        [
+          {"pid":18660,"cwd":"/Users/julien/.claude-mem/observer-sessions",
+           "kind":"interactive","startedAt":1786096015426,
+           "sessionId":"0a61d62b-4b0b-45ff-ae63-c3cdd94b5c88","name":"observer-sessions-e1"},
+          {"pid":1,"cwd":"/tmp/wt","sessionId":"abc","status":"idle"}
+        ]
+        """)))
+
+        #expect(agents.count == 2)
+        #expect(agents[0].status == nil)
+        #expect(agents[1].status == "idle")
+    }
+
+    @Test func unknownStatusValueDoesNotFailDecode() throws {
+        let agents = try #require(ClaudeAgentsService.parse(data(
+            #"[{"cwd":"/tmp/wt","sessionId":"abc","status":"teleporting"}]"#
+        )))
+        #expect(agents[0].status == "teleporting")
+    }
+
+    /// An old CLI prints usage text; a missing one prints a shell error.
+    /// Either must be DETECTED, never read as "zero sessions running" --
+    /// that would push every tab to a wrong state at once.
+    @Test(arguments: [
+        "command not found: claude",
+        #"{"error":"nope"}"#,
+        "",
+        "Usage: claude [options]",
+    ])
+    func nonArrayOutputReturnsNil(_ junk: String) {
+        #expect(ClaudeAgentsService.parse(data(junk)) == nil)
+    }
+
+    /// An empty array is a real answer -- no claude running -- and must be
+    /// distinguishable from a failure.
+    @Test func emptyArrayIsNotAFailure() {
+        #expect(ClaudeAgentsService.parse(data("[]")) == [])
+    }
+
+    // MARK: - Matching
+
+    private func agent(cwd: String, sessionId: String = "s", status: String? = "idle",
+                       startedAt: Double? = 0) -> ClaudeAgent {
+        ClaudeAgent(cwd: cwd, sessionId: sessionId, status: status, startedAt: startedAt)
+    }
+
+    @Test func matchesExactWorktreePath() {
+        let match = ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: [agent(cwd: "/tmp/wt")])
+        #expect(match == .one(agent(cwd: "/tmp/wt")))
+    }
+
+    /// `--cwd` semantics are "at or under", so a claude started in a
+    /// subdirectory of the worktree still belongs to that tab.
+    @Test func matchesSessionStartedInSubdirectory() {
+        let match = ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: [agent(cwd: "/tmp/wt/src")])
+        if case .one = match {} else { Issue.record("expected .one, got \(match)") }
+    }
+
+    /// Prefix matching must not run upward: a claude in the PARENT directory
+    /// is a different session, and adopting its id would resume the wrong
+    /// transcript.
+    @Test func doesNotMatchParentDirectory() {
+        #expect(ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: [agent(cwd: "/tmp")]) == .none)
+    }
+
+    /// Nor a sibling whose name merely starts with the same characters.
+    @Test func doesNotMatchSiblingWithSharedPrefix() {
+        #expect(ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: [agent(cwd: "/tmp/wt-other")]) == .none)
+    }
+
+    /// /tmp is a symlink to /private/tmp on macOS and claude reports the
+    /// resolved cwd, so both sides must be resolved before comparing.
+    @Test func matchesThroughSymlinkedPath() throws {
+        let dir = "/tmp/canopy-agents-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+
+        let resolved = SandboxBackend.realResolvedPath(dir)
+        #expect(resolved.hasPrefix("/private/tmp"))
+
+        let match = ClaudeAgentsService.agent(forWorktree: dir, in: [agent(cwd: resolved)])
+        if case .one = match {} else { Issue.record("symlinked path did not match") }
+    }
+
+    /// A split terminal, or the user starting a second claude by hand, puts
+    /// two agents in one directory. Canopy cannot know which one is this
+    /// tab's, and guessing would resume the wrong transcript -- so it must
+    /// say so and keep the existing behaviour.
+    @Test func twoAgentsInSameCwdIsAmbiguous() {
+        let match = ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: [
+            agent(cwd: "/tmp/wt", sessionId: "a"),
+            agent(cwd: "/tmp/wt/sub", sessionId: "b"),
+        ])
+        #expect(match == .ambiguous)
+    }
+
+    @Test func noMatchReturnsNone() {
+        #expect(ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: []) == .none)
+    }
+
+    // MARK: - Status mapping
+
+    @Test func busyMapsToWorking() {
+        #expect(ClaudeAgentsService.activity(for: "busy") == .working)
+    }
+
+    /// `shell` means a Bash tool call is running -- still working, not idle.
+    @Test func shellMapsToWorking() {
+        #expect(ClaudeAgentsService.activity(for: "shell") == .working)
+    }
+
+    /// The whole point of this service: claude reports `waiting` when it is
+    /// blocked on a dialog, which includes permission prompts. The PTY goes
+    /// silent in exactly that situation, which is why the 5-second heuristic
+    /// declared the session finished mid-turn.
+    @Test func waitingMapsToNeedsInput() {
+        #expect(ClaudeAgentsService.activity(for: "waiting") == .needsInput)
+    }
+
+    @Test func idleMapsToIdle() {
+        #expect(ClaudeAgentsService.activity(for: "idle") == .idle)
+    }
+
+    /// The most important mapping in the suite: conflating "unknown" with
+    /// "idle" would fire a false finish notification for every sdk-cli entry
+    /// and every status value the CLI adds later. No opinion means the PTY
+    /// heuristic keeps running.
+    @Test func absentStatusMapsToNilNotIdle() {
+        #expect(ClaudeAgentsService.activity(for: nil) == nil)
+    }
+
+    @Test func unknownStatusMapsToNil() {
+        #expect(ClaudeAgentsService.activity(for: "teleporting") == nil)
+    }
+}

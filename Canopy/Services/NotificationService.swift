@@ -26,6 +26,22 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         center.add(request, withCompletionHandler: nil)
     }
 
+    /// A blocked session is not a finished one, and saying "Session finished"
+    /// for a permission prompt is actively misleading -- the agent is stalled
+    /// and will stay stalled until someone answers.
+    func postSessionNeedsInput(title: String, subtitle: String, sessionId: UUID) {
+        let content = Self.makeContent(
+            title: title, subtitle: subtitle, sessionId: sessionId,
+            body: Self.needsInputBody
+        )
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        center.add(request, withCompletionHandler: nil)
+    }
+
     func postUpdateAvailable(version: String) {
         let content = UNMutableNotificationContent()
         content.title = "Canopy update available"
@@ -39,11 +55,19 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         center.add(request, withCompletionHandler: nil)
     }
 
-    nonisolated static func makeContent(title: String, subtitle: String, sessionId: UUID) -> UNMutableNotificationContent {
+    nonisolated static let finishedBody = "Session finished"
+    nonisolated static let needsInputBody = "Waiting for your input"
+
+    nonisolated static func makeContent(
+        title: String,
+        subtitle: String,
+        sessionId: UUID,
+        body: String = finishedBody
+    ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = title
         content.subtitle = subtitle
-        content.body = "Session finished"
+        content.body = body
         content.sound = .default
         content.threadIdentifier = sessionId.uuidString
         content.userInfo = ["sessionId": sessionId.uuidString]

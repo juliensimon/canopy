@@ -84,4 +84,24 @@ struct SettingsEdgeCaseTests {
         // .whitespaces only includes space and tab
         #expect(settings.claudeCommand == "claude \n")
     }
+
+    /// Settings saved before the toggle existed must default it ON -- the
+    /// whole point is that a blocked session is the thing you most need told
+    /// about, so silence-by-default would be the wrong failure direction.
+    @Test func notifyOnNeedsInputDefaultsTrueWhenAbsent() throws {
+        let decoded = try JSONDecoder().decode(
+            CanopySettings.self, from: Data("{}".utf8)
+        )
+        #expect(decoded.notifyOnNeedsInput)
+    }
+
+    @Test func notifyOnNeedsInputRoundTrips() throws {
+        var settings = CanopySettings()
+        settings.notifyOnNeedsInput = false
+        let decoded = try JSONDecoder().decode(
+            CanopySettings.self, from: try JSONEncoder().encode(settings)
+        )
+        #expect(!decoded.notifyOnNeedsInput)
+    }
+
 }
