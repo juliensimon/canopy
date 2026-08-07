@@ -32,7 +32,12 @@ final class AppState: ObservableObject {
     @Published var splitSessionIds: Set<UUID> = []
 
     /// App settings (auto-start claude, flags, etc.)
-    @Published var settings = CanopySettings.load()
+    ///
+    /// Loaded in `init` rather than as a stored-property default, because a
+    /// property initializer cannot see the injected `configDir` -- it always
+    /// resolved the real ~/.config/canopy/settings.json, so a test with a temp
+    /// config dir was isolated for sessions and projects but not for settings.
+    @Published var settings: CanopySettings
 
     /// Saved prompts for the prompt library.
     @Published var prompts: [SavedPrompt] = []
@@ -95,7 +100,12 @@ final class AppState: ObservableObject {
     private let configDir: String
 
     init(configDir: String? = nil) {
-        self.configDir = configDir ?? (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
+        let resolvedConfigDir = configDir
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent(".config/canopy")
+        self.configDir = resolvedConfigDir
+        self.settings = CanopySettings.load(
+            from: (resolvedConfigDir as NSString).appendingPathComponent("settings.json")
+        )
         installKeyboardShortcutObservers()
     }
 
@@ -992,6 +1002,14 @@ final class AppState: ObservableObject {
     private var sessionsFilePath: String {
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         return (configDir as NSString).appendingPathComponent("sessions.json")
+    }
+
+    /// Settings live in the same injected dir as sessions and projects, so a
+    /// temp config dir isolates all three. Not private: SettingsView writes
+    /// through this rather than the global default path.
+    var settingsFilePath: String {
+        try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+        return (configDir as NSString).appendingPathComponent("settings.json")
     }
 
     private var promptsFilePath: String {
