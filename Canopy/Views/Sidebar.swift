@@ -536,9 +536,11 @@ struct SidebarSessionRow: View {
                         Image(systemName: "shield.lefthalf.filled")
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
-                            .tooltip(sandboxBackend == .dockerSbx
-                                ? "Running in Docker Sandbox"
-                                : "Running in Apple container")
+                            // displayName, not a binary test: a third
+                            // sandboxed backend exists, and an `else` branch
+                            // naming one specific VM mislabels it -- claiming
+                            // stronger isolation than the session actually has.
+                            .tooltip("Running in \(sandboxBackend.displayName)")
                     }
                 }
 

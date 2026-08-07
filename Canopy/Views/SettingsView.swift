@@ -123,10 +123,14 @@ struct SettingsView: View {
                                 )) {
                                     Text(SandboxBackend.off.displayName).tag(SandboxBackend.off)
                                     Text(SandboxBackend.claudeNative.displayName).tag(SandboxBackend.claudeNative)
-                        Text("\(SandboxBackend.dockerSbx.displayName) — legacy, no session resume").tag(SandboxBackend.dockerSbx)
+                                    Text("\(SandboxBackend.dockerSbx.displayName) — legacy, no session resume").tag(SandboxBackend.dockerSbx)
                                     Text(SandboxBackend.appleContainer.displayName).tag(SandboxBackend.appleContainer)
                                 }
                                 .disabled(checkingSandbox)
+
+                                Text(SandboxBackendUI.description(for: sandboxBackend))
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
 
                                 if let status = sandboxStatus, status != .available {
                                     Text(sandboxWarning(for: status))
@@ -252,7 +256,7 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                             Toggle("Notify when sessions need input", isOn: $notifyOnNeedsInput)
-                            Text("Show a notification when Claude blocks on a permission prompt. Also fires while Canopy is in front, since the blocked session is usually not the tab you are looking at. Requires the unsandboxed backend.")
+                            Text("Show a notification when Claude blocks on a permission prompt. Also fires while Canopy is in front, since the blocked session is usually not the tab you are looking at. Needs a backend that runs Claude on the host: Off or Claude sandbox.")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }

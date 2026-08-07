@@ -651,4 +651,22 @@ struct SettingsTests {
         #expect(sandbox["allowUnsandboxedCommands"] as? Bool == false)
     }
 
+
+    /// The picker names a backend but not what it protects, and this is a
+    /// security setting. Every backend needs a distinct, non-empty
+    /// description -- and the two that people will actually compare must not
+    /// oversell: .claudeNative sandboxes Bash only and leaves reads open.
+    @Test func everyBackendDescribesWhatItProtects() {
+        let all: [SandboxBackend] = [.off, .claudeNative, .dockerSbx, .appleContainer]
+        let descriptions = all.map { SandboxBackendUI.description(for: $0) }
+        #expect(Set(descriptions).count == all.count)
+        #expect(!descriptions.contains(where: { $0.isEmpty }))
+
+        // The specific honesty claims, so a future reword cannot quietly drop them.
+        #expect(SandboxBackendUI.description(for: .off).contains("No isolation"))
+        #expect(SandboxBackendUI.description(for: .claudeNative).contains("Bash only"))
+        #expect(SandboxBackendUI.description(for: .claudeNative).contains("reads are not restricted"))
+        #expect(SandboxBackendUI.description(for: .dockerSbx).contains("resume does not work"))
+    }
+
 }
