@@ -68,4 +68,11 @@ struct SandboxBackendUILaunchTests {
             #expect(sent.hasPrefix("echo "))
         }
     }
+
+    /// No prerequisite gate: Save must not disable itself, and verifySandbox
+    /// must not silently reset the picker to .off for this backend.
+    @Test func claudeNativeIsAlwaysAvailable() async {
+        #expect(await SandboxChecker.check(backend: .claudeNative) == .available)
+    }
+
 }

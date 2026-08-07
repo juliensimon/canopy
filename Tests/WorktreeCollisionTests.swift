@@ -205,6 +205,20 @@ struct WorktreeCollisionTests {
         }
     }
 
+    // MARK: - Summary copy
+
+    /// The summary line is the "look here first" signal that replaced the
+    /// create button's prominence. It must name the severity, not just a
+    /// count, and must not emit a dangling clause when one side is zero.
+    @Test func collisionSummaryNamesBothSeverities() {
+        #expect(ProjectDetailView.collisionSummaryText(hard: 2, watch: 1)
+                == "2 branches would conflict on merge, 1 shares a high-stakes surface")
+        #expect(ProjectDetailView.collisionSummaryText(hard: 1, watch: 0)
+                == "1 branch would conflict on merge")
+        #expect(ProjectDetailView.collisionSummaryText(hard: 0, watch: 2)
+                == "2 share a high-stakes surface")
+    }
+
     // MARK: - Fixture
 
     /// Creates a repo on `main` with an initial commit plus one worktree per

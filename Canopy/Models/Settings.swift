@@ -9,6 +9,19 @@ enum SandboxBackend: String, Codable {
     /// Apple's `container` runtime -- one lightweight VM per container.
     /// Requires macOS 26+ on Apple silicon.
     case appleContainer
+    /// Claude Code's own Bash sandbox, built on macOS Seatbelt. Nothing to
+    /// install, no image, no daemon.
+    ///
+    /// Weaker than a microVM and deliberately so: only Bash is sandboxed
+    /// (Read/Edit/Write go through the permission system instead), reads
+    /// default to the whole machine including ~/.ssh and ~/.aws/credentials,
+    /// and it shares the kernel, user session and TCC context. Upstream is
+    /// explicit that it "reduces risk but is not a complete isolation
+    /// boundary", so `.appleContainer` remains the paranoid option.
+    case claudeNative
+
+    /// The `--settings` payload enabling Claude Code's own Bash sandbox.
+    private var sandboxSettingsJSON: String { #"{"sandbox":{"enabled":true}}"# }
 
     /// Whether `--resume` works for this backend. Session JSONLs must
     /// persist on the host: sbx microVMs are ephemeral, while the Apple
@@ -53,6 +66,21 @@ enum SandboxBackend: String, Codable {
         switch self {
         case .off:
             parts = ["claude"]
+        case .claudeNative:
+            // --settings takes inline JSON as well as a path (verified on
+            // 2.1.224), so nothing is written to disk. A file would be the
+            // wrong answer twice over: a .claude/settings.local.json in the
+            // worktree is a PROJECT-scope source, which per the docs cannot
+            // set the sandbox keys at all, and it would litter the user's repo
+            // beyond the session.
+            //
+            // Payload is the minimum on purpose: --settings MERGES with the
+            // user's own settings, so their allowedDomains, credentials and
+            // excludedCommands still apply. Canopy inventing an allowlist here
+            // would fight their configuration.
+            //
+            // One shell token: the blob contains {, } and " and must not split.
+            parts = ["claude", "--settings", Self.shellSingleQuoted(sandboxSettingsJSON)]
         case .dockerSbx:
             parts = ["sbx run"]
             let sbx = sbxFlags.trimmingCharacters(in: .whitespaces)
@@ -250,7 +278,15 @@ struct CanopySettings: Codable {
             // Tolerant of unknown rawValues (config written by a newer
             // version): throwing here would fail the whole-file decode and
             // load()'s fallback would silently factory-reset all settings.
-            sandboxBackend = SandboxBackend(rawValue: raw) ?? .off
+            let decodedBackend = SandboxBackend(rawValue: raw)
+            sandboxBackend = decodedBackend ?? .off
+            if decodedBackend == nil {
+                // Fail-safe direction, but not a silent one: a user who picked
+                // a sandbox and then downgraded Canopy ends up UNSANDBOXED,
+                // which is exactly what the save() return-value guard exists
+                // to prevent elsewhere.
+                NSLog("Canopy: unknown sandboxBackend %@ in settings; falling back to off (unsandboxed)", raw)
+            }
         } else {
             let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
             let useSandbox = try legacy.decodeIfPresent(Bool.self, forKey: .useSandbox) ?? false

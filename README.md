@@ -2,9 +2,9 @@
 
 <img src="docs/screenshots/splash.png" alt="Canopy" width="820"/>
 
-**Parallel Claude Code sessions with git worktrees — a native macOS app.**
+**The cockpit for parallel Claude Code sessions — a native macOS app.**
 
-*One window. Parallel branches. Parallel Claudes. Zero context switching.*
+*Claude Code can make the worktrees. Canopy shows you which ones are about to collide, and merges them back.*
 
 <br/>
 
@@ -53,6 +53,12 @@ When you use Claude Code seriously — not just for experiments, but for real pr
 You *can* hack around it: stash, checkout, maybe a second clone, maybe `git worktree add` and a hand-written shell script to copy your `.env`, maybe remember which of your six Terminal.app tabs was running which session. You end up with a tab graveyard, stale worktrees littering your disk, Claude sessions you can't find, and a quiet tax on every task you do.
 
 Canopy removes that tax. Completely.
+
+**And to be straight with you about what changed:** Claude Code now creates worktrees on its own — `claude -w`, `/fork`, subagents that isolate themselves. That part is solved, it's free, and it's cross-platform. So making a worktree is no longer the interesting problem.
+
+Running *eight* of them is. Nothing upstream tells you that two of your branches are both editing the lockfile, or both adding a migration with the same sequence number — a conflict `git merge-tree` structurally cannot see until you're already merging. Nothing upstream integrates a finished branch back for you. And Claude Code now creates **more** unwatched worktrees, not fewer, with a cleanup sweep that deliberately skips anything containing work — so they pile up, with real commits in them, and nobody is looking.
+
+That's what Canopy is for: the pre-flight before the merge, the merge itself, and one window that shows you which of your agents is stuck waiting on you right now.
 
 ## What you actually get back
 

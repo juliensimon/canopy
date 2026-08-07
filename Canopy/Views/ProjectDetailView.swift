@@ -40,14 +40,24 @@ struct ProjectDetailView: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
+
+                    Spacer()
+
+                    // Creating a worktree is no longer the differentiated
+                    // capability -- `claude -w --tmux` does that, free and
+                    // cross-platform. Watching several at once is. So this
+                    // moves out of the content's lead position and into the
+                    // header as a secondary action.
+                    Button(action: { showNewWorktree = true }) {
+                        Label("New Worktree Session", systemImage: "arrow.triangle.branch")
+                    }
+                    .controlSize(.large)
                 }
 
-                // Primary action
-                Button(action: { showNewWorktree = true }) {
-                    Label("New Worktree Session", systemImage: "arrow.triangle.branch")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                // Cross-worktree collisions lead, because nothing upstream
+                // reports them and Claude Code now creates more unwatched
+                // worktrees, not fewer.
+                collisionSummary
 
                 Divider()
 
@@ -297,6 +307,43 @@ struct ProjectDetailView: View {
 
     /// Tooltip text for a worktree's collision badge: one line per colliding
     /// sibling branch, listing its hard (conflict) and watch (shared-surface) files.
+    /// One line naming how many branches would collide, shown only when there
+    /// is something to say. The per-row badges stay -- this is the "look here
+    /// first" summary the layout previously gave to the create button.
+    @ViewBuilder
+    private var collisionSummary: some View {
+        let reports = worktreeCollisions.values.filter { !$0.isEmpty }
+        if !reports.isEmpty {
+            let hard = reports.filter { $0.hardCount > 0 }.count
+            let watch = reports.count - hard
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(hard > 0 ? .red : .orange)
+                Text(Self.collisionSummaryText(hard: hard, watch: watch))
+                    .font(.subheadline)
+                Spacer()
+            }
+            .padding(10)
+            .background((hard > 0 ? Color.red : Color.orange).opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    /// nonisolated: a pure string function with no actor state. SwiftUI
+    /// infers @MainActor on the View, and whether a synchronous call from a
+    /// non-isolated test is allowed differs by Swift version -- this compiled
+    /// locally and failed on CI. Saying it explicitly removes the ambiguity.
+    nonisolated static func collisionSummaryText(hard: Int, watch: Int) -> String {
+        var parts: [String] = []
+        if hard > 0 {
+            parts.append("\(hard) branch\(hard == 1 ? "" : "es") would conflict on merge")
+        }
+        if watch > 0 {
+            parts.append("\(watch) share\(watch == 1 ? "s" : "") a high-stakes surface")
+        }
+        return parts.joined(separator: ", ")
+    }
+
     private func collisionTooltip(_ report: WorktreeCollisionReport) -> String {
         let lines = report.collisions.map { c in
             var parts: [String] = []
