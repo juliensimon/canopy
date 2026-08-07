@@ -66,7 +66,7 @@ struct SessionInfoSheet: View {
     /// Blank flags are a real, deliberate state (a session may set "" to mean
     /// "no flags"), and an empty row reads as a rendering bug.
     private var flagsDescription: String {
-        let flags = appState.resolvedClaudeFlags(for: session)
+        let flags = appState.effectiveClaudeFlags(for: session)
             .trimmingCharacters(in: .whitespaces)
         return flags.isEmpty ? "None" : flags
     }

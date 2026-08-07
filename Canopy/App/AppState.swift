@@ -719,31 +719,50 @@ final class AppState: ObservableObject {
     /// is broken without it. Only for real worktrees -- a worktree is never
     /// inside the repo, so the mounts can't overlap (overlapping virtiofs
     /// mounts are silently dropped or hang the VM).
-    func claudeCommand(for session: SessionInfo) -> String {
-        let project = projects.first { $0.id == session.projectId }
-        var extraMounts: [String] = []
-        if session.worktreePath != nil,
-           let repoPath = project?.repositoryPath,
-           // Compare resolved paths: /tmp vs /private/tmp spellings of the
-           // same directory must not produce a duplicate (overlapping) mount.
-           SandboxBackend.realResolvedPath(repoPath)
-               != SandboxBackend.realResolvedPath(session.workingDirectory) {
-            extraMounts.append(repoPath)
-        }
+    /// Host paths a session needs mounted beyond its own working directory.
+    ///
+    /// Worktree sessions get the project's MAIN repository: a worktree's
+    /// `.git` file points there, so without it every git operation inside a
+    /// sandbox fails. Only for real worktrees, and never when it resolves to
+    /// the working directory itself -- overlapping mounts are silently
+    /// dropped or hang the VM.
+    func extraMountPaths(for session: SessionInfo) -> [String] {
+        guard session.worktreePath != nil,
+              let repoPath = projects.first(where: { $0.id == session.projectId })?.repositoryPath,
+              // /tmp vs /private/tmp spellings of the same directory must not
+              // produce a duplicate mount.
+              SandboxBackend.realResolvedPath(repoPath)
+                  != SandboxBackend.realResolvedPath(session.workingDirectory)
+        else { return [] }
+        return [repoPath]
+    }
+
+    /// Every flag the session actually launches with, including the ones
+    /// Canopy injects rather than the user configuring them.
+    ///
+    /// This is what Session Info shows. `resolvedClaudeFlags` alone would
+    /// under-report: a worktree session also gets `--add-dir <main repo>`,
+    /// so the sheet could read "None" for a command that carries flags.
+    func effectiveClaudeFlags(for session: SessionInfo) -> String {
         // Mounting the main repo fixes the filesystem, but Claude Code's own
         // tool boundary is cwd-scoped independently of what is mounted:
         // verified on CLI 2.1.224, reading a main-repo file from a worktree
         // session under `--permission-mode manual` is refused outright.
-        // --add-dir grants it, using the path we already resolved above.
-        var resolvedFlags = resolvedClaudeFlags(for: session)
-        for path in extraMounts {
+        var flags = resolvedClaudeFlags(for: session)
+        for path in extraMountPaths(for: session) {
             let resolved = SandboxBackend.realResolvedPath(path)
             if !resolved.isEmpty {
-                resolvedFlags += " --add-dir \(SandboxBackend.shellSingleQuoted(resolved))"
+                flags += " --add-dir \(SandboxBackend.shellSingleQuoted(resolved))"
             }
         }
+        return flags
+    }
+
+    func claudeCommand(for session: SessionInfo) -> String {
+        let project = projects.first { $0.id == session.projectId }
+        let extraMounts = extraMountPaths(for: session)
         return sandboxBackend(for: session).claudeCommand(
-            claudeFlags: resolvedFlags,
+            claudeFlags: effectiveClaudeFlags(for: session),
             sbxFlags: project?.sbxFlags ?? settings.sbxFlags,
             containerImage: project?.containerImage ?? settings.containerImage,
             containerFlags: project?.containerFlags ?? settings.containerFlags,
@@ -838,8 +857,9 @@ final class AppState: ObservableObject {
     /// mirroring sandboxBackend(for:). `??` and not a blank check -- a session
     /// that explicitly sets "" means "no flags", which differs from inheriting.
     ///
-    /// Shared with Session Info rather than resolved inline, so the value the
-    /// user is shown cannot drift from the one actually sent.
+    /// This is only the configured chain. Canopy also injects flags of its
+    /// own (`--add-dir` for worktree sessions), so what a session actually
+    /// launches with is `effectiveClaudeFlags(for:)` -- use that for display.
     func resolvedClaudeFlags(for session: SessionInfo) -> String {
         let project = projects.first { $0.id == session.projectId }
         return session.claudeFlags ?? project?.claudeFlags ?? settings.claudeFlags

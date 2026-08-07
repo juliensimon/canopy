@@ -473,4 +473,53 @@ struct SessionSandboxTests {
         #expect(state.sandboxBackend(for: session).displayName == "Claude sandbox (Bash only)")
     }
 
+
+    /// Session Info must show what the session actually launches with, not
+    /// just the configured chain. A worktree session also gets --add-dir, so
+    /// reporting only the resolved chain could read "None" for a command that
+    /// carries flags.
+    @Test func effectiveFlagsIncludeInjectedAddDir() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = ""
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/wt",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/wt"
+        )
+
+        #expect(state.resolvedClaudeFlags(for: session).isEmpty)
+        #expect(state.effectiveClaudeFlags(for: session).contains("--add-dir '/Users/x/dev/repo'"))
+    }
+
+    /// The displayed flags and the launched command must not diverge.
+    @Test func effectiveFlagsAreExactlyWhatTheCommandCarries() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--permission-mode auto"
+        let project = Project(name: "p", repositoryPath: "/Users/x/dev/repo")
+        state.projects = [project]
+        let session = SessionInfo(
+            name: "s", workingDirectory: "/Users/x/dev/wt",
+            projectId: project.id,
+            worktreePath: "/Users/x/dev/wt"
+        )
+
+        #expect(state.claudeCommand(for: session)
+                == "claude \(state.effectiveClaudeFlags(for: session))")
+    }
+
+    /// A non-worktree session injects nothing, so both agree trivially.
+    @Test func effectiveFlagsMatchResolvedForPlainSessions() {
+        let state = makeState()
+        state.settings.sandboxBackend = .off
+        state.settings.claudeFlags = "--permission-mode auto"
+        let session = SessionInfo(name: "s", workingDirectory: "/tmp")
+
+        #expect(state.effectiveClaudeFlags(for: session)
+                == state.resolvedClaudeFlags(for: session))
+    }
+
 }
