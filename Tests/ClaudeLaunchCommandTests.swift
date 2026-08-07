@@ -195,11 +195,18 @@ struct ClaudeLaunchCommandTests {
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-lc", command]
+        let errPipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = errPipe
         try process.run()
-        // Drain before waiting, per the repo's anti-deadlock convention.
+        // BOTH pipes drained before waiting. An unread stderr pipe fills its
+        // 64K buffer and blocks the child forever -- the deadlock this repo
+        // already has a regression test for -- and a login shell's rc files
+        // can be noisy. Kept separate rather than merged so that a machine
+        // without `claude` still yields empty stdout and skips the test,
+        // instead of asserting against "command not found".
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        _ = errPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return String(data: data, encoding: .utf8) ?? ""
     }
