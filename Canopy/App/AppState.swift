@@ -397,8 +397,15 @@ final class AppState: ObservableObject {
     /// `.working` again.
     func abandonAgentReconciliation() {
         agentIdleObservations.removeAll()
-        for terminal in terminalSessions.values {
-            releaseNeedsInput(terminal)
+        // Every state we imposed is frozen, not just .needsInput:
+        // setAuthoritativeActivity cancels the PTY idle and justFinished
+        // timers, so a session left .working has nothing left to move it and
+        // would sit there until the next byte arrives -- which for a session
+        // waiting on a long API turn may be minutes, or never.
+        // .idle is the safe resting state; the next byte restarts the
+        // heuristic normally.
+        for terminal in terminalSessions.values where terminal.activity != .idle {
+            terminal.setAuthoritativeActivity(.idle)
         }
     }
 

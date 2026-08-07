@@ -47,25 +47,31 @@ enum ClaudeAgentsService {
         static let idle = "idle"
     }
 
+    /// Decodes to nil rather than throwing, so one undecodable element
+    /// cannot fail the whole array.
+    private struct FailableAgent: Decodable {
+        let agent: ClaudeAgent?
+        init(from decoder: Decoder) throws {
+            agent = try? ClaudeAgent(from: decoder)
+        }
+    }
+
     /// Decodes the CLI's output. Returns nil for anything that is not a
     /// top-level array, so an old CLI printing usage text or a shell error is
     /// **detected** rather than read as "zero sessions running" -- the latter
     /// would push every tab to a wrong state at once.
     static func parse(_ data: Data) -> [ClaudeAgent]? {
-        guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+        // Per element, not all-or-nothing: ONE entry of a shape Canopy does
+        // not care about -- a future kind without `cwd`, say -- would
+        // otherwise return nil for the entire poll, and consecutive nils
+        // permanently disable reconciliation.
+        //
+        // A non-array still fails outright, because "old or missing CLI" must
+        // stay distinguishable from "no claude running".
+        guard let wrapped = try? JSONDecoder().decode([FailableAgent].self, from: data) else {
             return nil
         }
-        // Per element, not all-or-nothing. Decoding the array as a whole means
-        // ONE entry of a shape Canopy does not care about -- a future kind
-        // without `cwd`, say -- returns nil for the entire poll, and three of
-        // those in a row permanently disable reconciliation.
-        let decoder = JSONDecoder()
-        return elements.compactMap { element in
-            guard let elementData = try? JSONSerialization.data(withJSONObject: element) else {
-                return nil
-            }
-            return try? decoder.decode(ClaudeAgent.self, from: elementData)
-        }
+        return wrapped.compactMap(\.agent)
     }
 
     /// Resolves both sides before comparing: /tmp is a symlink to /private/tmp

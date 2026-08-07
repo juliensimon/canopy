@@ -385,4 +385,23 @@ struct AgentReconciliationTests {
         #expect(state.hasReconcilableSessions)
     }
 
+    /// Giving up must release EVERY imposed state, not only .needsInput.
+    /// setAuthoritativeActivity cancels the PTY timers, so a session left
+    /// .working has nothing to move it on and would sit there indefinitely.
+    @Test func abandoningReconciliationReleasesStuckWorking() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-u")
+        let terminal = try! #require(state.terminalSessions[state.sessions[0].id])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-u", status: "busy")])
+        #expect(terminal.activity == .working)
+
+        state.abandonAgentReconciliation()
+        #expect(terminal.activity == .idle)
+
+        // And the heuristic is driving again.
+        terminal.handleOutputData(Data("output".utf8))
+        #expect(terminal.activity == .working)
+    }
+
 }
