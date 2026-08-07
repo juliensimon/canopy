@@ -277,7 +277,7 @@ enum SandboxBackendUI {
         case .off:
             return "No isolation. Claude can read and write anything you can."
         case .claudeNative:
-            return "Sandboxes Bash only, via macOS Seatbelt — nothing to install. Writes are limited to the worktree; reads are not restricted, so credentials remain readable. Session resume works."
+            return "Sandboxes Bash only, via macOS Seatbelt — nothing to install. Writes are limited to an allowlist; reads are only deny-listed, so credentials remain readable. Session resume works."
         case .dockerSbx:
             return "Runs Claude in a Docker microVM. Legacy: session resume does not work, because transcripts stay inside the VM."
         case .appleContainer:

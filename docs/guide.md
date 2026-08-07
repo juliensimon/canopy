@@ -98,7 +98,7 @@ The command becomes `claude --settings '{"sandbox":{"enabled":true,"allowUnsandb
 - `--settings` *merges* with your own settings, so your `allowedDomains`, `excludedCommands` and filesystem allowlist still apply. Widen the allowlist in-session with `/sandbox`
 - Nothing is written to disk; the settings are passed inline
 
-**Know what this does not do.** It sandboxes **Bash only** — Read, Edit and Write go through the permission system instead. **Reads are not restricted**, so `~/.ssh` and `~/.aws/credentials` remain readable. It shares the kernel, your user session and the TCC context. Upstream is explicit that it "reduces risk but is not a complete isolation boundary". If you want a real boundary, use Apple container.
+**Know what this does not do.** It sandboxes **Bash only** — Read, Edit and Write go through the permission system instead. Writes are confined to an allowlist, but **reads are governed by a deny-list**, so `~/.ssh` and `~/.aws/credentials` remain readable (verified against the shipping CLI). It shares the kernel, your user session and the TCC context. Upstream is explicit that it "reduces risk but is not a complete isolation boundary". If you want a real boundary, use Apple container.
 
 #### Docker Sandbox (sbx) — legacy
 
@@ -153,7 +153,7 @@ Sandboxing limits what an autonomous agent can reach if it misbehaves (a bad com
 - **The project's main repository** is mounted writable in worktree sessions (git requires it: a worktree's commits write into the main repo's `.git`). The agent can therefore touch other branches and `.git` contents — including `.git/hooks`, which execute on the host when you run git there. Review hooks if a sandboxed session did something you didn't expect.
 - **Claude's own state** (`~/.claude`, `~/.claude.json`) is writable — that's what makes login persistence and session resume work. An agent could in principle alter its own configuration; if a sandboxed session behaved oddly, `~/.claude/settings.json` and `~/.claude.json` are worth a glance.
 - **Outbound network is unrestricted** (Claude needs its API). Anything the agent can read — your repo's code and any secrets in it or in copied `.env` files — it can also transmit. Sandboxing is not an exfiltration barrier.
-- **Claude sandbox (Bash only) protects far less than the above.** It confines Bash and nothing else, leaves reads unrestricted (so credentials are readable), and shares the kernel and your user session. Treat it as a guardrail against an over-eager command, not as an isolation boundary.
+- **Claude sandbox (Bash only) protects far less than the above.** It confines Bash and nothing else, confines writes to an allowlist but filters reads only through a deny-list (so credentials are readable), and shares the kernel and your user session. Treat it as a guardrail against an over-eager command, not as an isolation boundary.
 - **Worktree sessions can read the main repository** on every backend: Canopy passes `--add-dir <main repo>` so Claude's own tool boundary matches what is mounted. Session Info shows the exact flags a session launched with.
 
 In short: sandboxing protects *your machine* from the agent. It does not protect *the project it's working on*, and it doesn't replace reviewing what the agent did.

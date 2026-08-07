@@ -665,7 +665,7 @@ struct SettingsTests {
         // The specific honesty claims, so a future reword cannot quietly drop them.
         #expect(SandboxBackendUI.description(for: .off).contains("No isolation"))
         #expect(SandboxBackendUI.description(for: .claudeNative).contains("Bash only"))
-        #expect(SandboxBackendUI.description(for: .claudeNative).contains("reads are not restricted"))
+        #expect(SandboxBackendUI.description(for: .claudeNative).contains("reads are only deny-listed"))
         #expect(SandboxBackendUI.description(for: .dockerSbx).contains("resume does not work"))
     }
 
