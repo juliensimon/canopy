@@ -39,6 +39,18 @@ enum SandboxBackend: String, Codable {
         #"{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false}}"#
     }
 
+    /// Human-readable name, so the four sandbox pickers and Session Info
+    /// stop each carrying their own copy of these strings -- that duplication
+    /// is why `.claudeNative` reached only two of the four pickers.
+    var displayName: String {
+        switch self {
+        case .off: return "Off"
+        case .claudeNative: return "Claude sandbox (Bash only)"
+        case .dockerSbx: return "Docker Sandbox (sbx)"
+        case .appleContainer: return "Apple container"
+        }
+    }
+
     /// Whether `claude` runs as a plain host process, so the host's
     /// `claude agents --json` registry actually describes it.
     ///

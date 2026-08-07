@@ -4,6 +4,7 @@ import SwiftUI
 struct SessionInfoSheet: View {
     let session: SessionInfo
     let openedAt: Date?
+    @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
     @State private var usage: TokenUsage?
 
@@ -18,6 +19,12 @@ struct SessionInfoSheet: View {
                 copiableRow("Working Directory", session.workingDirectory)
                 infoRow("Created", session.createdAt.formatted(date: .abbreviated, time: .shortened))
                 infoRow("Type", session.isWorktreeSession ? "Worktree" : "Plain")
+                // How this session is actually isolated. Both of these are
+                // per-session overridable and were invisible once the session
+                // was running, so a tab could be less sandboxed than the user
+                // believed with no way to check.
+                infoRow("Sandbox", appState.sandboxBackend(for: session).displayName)
+                infoRow("Claude Flags", flagsDescription)
 
                 if let branch = session.branchName {
                     copiableRow("Branch", branch)
@@ -54,6 +61,14 @@ struct SessionInfoSheet: View {
                 SessionCostService.loadUsage(for: session.workingDirectory, sessionId: session.claudeSessionId, since: openedAt)
             }.value
         }
+    }
+
+    /// Blank flags are a real, deliberate state (a session may set "" to mean
+    /// "no flags"), and an empty row reads as a rendering bug.
+    private var flagsDescription: String {
+        let flags = appState.effectiveClaudeFlags(for: session)
+            .trimmingCharacters(in: .whitespaces)
+        return flags.isEmpty ? "None" : flags
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {

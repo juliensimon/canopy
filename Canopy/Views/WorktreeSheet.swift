@@ -176,10 +176,10 @@ struct WorktreeSheet: View {
                     }
                 )) {
                     Text("Use project default").tag(SandboxBackend?.none)
-                    Text("Off").tag(SandboxBackend?.some(.off))
-                    Text("Claude sandbox (Bash only)").tag(SandboxBackend?.some(.claudeNative))
-                    Text("Docker Sandbox (sbx) — legacy, no session resume").tag(SandboxBackend?.some(.dockerSbx))
-                    Text("Apple container").tag(SandboxBackend?.some(.appleContainer))
+                    Text(SandboxBackend.off.displayName).tag(SandboxBackend?.some(.off))
+                    Text(SandboxBackend.claudeNative.displayName).tag(SandboxBackend?.some(.claudeNative))
+                    Text("\(SandboxBackend.dockerSbx.displayName) — legacy, no session resume").tag(SandboxBackend?.some(.dockerSbx))
+                    Text(SandboxBackend.appleContainer.displayName).tag(SandboxBackend?.some(.appleContainer))
                 }
                 .labelsHidden()
                 .disabled(checkingSandbox)

@@ -121,10 +121,10 @@ struct SettingsView: View {
                                         }
                                     }
                                 )) {
-                                    Text("Off").tag(SandboxBackend.off)
-                                    Text("Claude sandbox (Bash only)").tag(SandboxBackend.claudeNative)
-                        Text("Docker Sandbox (sbx) — legacy, no session resume").tag(SandboxBackend.dockerSbx)
-                                    Text("Apple container").tag(SandboxBackend.appleContainer)
+                                    Text(SandboxBackend.off.displayName).tag(SandboxBackend.off)
+                                    Text(SandboxBackend.claudeNative.displayName).tag(SandboxBackend.claudeNative)
+                        Text("\(SandboxBackend.dockerSbx.displayName) — legacy, no session resume").tag(SandboxBackend.dockerSbx)
+                                    Text(SandboxBackend.appleContainer.displayName).tag(SandboxBackend.appleContainer)
                                 }
                                 .disabled(checkingSandbox)
 
