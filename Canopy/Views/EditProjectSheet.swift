@@ -172,6 +172,12 @@ struct EditProjectSheet: View {
                             .font(.subheadline)
                             .padding(.leading, 16)
                             .disabled(checkingSandbox)
+                        // Same caveats as Settings: a security choice should
+                        // explain itself wherever it is offered.
+                        Text(SandboxBackendUI.description(for: sandboxBackend))
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 16)
 
                         if let status = sandboxStatus, status != .available {
                             Text(SandboxBackendUI.warning(for: status))

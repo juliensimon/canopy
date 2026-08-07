@@ -45,7 +45,7 @@ struct HelpView: View {
                         steps: [
                             "Click your project in the sidebar to see the project overview",
                             "Find the worktree and click \"Open\"",
-                            "Claude resumes the worktree's most recent conversation with --resume",
+                            "Canopy adopts that worktree's existing Claude conversation and resumes it — sessions it created keep the ID they were assigned",
                         ]
                     )
                     workflow(

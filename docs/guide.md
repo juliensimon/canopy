@@ -58,7 +58,7 @@ This matters because a tab is bound to its own conversation from the moment it s
 
 ### Sandbox modes
 
-Canopy can optionally run Claude Code inside a sandbox. Three backends are available, and **they protect meaningfully different amounts** — the picker describes each one, and so does the boundary section below.
+Canopy can optionally run Claude Code inside a sandbox. The picker offers four choices — **Off** plus three sandbox backends — and the three **protect meaningfully different amounts**. The picker describes each one, and so does the boundary section below.
 
 The two VM backends (Docker Sandbox and Apple container) give hard process isolation: your working directory is bind-mounted in, so file edits work normally, while everything not explicitly mounted — SSH keys, the Keychain, other repos, the rest of your home directory — is out of reach.
 
@@ -102,7 +102,14 @@ The command becomes `claude --settings '{"sandbox":{"enabled":true,"allowUnsandb
 
 #### Docker Sandbox (sbx) — legacy
 
-Runs Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM. The command becomes `sbx run [sbx-flags] claude [. <main-repo>] -- [claude-flags]`.
+Runs Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM. The command becomes:
+
+```
+sbx run [sbx-flags] claude -- [claude-flags]                      # plain session
+sbx run [sbx-flags] claude . '<main-repo>' -- [claude-flags]      # worktree session
+```
+
+Extra workspaces are positional arguments to `sbx run`, and naming any of them means naming the working directory as `.` too — hence both appear for a worktree session.
 
 - **Session resume is disabled** -- session files (`~/.claude/projects/`) live inside the ephemeral microVM and don't persist across runs. It is the only backend without resume, which is why the picker labels it legacy
 - Worktree sessions pass the project's main repository as an extra sbx workspace. Without it the worktree's `.git` file points at a path that doesn't exist inside the sandbox and **every** git command fails
