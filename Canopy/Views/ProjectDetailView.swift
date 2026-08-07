@@ -329,7 +329,11 @@ struct ProjectDetailView: View {
         }
     }
 
-    static func collisionSummaryText(hard: Int, watch: Int) -> String {
+    /// nonisolated: a pure string function with no actor state. SwiftUI
+    /// infers @MainActor on the View, and whether a synchronous call from a
+    /// non-isolated test is allowed differs by Swift version -- this compiled
+    /// locally and failed on CI. Saying it explicitly removes the ambiguity.
+    nonisolated static func collisionSummaryText(hard: Int, watch: Int) -> String {
         var parts: [String] = []
         if hard > 0 {
             parts.append("\(hard) branch\(hard == 1 ? "" : "es") would conflict on merge")
