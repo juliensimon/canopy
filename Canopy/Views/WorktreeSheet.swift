@@ -36,7 +36,12 @@ struct WorktreeSheet: View {
     private var claudeFlagsPlaceholder: String {
         let inherited = (selectedProject?.claudeFlags ?? appState.settings.claudeFlags)
             .trimmingCharacters(in: .whitespaces)
-        return inherited.isEmpty ? "--model fable" : "\(inherited) (inherited)"
+        // Naming an example flag when nothing is inherited would read as a
+        // real default -- say plainly that nothing is inherited, and keep the
+        // example only as a format hint.
+        return inherited.isEmpty
+            ? "No flags inherited — e.g. --model fable"
+            : "\(inherited) (inherited)"
     }
 
     /// Blank means "inherit", so store nil rather than letting an empty string

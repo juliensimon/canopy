@@ -482,7 +482,9 @@ final class AppState: ObservableObject {
     /// 5. Launches a terminal session in the worktree
     /// Creates a session in an existing worktree directory (no git worktree
     /// add), resuming the most recent Claude session found for it.
-    /// `sandboxBackend` nil = inherit project/global, like everywhere else.
+    /// `sandboxBackend` and `claudeFlags` both nil = inherit project/global,
+    /// like everywhere else. For flags, nil ("inherit") and "" ("no flags")
+    /// are deliberately different values.
     func openWorktreeSession(project: Project, worktreePath: String, branch: String?, claudeFlags: String? = nil, sandboxBackend: SandboxBackend? = nil) {
         let sessionId = ClaudeSessionFinder.findLatestSessionId(for: worktreePath)
         let session = SessionInfo(
