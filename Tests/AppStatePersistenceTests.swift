@@ -217,7 +217,92 @@ struct AppStatePersistenceTests {
         }
     }
 
+    // MARK: - Claude Session ID Refresh
+
+    @Test @MainActor func loadSessionsKeepsStoredClaudeSessionId() throws {
+        // An established claudeSessionId is user data, not a cache. A newer
+        // unrelated transcript in the same directory -- the user running
+        // `claude` by hand from Terminal.app, or a second Canopy tab -- is not
+        // evidence about which conversation this tab owns. Overwriting it made
+        // the tab `--resume` a stranger's conversation on the next launch.
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let workDir = "/tmp/canopy-keepid-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: workDir) }
+
+        let ownedId = UUID().uuidString
+        let strangerId = UUID().uuidString
+
+        let state1 = AppState(configDir: tmpDir)
+        state1.sessions = [SessionInfo(
+            name: "s", workingDirectory: workDir, projectId: UUID(),
+            claudeSessionId: ownedId
+        )]
+        state1.saveSessions()
+
+        // The stranger's transcript is the newest file on disk.
+        try withFakeClaudeDir(directory: workDir, files: [
+            (name: "\(ownedId).jsonl", age: 3600),
+            (name: "\(strangerId).jsonl", age: 0),
+        ]) {
+            let state2 = AppState(configDir: tmpDir)
+            state2.loadSessions()
+            #expect(state2.sessions.first?.claudeSessionId == ownedId)
+        }
+    }
+
+    @Test @MainActor func loadSessionsFillsInMissingClaudeSessionId() throws {
+        // The mtime heuristic's legitimate job: cold-starting a tab that has
+        // no id yet. This path must not regress when the clobber is removed.
+        let tmpDir = NSTemporaryDirectory() + "canopy-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let workDir = "/tmp/canopy-fillid-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: workDir) }
+
+        let discoverableId = UUID().uuidString
+
+        let state1 = AppState(configDir: tmpDir)
+        state1.sessions = [SessionInfo(
+            name: "s", workingDirectory: workDir, projectId: UUID()
+        )]
+        state1.saveSessions()
+
+        try withFakeClaudeDir(directory: workDir, files: [
+            (name: "\(discoverableId).jsonl", age: 0),
+        ]) {
+            let state2 = AppState(configDir: tmpDir)
+            state2.loadSessions()
+            #expect(state2.sessions.first?.claudeSessionId == discoverableId)
+        }
+    }
+
     // MARK: - Helpers
+
+    /// Creates a fake Claude projects directory for `directory`, runs `body`,
+    /// then removes it. Mirrors the helper in ClaudeSessionFinderTests.
+    private func withFakeClaudeDir(
+        directory: String,
+        files: [(name: String, age: TimeInterval)],
+        body: () throws -> Void
+    ) throws {
+        let fm = FileManager.default
+        let projectDir = ClaudeSessionFinder.projectDirectory(for: directory)
+        try fm.createDirectory(atPath: projectDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: projectDir) }
+
+        let now = Date()
+        for file in files {
+            let path = (projectDir as NSString).appendingPathComponent(file.name)
+            fm.createFile(atPath: path, contents: Data("test".utf8))
+            try fm.setAttributes([.modificationDate: now.addingTimeInterval(-file.age)],
+                                 ofItemAtPath: path)
+        }
+        try body()
+    }
 
     @discardableResult
     private func shell(_ command: String, in dir: String) throws -> String {
