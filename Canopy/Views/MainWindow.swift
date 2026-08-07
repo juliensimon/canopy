@@ -206,6 +206,9 @@ struct SessionView: View {
                     if backend.supportsResume, let sessionId = session.claudeSessionId {
                         command += " --resume \(sessionId)"
                     }
+                    if let nameFlag = session.claudeNameFlag {
+                        command += " \(nameFlag)"
+                    }
                     let launchCommand = command
                     // Preflight the sandbox before launching. SandboxChecker.check
                     // is nonisolated, so awaiting it from this MainActor task runs

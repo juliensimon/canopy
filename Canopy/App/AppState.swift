@@ -933,6 +933,39 @@ struct SessionInfo: Identifiable, Codable {
 
     var isWorktreeSession: Bool { worktreePath != nil }
 
+    /// A shell-safe Claude Code display-name flag for worktree sessions.
+    /// Plain sessions start with generic names that may be renamed
+    /// asynchronously, so passing those names would race the rename.
+    /// A branch is required too: `openWorktreeSession` names detached-HEAD
+    /// worktrees the literal "session", and labelling every one of them
+    /// identically in the /resume picker is worse than letting Claude
+    /// generate its own name.
+    var claudeNameFlag: String? {
+        guard isWorktreeSession, branchName != nil,
+              let sanitized = Self.sanitizedClaudeName(name) else { return nil }
+        return "--name \(SandboxBackend.shellSingleQuoted(sanitized))"
+    }
+
+    /// Removes terminal control characters, normalizes whitespace, and keeps
+    /// Claude's display name compact. Shell quoting happens only after this
+    /// validation step.
+    static func sanitizedClaudeName(_ name: String) -> String? {
+        // Whitespace controls (\n, \t, \r) are separators: map them to a space
+        // so the collapse below keeps word boundaries. Dropping them outright
+        // welds words together ("line\nbreak" -> "linebreak"). Other controls
+        // carry no width and are removed.
+        let scalars = name.unicodeScalars.compactMap { scalar -> Unicode.Scalar? in
+            if CharacterSet.whitespacesAndNewlines.contains(scalar) { return " " }
+            if CharacterSet.controlCharacters.contains(scalar) { return nil }
+            return scalar
+        }
+        let collapsed = String(String.UnicodeScalarView(scalars))
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let sanitized = String(collapsed.prefix(64))
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
     /// Claude Code session ID to resume (UUID from ~/.claude/projects/).
     /// When set, Claude is started with `--resume <id>`.
     var claudeSessionId: String?
