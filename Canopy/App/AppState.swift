@@ -260,7 +260,9 @@ final class AppState: ObservableObject {
     }
 
     /// Consecutive idle observations per session, for the flap guard above.
-    private var agentIdleObservations: [UUID: Int] = [:]
+    /// Cleared in performCloseSession alongside the other per-session
+    /// dictionaries, so it cannot outlive the sessions it describes.
+    private(set) var agentIdleObservations: [UUID: Int] = [:]
 
     /// Applies a poll of `claude agents --json` to the live sessions.
     ///
@@ -363,6 +365,7 @@ final class AppState: ObservableObject {
                         // Not an error state: the fallback is the behaviour
                         // Canopy shipped with. Say so once and stop trying.
                         NSLog("Canopy: `claude agents --json` unavailable; using the PTY heuristic")
+                        self.abandonAgentReconciliation()
                         return
                     }
                     continue
@@ -373,9 +376,18 @@ final class AppState: ObservableObject {
         }
     }
 
-    func stopAgentPolling() {
-        agentsPollTask?.cancel()
-        agentsPollTask = nil
+    /// Hands control back to the PTY heuristic when live data stops arriving.
+    ///
+    /// `.needsInput` is deliberately sticky against PTY output, so ONLY
+    /// authoritative data can clear it. If the poll gives up while a session
+    /// is blocked, nothing ever would -- the tab would sit amber forever.
+    /// Resetting to `.idle` is safe: the next byte on the PTY moves it to
+    /// `.working` again.
+    func abandonAgentReconciliation() {
+        agentIdleObservations.removeAll()
+        for terminal in terminalSessions.values where terminal.activity == .needsInput {
+            terminal.setAuthoritativeActivity(.idle)
+        }
     }
 
     // MARK: - Git Status Polling
@@ -745,11 +757,12 @@ final class AppState: ObservableObject {
         // microVM, so neither resuming nor assigning means anything there.
         // The Apple container backend mounts ~/.claude from the host.
         if backend.supportsResume {
-            if let existing = session.claudeSessionId, UUID(uuidString: existing) != nil {
+            if let existing = session.claudeSessionId, UUID(uuidString: existing) != nil,
+               Self.transcriptExists(for: session, claudeSessionId: existing) {
                 command += " --resume \(existing)"
             } else {
                 if let junk = session.claudeSessionId {
-                    NSLog("Canopy: discarding non-UUID claudeSessionId %@ for session %@",
+                    NSLog("Canopy: discarding unusable claudeSessionId %@ for session %@",
                           junk, session.id.uuidString)
                 }
                 let fresh = session.id.uuidString
@@ -762,6 +775,21 @@ final class AppState: ObservableObject {
             command += " \(nameFlag)"
         }
         return (command, assignedId)
+    }
+
+    /// Whether the transcript an id names actually exists on disk.
+    ///
+    /// `claude --resume <unknown-id>` prints "No conversation found with
+    /// session ID: <id>" and exits, so the tab never starts claude at all.
+    /// Canopy can bank an unusable id by its own hand: the id is persisted
+    /// before the command is sent, but a failed sandbox preflight echoes a
+    /// warning INSTEAD of running claude, so nothing ever creates the session.
+    /// Mirrors the check TranscriptSheet.computeJSONLPath already makes.
+    private static func transcriptExists(for session: SessionInfo, claudeSessionId: String) -> Bool {
+        FileManager.default.fileExists(atPath: ClaudeTranscriptLoader.sessionFilePath(
+            workingDirectory: session.workingDirectory,
+            sessionId: claudeSessionId
+        ))
     }
 
     /// Records an assigned Claude session ID. Must be called before the
@@ -882,6 +910,7 @@ final class AppState: ObservableObject {
         sessionDiffStats.removeValue(forKey: id)
         sessionCommitsAhead.removeValue(forKey: id)
         sessionPRCount.removeValue(forKey: id)
+        agentIdleObservations.removeValue(forKey: id)
         withAnimation(.easeOut(duration: 0.25)) {
             sessions.removeAll { $0.id == id }
             if activeSessionId == id {

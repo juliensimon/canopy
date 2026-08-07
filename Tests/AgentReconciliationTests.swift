@@ -220,6 +220,41 @@ struct AgentReconciliationTests {
         #expect(!AppState.confirmsFinish(wasWorking: false, consecutiveIdleObservations: 5))
     }
 
+    // MARK: - Giving up
+
+    /// .needsInput is sticky against PTY output on purpose, so only
+    /// authoritative data can clear it. If the poll gives up while a session
+    /// is blocked, nothing else ever would and the tab sits amber forever.
+    @Test func abandoningReconciliationReleasesStuckNeedsInput() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-n")
+        let terminal = try! #require(state.terminalSessions[state.sessions[0].id])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-n", status: "waiting")])
+        #expect(terminal.activity == .needsInput)
+
+        state.abandonAgentReconciliation()
+        #expect(terminal.activity == .idle)
+
+        // And the PTY heuristic is back in charge.
+        terminal.handleOutputData(Data("output".utf8))
+        #expect(terminal.activity == .working)
+    }
+
+    /// Per-session bookkeeping must not outlive the session, matching the
+    /// other per-session dictionaries cleared in performCloseSession.
+    @Test func closingASessionClearsItsIdleBookkeeping() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-o")
+        let id = state.sessions[0].id
+
+        state.applyAgents([agent(cwd: "/tmp/wt-o", status: "idle")])
+        #expect(state.agentIdleObservations[id] != nil)
+
+        state.performCloseSession(id: id)
+        #expect(state.agentIdleObservations[id] == nil)
+    }
+
     // MARK: - Persistence
 
     /// saveSessions does an atomic file write. A 2-second loop must not
