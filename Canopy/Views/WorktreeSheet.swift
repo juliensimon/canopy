@@ -177,7 +177,8 @@ struct WorktreeSheet: View {
                 )) {
                     Text("Use project default").tag(SandboxBackend?.none)
                     Text("Off").tag(SandboxBackend?.some(.off))
-                    Text("Docker Sandbox (sbx)").tag(SandboxBackend?.some(.dockerSbx))
+                    Text("Claude sandbox (Bash only)").tag(SandboxBackend?.some(.claudeNative))
+                    Text("Docker Sandbox (sbx) — legacy, no session resume").tag(SandboxBackend?.some(.dockerSbx))
                     Text("Apple container").tag(SandboxBackend?.some(.appleContainer))
                 }
                 .labelsHidden()

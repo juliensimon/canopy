@@ -19,6 +19,11 @@ struct SandboxChecker {
         switch backend {
         case .off:
             return .available
+        case .claudeNative:
+            // Seatbelt is part of macOS -- "there is nothing to install".
+            // No prerequisite chain, so Save must never disable itself and
+            // verifySandbox must never reset the picker back to .off.
+            return .available
         case .dockerSbx:
             return await check()
         case .appleContainer:

@@ -426,7 +426,9 @@ struct GitService {
     // MARK: - File Operations for Worktree Setup
 
     /// Copies files from the main repo to a worktree.
-    /// Supports glob-like patterns (just direct file paths for now).
+    /// Direct file paths only -- Claude Code's `.worktreeinclude` (gitignore
+    /// syntax, a strict superset of this) is the native answer for anything
+    /// more, so glob support is deliberately never coming.
     static func copyFiles(from repoPath: String, to worktreePath: String, paths: [String]) throws {
         let fm = FileManager.default
         for relativePath in paths {

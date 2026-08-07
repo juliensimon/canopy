@@ -431,4 +431,94 @@ struct SettingsTests {
         defer { try? FileManager.default.removeItem(atPath: dir) }
         #expect(settings.save(to: (dir as NSString).appendingPathComponent("settings.json")) == true)
     }
+
+    // MARK: - Sandbox — Claude native (Seatbelt)
+
+    /// Choosing this backend must actually change the process's sandbox
+    /// policy. A no-op emission would make the picker lie about a security
+    /// setting -- the same failure class the save() return-value guard exists
+    /// to prevent.
+    @Test func claudeNativeEmitsSettingsFlag() {
+        let command = SandboxBackend.claudeNative.claudeCommand(
+            claudeFlags: "--permission-mode auto", sbxFlags: "",
+            containerImage: "", containerFlags: "", disableAltScreen: false
+        )
+        #expect(command == #"claude --settings '{"sandbox":{"enabled":true}}' --permission-mode auto"#)
+    }
+
+    /// Malformed JSON makes claude exit at startup with an error the user
+    /// cannot connect back to Canopy.
+    @Test func claudeNativeSettingsBlobIsValidJSON() throws {
+        let command = SandboxBackend.claudeNative.claudeCommand(
+            claudeFlags: "", sbxFlags: "", containerImage: "",
+            containerFlags: "", disableAltScreen: false
+        )
+        let start = try #require(command.range(of: "'"))
+        let end = try #require(command.range(of: "'", options: .backwards))
+        let blob = String(command[start.upperBound..<end.lowerBound])
+
+        let parsed = try #require(
+            try JSONSerialization.jsonObject(with: Data(blob.utf8)) as? [String: Any]
+        )
+        let sandbox = try #require(parsed["sandbox"] as? [String: Any])
+        #expect(sandbox["enabled"] as? Bool == true)
+    }
+
+    /// Session JSONLs stay on the host, so --resume must be appended. This is
+    /// the concrete advantage over .dockerSbx, which silently loses session
+    /// continuity.
+    @Test func claudeNativeSupportsResume() {
+        #expect(SandboxBackend.claudeNative.supportsResume)
+    }
+
+    /// Switching from .appleContainer must not carry a stale image name or
+    /// container flags across into the new command.
+    @Test func claudeNativeIgnoresContainerAndSbxInputs() {
+        let command = SandboxBackend.claudeNative.claudeCommand(
+            claudeFlags: "", sbxFlags: "--net none", containerImage: "canopy-claude",
+            containerFlags: "--memory 8g", disableAltScreen: true
+        )
+        #expect(!command.contains("canopy-claude"))
+        #expect(!command.contains("--net none"))
+        #expect(!command.contains("--memory 8g"))
+        #expect(!command.contains("container run"))
+    }
+
+    /// Worktree .git access is native here (the docs allow shared-.git writes
+    /// from a linked worktree), so a mount flag would be nonsense a future
+    /// refactor might "helpfully" add.
+    @Test func claudeNativeIgnoresExtraMountPaths() {
+        let command = SandboxBackend.claudeNative.claudeCommand(
+            claudeFlags: "", sbxFlags: "", containerImage: "", containerFlags: "",
+            extraMountPaths: ["/Users/x/dev/repo"], disableAltScreen: false
+        )
+        #expect(!command.contains("--volume"))
+        #expect(!command.contains("/Users/x/dev/repo"))
+    }
+
+    @Test func claudeNativeRoundTripsThroughSettingsJSON() throws {
+        var settings = CanopySettings()
+        settings.sandboxBackend = .claudeNative
+        let decoded = try JSONDecoder().decode(
+            CanopySettings.self, from: try JSONEncoder().encode(settings)
+        )
+        #expect(decoded.sandboxBackend == .claudeNative)
+    }
+
+    /// Pins the forward-compat contract and documents that the fallback
+    /// direction is fail-safe. A user who picks a backend then DOWNGRADES
+    /// Canopy decodes to .off -- unsandboxed -- so it must also be logged.
+    @Test func unknownBackendRawValueFallsBackToOff() throws {
+        let decoded = try JSONDecoder().decode(
+            CanopySettings.self, from: Data(#"{"sandboxBackend":"quantumJail"}"#.utf8)
+        )
+        #expect(decoded.sandboxBackend == .off)
+    }
+
+    /// The default must not change for existing or new users: turning on a
+    /// sandbox silently would change how every session runs on upgrade.
+    @Test func defaultBackendIsStillOff() {
+        #expect(CanopySettings().sandboxBackend == .off)
+    }
+
 }

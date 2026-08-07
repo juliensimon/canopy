@@ -93,7 +93,7 @@ struct SettingsView: View {
                                     TextField("e.g. --model sonnet --verbose", text: $claudeFlags)
                                         .textFieldStyle(.roundedBorder)
                                         .font(.system(size: 12, design: .monospaced))
-                                    Text("These flags are appended to the `claude` command. Per-project overrides take precedence.")
+                                    Text("These flags are appended to the `claude` command. Any `claude` flag works, e.g. --model fable, --effort xhigh, --safe-mode. Per-project and per-session overrides take precedence.")
                                         .font(.caption)
                                         .foregroundStyle(.tertiary)
                                 }
@@ -122,7 +122,8 @@ struct SettingsView: View {
                                     }
                                 )) {
                                     Text("Off").tag(SandboxBackend.off)
-                                    Text("Docker Sandbox (sbx)").tag(SandboxBackend.dockerSbx)
+                                    Text("Claude sandbox (Bash only)").tag(SandboxBackend.claudeNative)
+                        Text("Docker Sandbox (sbx) — legacy, no session resume").tag(SandboxBackend.dockerSbx)
                                     Text("Apple container").tag(SandboxBackend.appleContainer)
                                 }
                                 .disabled(checkingSandbox)
