@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now describes what its backend actually protects.
 - **Per-session Claude flags** (#55): the New Worktree Session sheet has a flags
   field that overrides the project and global values for that session only, so
-  "opus on the hard branch, fable on the chore branch" no longer means editing a
+  "fable on the hard branch, opus on the chore branch" no longer means editing a
   project-wide setting that hits every sibling. Free text rather than pickers —
   `--permission-mode` gained `dontAsk` and renamed `default`→`manual` in 2.1.200,
   and every enum the CLI owns is a maintenance subscription.
