@@ -18,6 +18,7 @@ struct ShortcutsView: View {
                     shortcutRow("New Worktree Session", "\u{21E7}T")
                     shortcutRow("Add Project", "\u{21E7}P")
                     shortcutRow("Toggle Split Terminal", "\u{21E7}D")
+                    shortcutRow("Copy Transcript (in Show Transcript)", "\u{21E7}C")
                 }
 
                 Divider()

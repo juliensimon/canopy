@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2026-08-08
 
 ### Added
+- **Worktree sessions are named in Claude Code** (#62, #63): Canopy passes
+  `--name`, so a session is identifiable by its branch in Claude's prompt box
+  and `/resume` picker instead of falling back to an auto-generated label.
+  A newly created worktree session is named `<repo>-<branch>`; reopening an
+  existing worktree uses the branch alone. Branch names are treated as hostile
+  shell input — git refs permit characters a shell would act on — so they are
+  sanitized and quoted before use. Plain sessions and detached-HEAD worktrees
+  get no name: the former are renamed asynchronously and would race, the latter
+  have no branch worth naming.
 - **"Needs input" session state** (#52, #54): a session blocked on a permission
   prompt now shows an amber dot with a raised hand, and the status bar leads
   with "1 needs input". Previously the PTY went silent while Claude waited, so
@@ -20,8 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tell a permission prompt from a finished turn. Requires a backend that runs
   Claude on the host (Off or Claude sandbox); other backends keep the old
   heuristic. A separate **Notify when sessions need input** setting (on by
-  default) fires even when Canopy is in front, since the blocked session is
-  usually not the tab you are looking at.
+  default) fires even when Canopy is in front — unless you are already looking
+  at that exact tab — since the blocked session usually is not the one on screen.
 - **Claude sandbox (Bash only)** (#53): a third sandbox option, using Claude
   Code's own macOS Seatbelt sandbox. Nothing to install — no image, no daemon,
   no Docker — and session resume works. It is deliberately the weakest of the
@@ -51,8 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sandbox and Claude flags in Session Info** (#73): a running session had no
   way to show how it was actually isolated or which flags it launched with —
   both are per-session overridable, and a chosen backend can silently fall back
-  when its prerequisites are missing. The flags row includes what Canopy injects
-  itself, not just what you configured.
+  when its prerequisites are missing. The flags row includes the `--add-dir`
+  Canopy injects for worktree sessions, not only what you configured.
 
 ### Changed
 - **Claude session IDs are assigned, not discovered** (#61): a new session is

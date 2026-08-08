@@ -232,8 +232,9 @@ final class AppState: ObservableObject {
     }
 
     /// Unlike the finish notification, this fires even when Canopy is the
-    /// active app -- you are usually looking at a DIFFERENT tab while another
-    /// one blocks, and a blocked session stays blocked forever until answered.
+    /// active app -- unless the blocked session IS the tab on screen, where you
+    /// can already see it. You are usually looking at a different tab while
+    /// another blocks, and a blocked session stays blocked until answered.
     private func postNeedsInputNotification(for sessionId: UUID) {
         guard settings.notifyOnNeedsInput else { return }
         guard !NSApp.isActive || sessionId != activeSessionId else { return }
@@ -271,9 +272,10 @@ final class AppState: ObservableObject {
     /// declared such sessions finished mid-turn and then decayed them to a
     /// grey dot indistinguishable from an empty prompt.
     ///
-    /// Gated on the `.off` backend. Container sessions write their registry
-    /// entry into the bind-mounted host ~/.claude, but `pid` is a guest
-    /// namespace pid and the peer socket is unreachable from the host, so
+    /// Gated on backends that run Claude as a host process (`.off` and
+    /// `.claudeNative` -- see `reportsToHostAgentRegistry`). Container sessions
+    /// write their registry entry into the bind-mounted host ~/.claude, but
+    /// `pid` is a guest namespace pid and the peer socket is unreachable, so
     /// their status cannot be trusted. `.dockerSbx` shares nothing at all.
     func applyAgents(_ agents: [ClaudeAgent]) {
         for session in sessions {

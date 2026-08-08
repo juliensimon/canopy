@@ -357,7 +357,7 @@ Prompts are stored globally in `~/.config/canopy/prompts.json` and shared across
 | IDE path | `/Applications/Cursor.app` | App used for "Open in IDE" |
 | Terminal path | `/System/Applications/Utilities/Terminal.app` | App used for "Open in Terminal" in session context menus |
 | Notify when sessions finish | On | Show a macOS notification when a background session goes from working to idle |
-| Notify when sessions need input | On | Notify when Claude blocks on a permission prompt. Also fires while Canopy is in front, since the blocked session is usually not the tab you're looking at. Needs the Off or Claude sandbox backend |
+| Notify when sessions need input | On | Notify when Claude blocks on a permission prompt. Also fires while Canopy is in front — unless you're already on that exact tab — since the blocked session usually isn't the one on screen. Needs the Off or Claude sandbox backend |
 | Check for updates on launch | On | Check GitHub once a day for a newer release (the Updates section also has a "Check for Updates Now" button) |
 | `gh` CLI path | *auto-detected* | Used for open PR data. Leave blank to use `PATH` lookup; override if Homebrew is in a non-standard location. |
 | `sbx` CLI path | *auto-detected* | Used when the Docker Sandbox backend is enabled. Same auto-detect/override behavior as `gh`. |
@@ -375,6 +375,7 @@ Per-project overrides for auto-start, Claude flags, and sandbox mode are availab
 | `Cmd+K` | Command palette (fuzzy-match sessions, projects, branches, actions) |
 | `Cmd+F` | Find in terminal output |
 | `Cmd+Shift+D` | Toggle split terminal |
+| `Cmd+Shift+C` | Copy transcript (in the Show Transcript sheet) |
 | `Cmd+Shift+A` | Activity dashboard |
 | `Cmd+Shift+S` | Cycle tab sort mode |
 | `Cmd+1`–`Cmd+9` | Jump to tab N |

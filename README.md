@@ -77,7 +77,7 @@ Every Canopy feature exists because I was tired of doing something manually. Eac
 | Squint at `ls ~/.claude/projects/` trying to guess how many tokens you've burned this week | Open **Activity** — token counts, session history, 12-week heatmap |
 | Type out the same "write tests", "review security", "update docs" prompt for the tenth time | Save it once in the **Prompt Library** — one right-click to fire it at any session |
 | Scroll a flickering terminal trying to re-read what Claude said ten minutes ago | Right-click → **Show Transcript** — the conversation as clean markdown, live-updating |
-| Worry about what an autonomous agent might touch outside the repo | Pick a **sandbox** — per session, per project, or globally. Four options, from Claude Code's own Bash sandbox to a full VM with only your worktree and its repo mounted |
+| Worry about what an autonomous agent might touch outside the repo | Pick a **sandbox** — per session, per project, or globally. Three of them, from Claude Code's own Bash sandbox to a full VM with only your worktree and its repo mounted |
 
 None of these are big problems on their own. All of them are papercuts. Canopy is a tool for people who notice papercuts.
 
@@ -180,7 +180,7 @@ This is the feature I was most skeptical I'd use, and now I can't imagine workin
 
 ### 🛡 Sandboxes — run Claude in isolation
 
-Pick a sandbox backend in Settings — globally, per project, or per session in the New Worktree Session sheet. Four options, and they protect genuinely different amounts, so the picker now says so under each one.
+Pick a sandbox backend in Settings — globally, per project, or per session in the New Worktree Session sheet. Four choices — **Off** plus three sandboxes — and the three protect genuinely different amounts, so the picker says so under each one.
 
 The two VM backends bind-mount your worktree (and, for a worktree session, its main repo — git needs it) so file edits work normally, while everything not mounted is out of reach: SSH keys, documents, the Keychain, other repos, the rest of your home directory. A shield icon marks sandboxed sessions in the sidebar, and the split terminal still opens a host shell for inspecting the real filesystem. Canopy validates the required tools before enabling a backend — and again when a session launches, so a backend that stopped being ready (e.g. the container runtime wasn't restarted after a reboot) shows the fix in the terminal instead of a cryptic error. The [user guide](docs/guide.md#what-sandboxing-does--and-doesnt--protect-against) spells out exactly what is and isn't protected (the mounted project and outbound network are deliberate trade-offs).
 
