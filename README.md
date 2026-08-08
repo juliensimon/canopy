@@ -77,7 +77,7 @@ Every Canopy feature exists because I was tired of doing something manually. Eac
 | Squint at `ls ~/.claude/projects/` trying to guess how many tokens you've burned this week | Open **Activity** — token counts, session history, 12-week heatmap |
 | Type out the same "write tests", "review security", "update docs" prompt for the tenth time | Save it once in the **Prompt Library** — one right-click to fire it at any session |
 | Scroll a flickering terminal trying to re-read what Claude said ten minutes ago | Right-click → **Show Transcript** — the conversation as clean markdown, live-updating |
-| Worry about what an autonomous agent might touch outside the repo | Pick a **sandbox** — per session, per project, or globally — and Claude runs in a VM with just your worktree mounted |
+| Worry about what an autonomous agent might touch outside the repo | Pick a **sandbox** — per session, per project, or globally. Four options, from Claude Code's own Bash sandbox to a full VM with only your worktree and its repo mounted |
 
 None of these are big problems on their own. All of them are papercuts. Canopy is a tool for people who notice papercuts.
 
@@ -117,9 +117,11 @@ That's the whole loop. Repeat forever.
 
 ![Main window with multiple tabs](docs/screenshots/hero.png)
 
-Each tab is a separate worktree running its own Claude Code instance. Switch between them with `Cmd+1`–`Cmd+9`. Drag tabs to reorder. Sort by name, project, creation date, or directory with `Cmd+Shift+S`. Activity dots show which sessions have output streaming, so you know at a glance which Claude is still thinking.
+Each tab is a separate worktree running its own Claude Code instance. Switch between them with `Cmd+1`–`Cmd+9`. Drag tabs to reorder. Sort by name, project, creation date, or directory with `Cmd+Shift+S`. Activity dots show which sessions are working, and — the one you actually want — which are **blocked waiting on you**. A permission prompt turns the dot amber and the status bar reads "1 needs input", so a stalled agent no longer looks identical to an idle one. (Canopy asks Claude Code directly for this, so it needs a backend that runs Claude on the host: *Off* or *Claude sandbox*.)
 
-When you close and reopen Canopy, every session comes back — **with its Claude conversation resumed automatically**. No session IDs to remember, no `--resume` flags to type. Canopy finds the right session by scanning `~/.claude/projects/` and passes it to `claude` for you.
+When you close and reopen Canopy, every session comes back — **with its Claude conversation resumed automatically**. No session IDs to remember, no `--resume` flags to type.
+
+Canopy *assigns* the ID rather than guessing it: a new session is launched with `--session-id <uuid>`, and every launch after that resumes that exact conversation. So a tab is bound to its own conversation from the start — running `claude` yourself in the same directory can't hijack it, and the transcript and token counts work immediately instead of only after the first restart.
 
 ---
 
@@ -178,9 +180,14 @@ This is the feature I was most skeptical I'd use, and now I can't imagine workin
 
 ### 🛡 Sandboxes — run Claude in isolation
 
-Pick a sandbox backend in Settings (globally, per project, or per session in the New Worktree Session sheet) to launch Claude inside a VM. Your working directory is bind-mounted into the sandbox, so file edits work normally, but everything that isn't explicitly mounted — SSH keys, documents, the Keychain, other repos, the rest of your home directory — is out of reach. A shield icon marks sandboxed sessions in the sidebar, and the split terminal still opens a host shell for inspecting the real filesystem. Canopy validates the required tools before enabling a backend — and again when a session launches, so a backend that stopped being ready (e.g. the container runtime wasn't restarted after a reboot) shows the fix in the terminal instead of a cryptic error. The [user guide](docs/guide.md#what-sandboxing-does--and-doesnt--protect-against) spells out exactly what is and isn't protected (the mounted project and outbound network are deliberate trade-offs).
+Pick a sandbox backend in Settings — globally, per project, or per session in the New Worktree Session sheet. Four options, and they protect genuinely different amounts, so the picker now says so under each one.
 
-**Docker Sandbox (sbx)** — a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM via `sbx run`. Session resume is disabled (session files live inside the ephemeral microVM).
+The two VM backends bind-mount your worktree (and, for a worktree session, its main repo — git needs it) so file edits work normally, while everything not mounted is out of reach: SSH keys, documents, the Keychain, other repos, the rest of your home directory. A shield icon marks sandboxed sessions in the sidebar, and the split terminal still opens a host shell for inspecting the real filesystem. Canopy validates the required tools before enabling a backend — and again when a session launches, so a backend that stopped being ready (e.g. the container runtime wasn't restarted after a reboot) shows the fix in the terminal instead of a cryptic error. The [user guide](docs/guide.md#what-sandboxing-does--and-doesnt--protect-against) spells out exactly what is and isn't protected (the mounted project and outbound network are deliberate trade-offs).
+
+**Claude sandbox (Bash only)** — Claude Code's own sandbox, built on macOS Seatbelt. Nothing to install, no image, no daemon, and session resume works. It is also the weakest of the three: it confines **Bash only** (Read/Edit/Write go through the permission system instead), and **reads are governed by a deny-list rather than an allowlist**, so `~/.ssh` and `~/.aws/credentials` remain readable. Canopy sets `allowUnsandboxedCommands: false` so the agent cannot ask its way out of the sandbox — without that, a denied command is simply retried unsandboxed and auto-approved.
+*Requirements:* none.
+
+**Docker Sandbox (sbx)** — a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM via `sbx run`. **Legacy:** session resume does not work, because transcripts live inside the ephemeral microVM. Worktree sessions get the main repo mounted as an extra workspace so git works.
 *Requirements:* [Docker Desktop](https://www.docker.com/products/docker-desktop/) and `sbx` (`brew install docker/tap/sbx`).
 
 **Apple container** — a lightweight VM via Apple's open-source [container](https://github.com/apple/container) runtime, no Docker Desktop needed. Canopy mounts the worktree, the project's main repo, and your `~/.claude` state at their host paths — so git works inside the sandbox and **session resume works**, unlike sbx. The default `canopy-claude` image is built in one click (**Settings → Build Image**); a one-time `/login` inside the first sandboxed session sets up credentials. Claude Code is baked into the image, so click **Update** when you want to pull a newer version into it.
@@ -278,7 +285,7 @@ A prompt like `"Review {{branch}} for correctness and add tests"` becomes `"Revi
 Canopy builds on two ideas that play well together:
 
 - **[Git worktrees](https://git-scm.com/docs/git-worktree)** let you check out multiple branches of the same repo simultaneously, each in its own directory, sharing one `.git` store. Creating one is cheap and fast.
-- **Claude Code sessions** are directory-scoped and resumable. Canopy finds the last session ID for each worktree and passes it via `--resume`, so conversations survive restarts.
+- **Claude Code sessions** are directory-scoped and resumable. Canopy assigns each tab its own session ID at launch (`--session-id`) and resumes that exact conversation afterwards (`--resume`), so conversations survive restarts and a tab can't be hijacked by an unrelated `claude` run in the same directory.
 
 Everything else — the tabs, the project view, the Activity dashboard, the palette, the split pane — is a native SwiftUI app wrapped around [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) for terminal emulation. No Electron, no webviews, no bundled Node. It launches fast, idles quiet, and behaves like a Mac app.
 
@@ -297,8 +304,8 @@ Every project can be configured independently from the **Add Project** sheet:
 | Setup commands | `npm install`, `bundle install`, `make setup` | Run once in each fresh worktree |
 | Worktree base directory | `~/worktrees/myproject` | Where new worktrees live (default: `../canopy-worktrees/<project>`) |
 | Auto-start Claude | on/off | Per-project override of the global default |
-| Claude flags | `--permission-mode auto` | Per-project override of the global flags |
-| Sandbox backend | Off / Docker Sandbox / Apple container | Run Claude inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM or an [Apple container](https://github.com/apple/container) VM |
+| Claude flags | `--permission-mode auto` | Per-project override of the global flags. Individual sessions can override again in the New Worktree sheet |
+| Sandbox backend | Off / Claude sandbox / Docker Sandbox / Apple container | Claude Code's own Bash sandbox, a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) microVM, or an [Apple container](https://github.com/apple/container) VM |
 | Sandbox flags | `--memory 8g` | Additional flags passed to `sbx run` |
 | Container image / flags | `canopy-claude` / `--memory 8g` | Image and extra flags for the Apple container backend |
 

@@ -183,6 +183,13 @@ struct WorktreeSheet: View {
                 }
                 .labelsHidden()
                 .disabled(checkingSandbox)
+                // The caveats belong where the choice is made, not only in
+                // Settings -- this picker is the per-session one.
+                if let backend = sandboxOverride {
+                    Text(SandboxBackendUI.description(for: backend))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
                 if let status = sandboxStatus, status != .available {
                     Text(SandboxBackendUI.warning(for: status))
                         .font(.caption)

@@ -172,6 +172,12 @@ struct EditProjectSheet: View {
                             .font(.subheadline)
                             .padding(.leading, 16)
                             .disabled(checkingSandbox)
+                        // Same caveats as Settings: a security choice should
+                        // explain itself wherever it is offered.
+                        Text(SandboxBackendUI.description(for: sandboxBackend))
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 16)
 
                         if let status = sandboxStatus, status != .available {
                             Text(SandboxBackendUI.warning(for: status))
@@ -268,6 +274,23 @@ struct EditProjectSheet: View {
 
 /// Shared user-facing strings for sandbox backend validation.
 enum SandboxBackendUI {
+    /// What a backend actually protects. This is a security setting, and the
+    /// picker previously said only its name -- "Claude sandbox" gives no hint
+    /// that reads are unrestricted, and "Off" none that there is no boundary
+    /// at all.
+    static func description(for backend: SandboxBackend) -> String {
+        switch backend {
+        case .off:
+            return "No isolation. Claude can read and write anything you can."
+        case .claudeNative:
+            return "Sandboxes Bash only, via macOS Seatbelt — nothing to install. Writes are limited to an allowlist; reads are only deny-listed, so credentials remain readable. Session resume works."
+        case .dockerSbx:
+            return "Runs Claude in a Docker microVM. Legacy: session resume does not work, because transcripts stay inside the VM."
+        case .appleContainer:
+            return "Runs Claude in a lightweight VM with only your worktree mounted — the strongest option. Requires macOS 26+ on Apple silicon and a built image."
+        }
+    }
+
     static func warning(for status: SandboxChecker.Status) -> String {
         switch status {
         case .missingDocker:

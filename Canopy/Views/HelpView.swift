@@ -45,7 +45,7 @@ struct HelpView: View {
                         steps: [
                             "Click your project in the sidebar to see the project overview",
                             "Find the worktree and click \"Open\"",
-                            "Claude resumes with --resume to continue the previous conversation",
+                            "Canopy adopts that worktree's existing Claude conversation and resumes it — sessions it created keep the ID they were assigned",
                         ]
                     )
                     workflow(
@@ -54,7 +54,7 @@ struct HelpView: View {
                             "Create multiple worktree sessions from the same project",
                             "Each session gets its own branch and Claude instance",
                             "Switch between them using the tab bar or sidebar",
-                            "Activity dots show which sessions are active",
+                            "Activity dots show which sessions are working, and which are blocked waiting on you",
                         ]
                     )
                     workflow(
@@ -88,13 +88,19 @@ struct HelpView: View {
                     concept("Plain Session",
                             "A terminal in any directory, not tied to a project or worktree. Good for one-off tasks.")
                     concept("Activity Dot",
-                            "Green pulsing = output streaming. Gray = idle (no output for 5 seconds).")
+                            "Green pulsing = working. Amber with a raised hand = blocked waiting on you, usually a permission prompt. Blue check = just finished. Gray = idle. The amber state comes from Claude Code itself, so it needs a backend that runs Claude on the host (Off or Claude sandbox); otherwise the dot falls back to output-versus-silence.")
                     concept("Auto-start Claude",
                             "When enabled in Settings, new sessions automatically run `claude` with your configured flags. Per-project overrides available.")
                     concept("Session Resume",
-                            "When opening an existing worktree, Canopy finds the last Claude session ID and passes --resume so you continue where you left off.")
+                            "Canopy assigns each session its own Claude conversation ID at launch (--session-id) and resumes that exact one afterwards (--resume), so a tab stays bound to its own conversation. Opening a worktree that already has history adopts the most recent conversation instead.")
+                    concept("Per-Session Claude Flags",
+                            "The New Worktree Session sheet has a Claude Flags field. Any `claude` flag works — --model, --effort, --permission-mode. It overrides the project and global flags for that session only, so you can run one branch on a different model without touching its siblings. Leave it empty to inherit.")
+                    concept("Session Info",
+                            "Right-click a session for Session Info: working directory, branch, token counts, and — so you can check rather than assume — which sandbox it resolved to and the exact Claude flags it launched with.")
+                    concept("Transcript Attribution",
+                            "Show Transcript labels each Claude turn with the model and reasoning effort that produced it (for example opus-5 · xhigh). Older transcripts and models without an effort setting simply show less. Copy includes it, so a transcript pasted into an issue says which model wrote it.")
                     concept("Sandbox Backends",
-                            "Optional isolation for Claude sessions, set globally (Settings), per project, or per session (New Worktree Session sheet). Docker Sandbox runs Claude in an sbx microVM (requires Docker Desktop; no session resume). Apple container runs it in a lightweight VM via Apple's container runtime (macOS 26+, Apple silicon; resume works). Sandboxed sessions show a shield icon in the sidebar — hover it to see which backend. The sandbox protects your machine — everything not explicitly mounted (SSH keys, Keychain, other repos, the rest of your home dir) stays out of reach — but not the mounted project or Claude state, and outbound network stays open. See the User Guide for the full boundary. If a backend isn't ready when a session starts — for example the container runtime was stopped — Canopy prints the fix in the terminal instead of a cryptic error.")
+                            "Optional isolation for Claude sessions, set globally (Settings), per project, or per session (New Worktree Session sheet). They protect different amounts. Claude sandbox uses Claude Code's own macOS Seatbelt sandbox: nothing to install, resume works, but it confines Bash only, and restricts writes while leaving reads on a deny-list, so credentials stay readable. Docker Sandbox (legacy) runs Claude in an sbx microVM (requires Docker Desktop; no session resume). Apple container runs it in a lightweight VM via Apple's container runtime (macOS 26+, Apple silicon; resume works) and is the strongest. Sandboxed sessions show a shield icon in the sidebar — hover it to see which backend. For the VM backends, everything not explicitly mounted (SSH keys, Keychain, other repos, the rest of your home dir) stays out of reach — but not the mounted project and its main repo, or Claude state, and outbound network stays open. See the User Guide for the full boundary. If a backend isn't ready when a session starts — for example the container runtime was stopped — Canopy prints the fix in the terminal instead of a cryptic error.")
                     concept("Sandbox Login (Apple container)",
                             "macOS keeps Claude's credentials in the Keychain, which the Linux VM can't read. Run /login once inside your first sandboxed session — credentials persist in the mounted ~/.claude for all later sessions.")
                     concept("Sandbox Image (Apple container)",
