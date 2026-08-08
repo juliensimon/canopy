@@ -64,6 +64,8 @@ The two VM backends (Docker Sandbox and Apple container) give hard process isola
 
 The third, **Claude sandbox (Bash only)**, is not a VM and does not mount anything. It is Claude Code's own macOS Seatbelt sandbox: cheapest to use, weakest boundary.
 
+**If you want the strongest isolation, use Apple container.** It is the only backend that confines the whole Claude process rather than just the commands it shells out to, at hardware-virtualisation level, with nothing reachable but the paths Canopy explicitly mounts.
+
 The backend can be set at three levels -- resolution order is **session → project → global**:
 
 | Level | Where | Notes |
@@ -98,7 +100,11 @@ The command becomes `claude --settings '{"sandbox":{"enabled":true,"allowUnsandb
 - `--settings` *merges* with your own settings, so your `allowedDomains`, `excludedCommands` and filesystem allowlist still apply. Widen the allowlist in-session with `/sandbox`
 - Nothing is written to disk; the settings are passed inline
 
-**Know what this does not do.** It sandboxes **Bash only** — Read, Edit and Write go through the permission system instead. Writes are confined to an allowlist, but **reads are governed by a deny-list**, so `~/.ssh` and `~/.aws/credentials` remain readable (verified against the shipping CLI). It shares the kernel, your user session and the TCC context. Upstream is explicit that it "reduces risk but is not a complete isolation boundary". If you want a real boundary, use Apple container.
+**Why "Bash only".** Claude Code wraps each shell command it runs in `sandbox-exec` — roughly `/usr/bin/sandbox-exec -p <profile> <shell> -c <command>` — so the Seatbelt profile applies to that child process and nothing else. Read, Edit and Write are ordinary in-process file operations in Claude itself, which nothing wraps; they are governed by the permission system instead. This is a design choice, not a Seatbelt limitation: Seatbelt can confine an entire process, but doing so would also confine Claude's own work (writing transcripts to `~/.claude`, reading config, reaching the API), which would need a profile permissive enough to weaken it for everything.
+
+The practical consequence: **anything Claude does without shelling out is not in the sandbox at all.**
+
+**Know what else this does not do.** Writes are confined to an allowlist, but **reads are governed by a deny-list**, so `~/.ssh` and `~/.aws/credentials` remain readable (verified against the shipping CLI). It shares the kernel, your user session and the TCC context. Upstream is explicit that it "reduces risk but is not a complete isolation boundary".
 
 #### Docker Sandbox (sbx) — legacy
 

@@ -7,14 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [1.2.0] - 2026-08-08
 
-- Bumped SwiftTerm to 1.15.0 and removed the hover-motion workaround. Upstream
-  fixed the SGR encoding bug (migueldeicaza/SwiftTerm#520, shipped in 1.14.0)
-  that made buttonless hover motion read as a button release, so Canopy no
-  longer swallows `mouseMoved` events while any-event tracking is active.
-  Hover highlighting in Claude Code's fullscreen menus now works, and the
-  Cmd-hover link preview is no longer suppressed. (#48)
+### Added
+- **"Needs input" session state** (#52, #54): a session blocked on a permission
+  prompt now shows an amber dot with a raised hand, and the status bar leads
+  with "1 needs input". Previously the PTY went silent while Claude waited, so
+  after five seconds the session was declared *finished* — checkmark, "Session
+  finished" notification — and three seconds later decayed to grey, making a
+  stalled agent indistinguishable from an idle one. Canopy now asks Claude Code
+  directly (`claude agents --json`) instead of inferring from silence, so it can
+  tell a permission prompt from a finished turn. Requires a backend that runs
+  Claude on the host (Off or Claude sandbox); other backends keep the old
+  heuristic. A separate **Notify when sessions need input** setting (on by
+  default) fires even when Canopy is in front, since the blocked session is
+  usually not the tab you are looking at.
+- **Claude sandbox (Bash only)** (#53): a third sandbox option, using Claude
+  Code's own macOS Seatbelt sandbox. Nothing to install — no image, no daemon,
+  no Docker — and session resume works. It is deliberately the weakest of the
+  three: it confines **Bash only** (Read/Edit/Write go through the permission
+  system), and while writes are limited to an allowlist, reads are filtered
+  only by a deny-list, so `~/.ssh` and `~/.aws/credentials` remain readable.
+  Canopy sets `allowUnsandboxedCommands: false`, because the CLI defaults it to
+  *true*: without it, a command the sandbox denies is simply retried outside the
+  sandbox and auto-approved by `--permission-mode auto`, which would make the
+  setting advisory. The "Bash only" part is architectural — Claude Code wraps
+  each shell command in `sandbox-exec`, so the profile covers the child process
+  and not Claude itself. **Apple container remains the strongest option**: it is
+  the only backend that confines the whole Claude process. Every sandbox picker
+  now describes what its backend actually protects.
+- **Per-session Claude flags** (#55): the New Worktree Session sheet has a flags
+  field that overrides the project and global values for that session only, so
+  "opus on the hard branch, fable on the chore branch" no longer means editing a
+  project-wide setting that hits every sibling. Free text rather than pickers —
+  `--permission-mode` gained `dontAsk` and renamed `default`→`manual` in 2.1.200,
+  and every enum the CLI owns is a maintenance subscription.
+- **Model and reasoning effort per turn in the transcript** (#56): each Claude
+  turn is labelled with what produced it (e.g. `opus-5 · xhigh`). Copy includes
+  it, so a transcript pasted into an issue says which model wrote which turn.
+  Per-message on purpose: the model can change mid-conversation via `/model`,
+  and effort is legitimately absent on older CLIs and on models without the
+  concept.
+- **Sandbox and Claude flags in Session Info** (#73): a running session had no
+  way to show how it was actually isolated or which flags it launched with —
+  both are per-session overridable, and a chosen backend can silently fall back
+  when its prerequisites are missing. The flags row includes what Canopy injects
+  itself, not just what you configured.
+
+### Changed
+- **Claude session IDs are assigned, not discovered** (#61): a new session is
+  launched with `--session-id <uuid>` and resumed with `--resume` afterwards,
+  instead of Canopy guessing which conversation a tab owned by scanning
+  `~/.claude/projects/` for the most recently modified transcript. A tab is now
+  bound to its own conversation from the moment it starts, so running `claude`
+  yourself in the same directory cannot hijack it — and the transcript viewer
+  and token counts work immediately, where before they were empty for the
+  entire life of any session Canopy created.
+- **Docker Sandbox (sbx) is labelled legacy**: it is the only backend without
+  session resume, and Claude sandbox now covers the zero-install case. It still
+  works and is not deprecated. (#53)
+- **The project view leads with cross-worktree state** (#60): the worktree list
+  and a collision summary come first; "New Worktree Session" moves into the
+  header. Claude Code creates worktrees itself now (`claude -w`, `/fork`,
+  isolated subagents), so creation is no longer the differentiated part —
+  watching several at once is, and nothing upstream reports collisions.
+- **SwiftTerm 1.15.0**, removing the hover-motion workaround. Upstream fixed the
+  SGR encoding bug (migueldeicaza/SwiftTerm#520) that made buttonless hover
+  motion read as a button release, so Canopy no longer swallows `mouseMoved`
+  while any-event tracking is active. Hover highlighting in Claude Code's
+  fullscreen menus works again, and the Cmd-hover link preview is no longer
+  suppressed. (#48)
+- **`scripts/bundle.sh` no longer dirties the working tree** (#64): it restores
+  the committed `BuildInfo.swift` on exit unless `--release` is passed. Running
+  it after every change — which CLAUDE.md instructs — used to guarantee a dirty
+  generated file that `git add -A` swept into unrelated commits. New `--dry-run`
+  stops before the archive.
+- **CI runs on every pull request**, not only those targeting `master`. A
+  `branches:` filter meant stacked PRs got no CI at all, so code could reach
+  `master` having only ever been built locally.
+
+### Fixed
+- **A tab no longer adopts an unrelated Claude conversation** (#51):
+  `loadSessions` overwrote every stored session ID on launch with whatever
+  transcript in that directory was newest, so running `claude` yourself in a
+  worktree — or opening a second tab on it — silently re-pointed the tab, and
+  Canopy then `--resume`d into that conversation. An established session ID is
+  user data; it is now filled in only when missing.
+- **git works inside Docker Sandbox worktree sessions** (#59): only the worktree
+  was mounted, so its `.git` file pointed at a path that did not exist in the
+  sandbox and *every* git command failed with "not a git repository", with
+  nothing surfaced by Canopy. The main repository is now passed as an extra sbx
+  workspace.
+- **Worktree sessions can read the main repository** (#58): mounting fixed the
+  filesystem, but Claude Code's own tool boundary is scoped to the working
+  directory independently of what is mounted, so a main-repo read was refused
+  under `--permission-mode manual`. Canopy now passes `--add-dir`.
+- **The sidebar shield names the right backend**: it was a binary test between
+  two backends, so a Claude sandbox session displayed "Running in Apple
+  container" — claiming stronger isolation than it had.
+- **Tests no longer read your real settings**: `AppState(configDir:)` isolated
+  sessions and projects but not `settings.json`, so a test could pass locally
+  and fail in CI for reasons invisible in its body. (#66)
+- **Claude-created worktrees under `.claude/worktrees/`** are verified to flow
+  through worktree listing, collision reports and the unmerged-commit warning.
+  The hypothesis held, so the deliverable is the tests. (#57)
 
 ## [1.1.2] - 2026-07-10
 

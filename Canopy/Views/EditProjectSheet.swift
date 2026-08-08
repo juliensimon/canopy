@@ -287,7 +287,7 @@ enum SandboxBackendUI {
         case .dockerSbx:
             return "Runs Claude in a Docker microVM. Legacy: session resume does not work, because transcripts stay inside the VM."
         case .appleContainer:
-            return "Runs Claude in a lightweight VM with only your worktree mounted — the strongest option. Requires macOS 26+ on Apple silicon and a built image."
+            return "Runs Claude in a lightweight VM with only your worktree mounted. The strongest option: it confines the whole Claude process, not just the commands it shells out to. Requires macOS 26+ on Apple silicon and a built image."
         }
     }
 
