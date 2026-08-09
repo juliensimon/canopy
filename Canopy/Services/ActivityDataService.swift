@@ -268,6 +268,13 @@ enum ActivityDataService {
     ///   claude-sonnet-4-5-20250929  -> Sonnet
     ///   claude-3-5-sonnet-20241022  -> Sonnet   (family follows the version)
     static func modelFamily(_ modelId: String) -> String {
+        // Sentinels, not model IDs: parseJsonlData substitutes "unknown" when
+        // an entry has no model, and Claude Code writes "<synthetic>" for its
+        // own error rows. Title-casing those would rename an existing bucket,
+        // and this change is meant to move Fable and nothing else.
+        guard !modelId.isEmpty, modelId != "unknown", modelId != "<synthetic>"
+        else { return modelId }
+
         let components = modelId.lowercased()
             .split(separator: "-")
             .map(String.init)

@@ -664,11 +664,15 @@ struct ActivityCacheTests {
         #expect(ActivityDataService.modelFamily("claude-newthing-9") == "Newthing")
     }
 
-    /// Degenerate inputs must not crash or produce an empty label.
-    @Test(arguments: ["", "claude", "unknown", "<synthetic>"])
-    func handlesDegenerateModelIds(_ modelId: String) {
-        let family = ActivityDataService.modelFamily(modelId)
-        #expect(family == modelId || !family.isEmpty)
+    /// The sentinels our own code produces are not model IDs and must pass
+    /// through untouched: parseJsonlData substitutes "unknown" when an entry
+    /// has no model, and Claude Code writes "<synthetic>". Title-casing those
+    /// would rename an existing bucket, and this change is meant to move
+    /// Fable and nothing else. Exact equality on purpose -- an `||` here would
+    /// let the empty case pass vacuously.
+    @Test(arguments: ["", "unknown", "<synthetic>"])
+    func sentinelsPassThroughUnchanged(_ modelId: String) {
+        #expect(ActivityDataService.modelFamily(modelId) == modelId)
     }
 
 }
