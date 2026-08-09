@@ -252,13 +252,40 @@ enum ActivityDataService {
 
     // MARK: - Helpers
 
+    /// Family name for a model ID, so version bumps merge into one row --
+    /// claude-sonnet-4-5 and claude-sonnet-4-6 both report as "Sonnet".
+    ///
+    /// Derived from the ID's shape rather than a hardcoded list of families.
+    /// A list cannot keep up: Fable shipped after this function was written
+    /// and fell through to a catch-all "Claude" branch, so 1.2M tokens were
+    /// filed under a label that named no model -- and every *future* family
+    /// would have joined it in that same bucket, merging distinct models into
+    /// one row. That is the exact failure this function exists to prevent.
+    ///
+    /// Handles both of Anthropic's naming eras, since old transcripts persist:
+    ///   claude-opus-4-7             -> Opus
+    ///   claude-fable-5              -> Fable
+    ///   claude-sonnet-4-5-20250929  -> Sonnet
+    ///   claude-3-5-sonnet-20241022  -> Sonnet   (family follows the version)
     static func modelFamily(_ modelId: String) -> String {
-        let lower = modelId.lowercased()
-        if lower.contains("opus") { return "Opus" }
-        if lower.contains("sonnet") { return "Sonnet" }
-        if lower.contains("haiku") { return "Haiku" }
-        if lower.contains("claude") { return "Claude" }
-        return modelId
+        // Sentinels, not model IDs: parseJsonlData substitutes "unknown" when
+        // an entry has no model, and Claude Code writes "<synthetic>" for its
+        // own error rows. Title-casing those would rename an existing bucket,
+        // and this change is meant to move Fable and nothing else.
+        guard !modelId.isEmpty, modelId != "unknown", modelId != "<synthetic>"
+        else { return modelId }
+
+        let components = modelId.lowercased()
+            .split(separator: "-")
+            .map(String.init)
+            .filter { $0 != "claude" }
+
+        // The first component carrying a letter is the family; everything
+        // before it is version or date digits, in either naming era.
+        guard let family = components.first(where: { $0.contains(where: \.isLetter) })
+        else { return modelId }
+
+        return family.prefix(1).uppercased() + family.dropFirst()
     }
 
     // MARK: - File Discovery

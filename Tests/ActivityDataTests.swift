@@ -611,4 +611,68 @@ struct ActivityCacheTests {
         let daysAgo = Calendar.current.dateComponents([.day], from: parsed, to: Date()).day!
         #expect(daysAgo >= 82 && daysAgo <= 86) // 12 weeks = 84 days, ±2 for edge
     }
+
+    // MARK: - Model family derivation
+
+    /// The regression this replaced a hardcoded list for. Fable shipped after
+    /// modelFamily was written and fell through to a catch-all "Claude"
+    /// branch, filing real usage under a label that names no model.
+    @Test func fableReportsItsOwnFamily() {
+        #expect(ActivityDataService.modelFamily("claude-fable-5") == "Fable")
+    }
+
+    /// Every model ID observed in real transcripts.
+    @Test(arguments: [
+        ("claude-opus-5", "Opus"),
+        ("claude-opus-4-8", "Opus"),
+        ("claude-opus-4-7", "Opus"),
+        ("claude-fable-5", "Fable"),
+        ("claude-sonnet-4-5-20250929", "Sonnet"),
+        ("claude-haiku-4-5-20251001", "Haiku"),
+    ])
+    func derivesFamilyFromRealModelIds(_ modelId: String, _ expected: String) {
+        #expect(ActivityDataService.modelFamily(modelId) == expected)
+    }
+
+    /// Anthropic's older IDs put the version BEFORE the family. Old
+    /// transcripts persist, so both eras must resolve identically.
+    @Test(arguments: [
+        ("claude-3-5-sonnet-20241022", "Sonnet"),
+        ("claude-3-opus-20240229", "Opus"),
+        ("claude-3-haiku-20240307", "Haiku"),
+    ])
+    func derivesFamilyFromLegacyModelIds(_ modelId: String, _ expected: String) {
+        #expect(ActivityDataService.modelFamily(modelId) == expected)
+    }
+
+    /// The whole point of the function: versions of one family merge into a
+    /// single row rather than fragmenting the breakdown.
+    @Test func versionsOfOneFamilyMerge() {
+        let opus = ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5"]
+            .map(ActivityDataService.modelFamily)
+        #expect(Set(opus).count == 1)
+    }
+
+    /// And the inverse, which the old catch-all got wrong: two DIFFERENT
+    /// families must never share a bucket, including families that do not
+    /// exist yet. This is what silently merged Fable with everything unknown.
+    @Test func differentFamiliesNeverShareABucket() {
+        let families = ["claude-opus-5", "claude-fable-5", "claude-sonnet-4-5",
+                        "claude-haiku-4-5", "claude-newthing-9"]
+            .map(ActivityDataService.modelFamily)
+        #expect(Set(families).count == 5)
+        #expect(ActivityDataService.modelFamily("claude-newthing-9") == "Newthing")
+    }
+
+    /// The sentinels our own code produces are not model IDs and must pass
+    /// through untouched: parseJsonlData substitutes "unknown" when an entry
+    /// has no model, and Claude Code writes "<synthetic>". Title-casing those
+    /// would rename an existing bucket, and this change is meant to move
+    /// Fable and nothing else. Exact equality on purpose -- an `||` here would
+    /// let the empty case pass vacuously.
+    @Test(arguments: ["", "unknown", "<synthetic>"])
+    func sentinelsPassThroughUnchanged(_ modelId: String) {
+        #expect(ActivityDataService.modelFamily(modelId) == modelId)
+    }
+
 }
