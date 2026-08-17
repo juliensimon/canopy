@@ -18,6 +18,9 @@ struct UpdateCheckerTests {
     @Test func leadingVStripped() {
         #expect(UpdateChecker.compareSemver("v0.9.1", "0.9.1") == .orderedSame)
         #expect(UpdateChecker.compareSemver("v0.9.0", "v0.9.1") == .orderedAscending)
+        // Nonzero major: with broken stripping, Int("v0") ?? 0 == 0 masks the
+        // bug for 0.x versions, so only this case proves the prefix is dropped.
+        #expect(UpdateChecker.compareSemver("v1.2.3", "1.2.3") == .orderedSame)
     }
 
     @Test func numericNotLexicalCompare() {
