@@ -487,9 +487,21 @@ final class AppState: ObservableObject {
             SessionCostService.lastTurnContext(path: path)
         }.value
 
-        // Guard against stale results if the session changed during the read.
-        guard activeSessionId == sessionId else { return }
+        applySessionContext(context, readFor: sessionId)
+    }
 
+    /// Publishes a context that was read for `sessionId`, unless the user has
+    /// switched sessions in the meantime -- issue #28 was this exact race in
+    /// the git maps, one session's numbers landing under another's name.
+    ///
+    /// Split out from the read so the guard can be tested without racing the
+    /// scheduler. Driving it through `refreshActiveSessionContext` means
+    /// arranging for a tab switch to land inside a file read, which is a
+    /// contest between a microsecond of I/O and a single assignment; the test
+    /// for it passed locally, failed under CI load, and was then broken
+    /// outright by making the read faster. A named seam is deterministic.
+    func applySessionContext(_ context: SessionContext?, readFor sessionId: UUID) {
+        guard activeSessionId == sessionId else { return }
         activeSessionContext = context
     }
 

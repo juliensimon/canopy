@@ -492,55 +492,41 @@ struct SessionContextAppStateTests {
         #expect(state.activeSessionContext == nil)
     }
 
-    /// The same race issue #28 hit the git maps with: the file read suspends,
-    /// the user switches tabs, and the in-flight result lands on the wrong
-    /// session -- showing one session's context under another's name.
+    /// Issue #28 in miniature: a read finishes for one session after the user
+    /// has already switched to another, and the stale numbers land under the
+    /// new session's name.
     ///
-    /// Losing the race has to be made unlikely on purpose. The equivalent git
-    /// test gets its margin for free because its awaits are subprocesses; a
-    /// file read is microseconds, and with a small fixture the refresh often
-    /// finishes before the test body resumes, so the switch never happens and
-    /// the test passes without exercising the guard at all. The 4 MB of filler
-    /// forces the reader through five doubling windows, which is milliseconds
-    /// against a single assignment. The control assertion below then proves a
-    /// nil result means the guard fired, not that the fixture was unreadable.
-    @Test func staleRefreshDoesNotOverwriteAfterSessionSwitch() async throws {
-        let claudeSessionId = UUID().uuidString
-        let filler = """
-        {"type":"user","message":{"role":"user","content":[{"type":"text","text":"\(String(repeating: "x", count: 4_000_000))"}]}}
-        """
-        let workingDirectory = try makeWorkingDirWithTranscript(
-            claudeSessionId: claudeSessionId, lines: [assistantLine, filler]
-        )
-        let otherDirectory = NSTemporaryDirectory() + "canopy-ctx-other-\(UUID().uuidString)"
-        try fm.createDirectory(atPath: otherDirectory, withIntermediateDirectories: true)
+    /// Asserted through `applySessionContext` rather than by racing
+    /// `refreshActiveSessionContext`, because that race cannot be won
+    /// reliably. The earlier version of this test arranged for a tab switch to
+    /// land inside the file read and needed 4 MB of filler to make the read
+    /// slow enough; it passed locally, failed under CI load, and was finally
+    /// broken outright by an optimisation that made the read four times
+    /// faster. A test whose correctness depends on losing a scheduling race is
+    /// a test that will fail for reasons unrelated to the code it covers.
+    @Test func aContextReadForAnotherSessionIsNotPublished() {
         let configDir = tempConfigDir()
-        defer {
-            cleanUp(workingDirectory: workingDirectory, claudeSessionId: claudeSessionId)
-            try? fm.removeItem(atPath: otherDirectory)
-            try? fm.removeItem(atPath: configDir)
-        }
+        defer { try? fm.removeItem(atPath: configDir) }
 
         let state = AppState(configDir: configDir)
-        state.createSession(name: "with-claude", directory: workingDirectory)
-        state.createSession(name: "without-claude", directory: otherDirectory)
-        state.activeSessionId = state.sessions[0].id
-        state.assignClaudeSessionId(claudeSessionId, to: state.sessions[0].id)
+        state.createSession(name: "first", directory: "/tmp/first")
+        state.createSession(name: "second", directory: "/tmp/second")
+        let first = state.sessions[0].id
+        let second = state.sessions[1].id
+        let context = SessionContext(model: "claude-opus-5", effort: "high", contextTokens: 1000)
 
-        // Control: this fixture really does yield a context, so the nil below
-        // cannot pass vacuously.
-        await state.refreshActiveSessionContext()
-        #expect(state.activeSessionContext?.contextTokens == 1000)
+        // A read that completes while its own session is still active applies.
+        state.activeSessionId = first
+        state.applySessionContext(context, readFor: first)
+        #expect(state.activeSessionContext == context)
+
+        // The user switches tabs; a read still in flight for the old session
+        // must not overwrite what the new one shows.
+        state.activeSessionId = second
         state.activeSessionContext = nil
-
-        // Start the refresh, let it capture session 0 and suspend on the file
-        // read, then switch tabs before it resumes.
-        let refresh = Task { @MainActor in await state.refreshActiveSessionContext() }
-        await Task.yield()
-        state.activeSessionId = state.sessions[1].id
-        await refresh.value
+        state.applySessionContext(context, readFor: first)
 
         #expect(state.activeSessionContext == nil,
-                "stale context wrote over a freshly selected session")
+                "a context read for another session was published over the active one")
     }
 }
