@@ -73,6 +73,11 @@ final class AppState: ObservableObject {
     /// Git status for the currently active session.
     @Published var activeGitStatus: GitStatusInfo?
 
+    /// Model, reasoning effort, and context size of the active session's most
+    /// recent Claude turn. Nil when that session has never run Claude, or has
+    /// not written a transcript yet.
+    @Published var activeSessionContext: SessionContext?
+
     /// Git diff stats per session, keyed by session ID. Used by sidebar rows.
     @Published var sessionDiffStats: [UUID: GitDiffStat] = [:]
 
@@ -458,6 +463,36 @@ final class AppState: ObservableObject {
         )
     }
 
+    /// Reads the active session's newest Claude turn for the status bar.
+    ///
+    /// Keyed strictly on `claudeSessionId`, never on "newest transcript in this
+    /// directory" -- that fallback would report a `claude` run the user started
+    /// outside Canopy in the same cwd, which is the trap TranscriptSheet
+    /// documents.
+    func refreshActiveSessionContext() async {
+        guard let session = activeSession,
+              let claudeSessionId = session.claudeSessionId else {
+            activeSessionContext = nil
+            return
+        }
+        let sessionId = session.id
+        let path = ClaudeTranscriptLoader.sessionFilePath(
+            workingDirectory: session.workingDirectory,
+            sessionId: claudeSessionId
+        )
+
+        // Off the main actor: this runs on a timer and touches the filesystem,
+        // and the terminal shares this actor.
+        let context = await Task.detached {
+            SessionCostService.lastTurnContext(path: path)
+        }.value
+
+        // Guard against stale results if the session changed during the read.
+        guard activeSessionId == sessionId else { return }
+
+        activeSessionContext = context
+    }
+
     /// Refreshes diff stats and commits-ahead for all sessions (sidebar indicators).
     func refreshAllSessionDiffStats() async {
         for session in sessions {
@@ -531,6 +566,7 @@ final class AppState: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refreshGitStatus()
+                await self.refreshActiveSessionContext()
                 await self.refreshAllSessionDiffStats()
                 await self.refreshAllSessionPRCounts()
                 try? await Task.sleep(for: .seconds(10))
