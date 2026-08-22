@@ -2,17 +2,11 @@ import Foundation
 
 /// One live `claude` process, as reported by `claude agents --json`.
 ///
-/// Only the fields Canopy actually uses are decoded -- the real payload also
-/// carries `kind` and `name` -- because decoding fields we don't read only
-/// adds ways for a schema change to break the whole array.
-///
-/// `pid` was long excluded on the grounds that a container session's pid is a
-/// guest-namespace pid and names nothing on the host. That is still true, and
-/// `reportsToHostAgentRegistry` already excludes those backends before any of
-/// this is consulted. For the backends that do reach here, the pid identifies
-/// a real local process, which is what lets a tab tell its own claude
-/// re-keying itself under `/clear` from a different claude appearing in the
-/// same directory.
+/// Only the fields Canopy actually uses are decoded. The real payload also
+/// carries `pid`, `kind` and `name`; `pid` is useless to us (a container
+/// session's pid is a guest-namespace pid, meaningless on the host) and
+/// decoding fields we don't read only adds ways for a schema change to break
+/// the whole array.
 ///
 /// `status` and `startedAt` are optional because they really are absent in
 /// practice: sdk-cli entries carry no `status` key at all.
@@ -21,28 +15,6 @@ struct ClaudeAgent: Decodable, Equatable, Sendable {
     let sessionId: String
     let status: String?
     let startedAt: Double?
-    /// Host pid of the claude process. Absent on older CLIs, and meaningless
-    /// for container backends -- `reportsToHostAgentRegistry` already excludes
-    /// those, since a guest-namespace pid names nothing on this machine.
-    let pid: Int?
-
-    /// Identifies the *process*, so a session id that changes underneath one
-    /// can be told apart from a different claude appearing in the same
-    /// directory. Nil when the CLI reports too little to prove either.
-    ///
-    /// pids are recycled, so the start time is part of the identity: a
-    /// matching pid with a different start time is a new process wearing a
-    /// dead one's number.
-    var processIdentity: ClaudeProcessIdentity? {
-        guard let pid, let startedAt else { return nil }
-        return ClaudeProcessIdentity(pid: pid, startedAt: startedAt)
-    }
-}
-
-/// A specific claude process, as reported by the agent registry.
-struct ClaudeProcessIdentity: Equatable, Sendable {
-    let pid: Int
-    let startedAt: Double
 }
 
 /// Asks Claude Code which conversations are live, rather than inferring it.

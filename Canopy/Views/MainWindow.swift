@@ -49,10 +49,8 @@ struct MainWindow: View {
             }
             .onChange(of: appState.activeSessionId) { _, _ in
                 appState.activeGitStatus = nil
-                appState.activeSessionContext = nil
                 Task {
                     await appState.refreshGitStatus()
-                    await appState.refreshActiveSessionContext()
                     await appState.refreshAllSessionDiffStats()
                     await appState.refreshAllSessionPRCounts()
                 }
