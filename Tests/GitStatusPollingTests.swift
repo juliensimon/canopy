@@ -120,42 +120,66 @@ struct GitStatusPollingTests {
         #expect(state.activeGitStatus?.diffStat?.isClean == false)
     }
 
-    /// Regression: `refreshGitStatus` must not overwrite `activeGitStatus`
-    /// with data from a session that was active when the refresh started but
-    /// was switched away from before the git operations completed. Without
-    /// the stale-session guard, the 10s poller racing with a tab switch
-    /// writes the *previous* session's git state onto the new selection.
-    @Test @MainActor func refreshGitStatusDoesNotOverwriteAfterSessionSwitch() async throws {
-        let repo = try makeTempRepo()
-        defer { try? fm.removeItem(atPath: repo) }
-        let tempDir = NSTemporaryDirectory() + "canopy-pollrace-\(UUID().uuidString)"
-        try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(atPath: tempDir) }
-
+    /// Issue #81. A refresh that completes for one session after the user has
+    /// switched to another must not publish its result.
+    ///
+    /// Driven through `applyGitStatus` rather than by racing
+    /// `refreshGitStatus`. The version this replaces started the refresh, did
+    /// `await Task.yield()`, and flipped `activeSessionId` hoping to land
+    /// inside the suspension. That only worked because the awaited work is
+    /// subprocesses and therefore slow -- a margin, not a guarantee. The same
+    /// pattern written for the session-context guard passed in isolation,
+    /// failed under full-suite load, and was finally broken outright when an
+    /// optimisation made the awaited work four times faster. A test that has
+    /// to lose a scheduling race gets more fragile every time the code it
+    /// covers gets quicker.
+    @Test @MainActor func aGitStatusReadForAnotherSessionIsNotPublished() {
         let state = isolatedAppState()
-        state.createSession(name: "git-session", directory: repo)
-        state.createSession(name: "plain-session", directory: tempDir)
+        state.createSession(name: "first", directory: "/tmp/first")
+        state.createSession(name: "second", directory: "/tmp/second")
+        let first = state.sessions[0].id
+        let second = state.sessions[1].id
+        let status = GitStatusInfo(
+            diffStat: GitDiffStat(filesChanged: 2, insertions: 9, deletions: 1, changedFiles: ["a.swift"]),
+            commitsAhead: 3, openPRs: [], changedFiles: ["a.swift"]
+        )
 
-        // Activate the git session and kick off a refresh. The async git
-        // operations suspend; before they resume, we switch to the non-git
-        // session. The guard must prevent the in-flight refresh from
-        // writing the git-session's status onto the plain-session.
-        state.activeSessionId = state.sessions[0].id
-        let refresh = Task { @MainActor in await state.refreshGitStatus() }
-        // MainActor is cooperative: both this test and the refresh task are
-        // MainActor-isolated, so tasks run FIFO to their next suspension.
-        // `await Task.yield()` lets the refresh task run its synchronous
-        // prefix (capture `activeSession`, read `sessionId`, `path`) up to
-        // its first real suspension at `await git.isGitRepo` (GitService is
-        // non-isolated, so that await hops off the main actor). By the time
-        // control returns here, the refresh has already captured the git
-        // session — now we can swap `activeSessionId` to exercise the race.
-        await Task.yield()
-        state.activeSessionId = state.sessions[1].id
-        await refresh.value
+        state.activeSessionId = first
+        state.applyGitStatus(status, readFor: first)
+        #expect(state.activeGitStatus?.commitsAhead == 3)
+
+        state.activeSessionId = second
+        state.activeGitStatus = nil
+        state.applyGitStatus(status, readFor: first)
 
         #expect(state.activeGitStatus == nil,
-                "Stale git status wrote over fresh non-git selection")
+                "git status read for another session was published over the active one")
+    }
+
+    /// The *other* guard. `refreshGitStatus` returns early when the path is
+    /// not a git repo, and clears `activeGitStatus` on the way out -- behind
+    /// its own copy of the same check. The race-based test could never reach
+    /// it: its active session was always a real repo, so that branch had no
+    /// coverage at all. A stale clear is as wrong as a stale write; it blanks
+    /// the git segments of a session that does have them.
+    @Test @MainActor func aStaleClearDoesNotBlankTheActiveSession() {
+        let state = isolatedAppState()
+        state.createSession(name: "repo", directory: "/tmp/repo")
+        state.createSession(name: "plain", directory: "/tmp/plain")
+        let repo = state.sessions[0].id
+        let plain = state.sessions[1].id
+        let status = GitStatusInfo(diffStat: nil, commitsAhead: 1, openPRs: [], changedFiles: [])
+
+        // The repo session is active and showing git state.
+        state.activeSessionId = repo
+        state.applyGitStatus(status, readFor: repo)
+
+        // A refresh that started for the *plain* session finishes late and
+        // wants to clear. It is no longer active, so it must not.
+        state.applyGitStatus(GitStatusInfo?.none, readFor: plain)
+
+        #expect(state.activeGitStatus?.commitsAhead == 1,
+                "a stale clear blanked the active session's git status")
     }
 
     @Test @MainActor func refreshGitStatusInWorktree() async throws {
