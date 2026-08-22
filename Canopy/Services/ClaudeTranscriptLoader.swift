@@ -46,15 +46,7 @@ struct TranscriptMessage: Equatable, Identifiable {
     /// Compact attribution for display, e.g. `opus-5 · xhigh`. Nil when
     /// neither field is present, so old transcripts render exactly as before.
     var attribution: String? {
-        let shortModel = model.map {
-            $0.hasPrefix("claude-") ? String($0.dropFirst("claude-".count)) : $0
-        }
-        switch (shortModel, effort) {
-        case let (model?, effort?): return "\(model) · \(effort)"
-        case let (model?, nil): return model
-        case let (nil, effort?): return effort
-        case (nil, nil): return nil
-        }
+        ClaudeTranscriptLoader.attributionLabel(model: model, effort: effort)
     }
 }
 
@@ -74,6 +66,25 @@ enum ClaudeTranscriptLoader {
     /// Cap on tool-result preview length. Larger values bloat the transcript;
     /// the full output is still available in `getFullText()` via the raw view.
     private static let toolResultMaxLength = 600
+
+    /// Renders a model id and reasoning effort as one compact label, e.g.
+    /// `claude-opus-5` + `xhigh` -> `opus-5 · xhigh`. Nil when neither is
+    /// present; a half-populated pair is valid and renders the half it has.
+    ///
+    /// Lives here rather than on `TranscriptMessage` because the status bar
+    /// shows the same pairing from an entirely different parse. Two copies of
+    /// this formatting would drift apart the first time either changed.
+    static func attributionLabel(model: String?, effort: String?) -> String? {
+        let shortModel = model.map {
+            $0.hasPrefix("claude-") ? String($0.dropFirst("claude-".count)) : $0
+        }
+        switch (shortModel, effort) {
+        case let (model?, effort?): return "\(model) · \(effort)"
+        case let (model?, nil): return model
+        case let (nil, effort?): return effort
+        case (nil, nil): return nil
+        }
+    }
 
     static func load(path: String) throws -> [TranscriptMessage] {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
