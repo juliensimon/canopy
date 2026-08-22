@@ -17,40 +17,6 @@ struct ClaudeAgentsServiceTests {
 
     // MARK: - Parsing
 
-    /// The /clear fix hangs entirely on this field being read: a re-keyed
-    /// session is only adopted when the reporting process is provably the one
-    /// Canopy adopted from, and `pid` is half that proof. If the key were
-    /// spelled wrong or the field dropped, every ownership check would fail
-    /// closed and the fix would silently do nothing.
-    ///
-    /// Literal JSON from real `claude agents --json` output, including the
-    /// interactive entry's neighbouring `background` entry, which carries no
-    /// `pid` at all.
-    @Test func decodesPidAndBuildsAProcessIdentity() throws {
-        let json = """
-        [
-          {"id":"63401c10","cwd":"/Users/j/demo","kind":"background",
-           "startedAt":1787303896140,"sessionId":"63401c10-479f-44f5-8f5b-16deccd5886a",
-           "name":"Fork demo","state":"blocked"},
-          {"pid":18001,"cwd":"/Users/j/site","kind":"interactive",
-           "startedAt":1787427887639,"sessionId":"52109c55-b4b2-4186-9ee4-14d651577ffb",
-           "name":"master","status":"busy"}
-        ]
-        """
-        let agents = try #require(ClaudeAgentsService.parse(data(json)))
-        #expect(agents.count == 2)
-
-        let interactive = try #require(agents.first { $0.sessionId.hasPrefix("52109c55") })
-        #expect(interactive.pid == 18001)
-        let identity = try #require(interactive.processIdentity)
-        #expect(identity == ClaudeProcessIdentity(pid: 18001, startedAt: 1787427887639))
-
-        // A background entry reports no pid, so it can prove no ownership.
-        let background = try #require(agents.first { $0.sessionId.hasPrefix("63401c10") })
-        #expect(background.pid == nil)
-        #expect(background.processIdentity == nil)
-    }
-
     @Test func parsesRealWorldArray() throws {
         let agents = try #require(ClaudeAgentsService.parse(data("""
         [
@@ -118,7 +84,7 @@ struct ClaudeAgentsServiceTests {
 
     private func agent(cwd: String, sessionId: String = "s", status: String? = "idle",
                        startedAt: Double? = 0) -> ClaudeAgent {
-        ClaudeAgent(cwd: cwd, sessionId: sessionId, status: status, startedAt: startedAt, pid: nil)
+        ClaudeAgent(cwd: cwd, sessionId: sessionId, status: status, startedAt: startedAt)
     }
 
     @Test func matchesExactWorktreePath() {

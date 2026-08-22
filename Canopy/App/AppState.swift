@@ -73,11 +73,6 @@ final class AppState: ObservableObject {
     /// Git status for the currently active session.
     @Published var activeGitStatus: GitStatusInfo?
 
-    /// Model, reasoning effort, and context size of the active session's most
-    /// recent Claude turn. Nil when that session has never run Claude, or has
-    /// not written a transcript yet.
-    @Published var activeSessionContext: SessionContext?
-
     /// Git diff stats per session, keyed by session ID. Used by sidebar rows.
     @Published var sessionDiffStats: [UUID: GitDiffStat] = [:]
 
@@ -312,37 +307,9 @@ final class AppState: ObservableObject {
             // conversation and --resumes into it. An established id is user
             // data. The startedAt guard additionally rejects a claude that was
             // already running in the worktree before this tab opened.
-            // Started after this tab opened, so it is this tab's claude and
-            // not one the user already had running in the worktree.
-            let isOurs = agent.startedAt.map {
-                Date(timeIntervalSince1970: $0 / 1000) >= terminal.openedAt
-            } ?? false
-
-            if session.claudeSessionId == nil, isOurs {
-                terminal.adoptedClaudeProcess = agent.processIdentity
-                assignClaudeSessionId(agent.sessionId, to: session.id)
-            } else if session.claudeSessionId == agent.sessionId, isOurs,
-                      terminal.adoptedClaudeProcess == nil {
-                // Nothing to adopt -- we already hold this id, because
-                // loadSessions restored it and the tab launched
-                // `claude --resume <id>`. Record whose process it is anyway,
-                // or the tab could never recognise a later re-key. This is the
-                // common path: most `/clear`s happen in a resumed session.
-                terminal.adoptedClaudeProcess = agent.processIdentity
-            } else if let owned = terminal.adoptedClaudeProcess,
-                      let reporting = agent.processIdentity,
-                      owned == reporting {
-                // The one case where replacing an established id is right:
-                // `/clear` does not restart claude, it re-keys the running
-                // process and starts a fresh transcript. Keeping the old id
-                // pins the transcript viewer, the token counts and the status
-                // bar to a file that will never change again, and makes the
-                // next launch `--resume` the conversation the user cleared.
-                //
-                // Narrow on purpose. This is still the same process we took
-                // ownership of, so it is not the hijack the never-overwrite
-                // rule exists to stop -- that is a *different* claude in the
-                // same directory, which fails on pid or start time.
+            if session.claudeSessionId == nil,
+               let startedAt = agent.startedAt,
+               Date(timeIntervalSince1970: startedAt / 1000) >= terminal.openedAt {
                 assignClaudeSessionId(agent.sessionId, to: session.id)
             }
 
@@ -500,52 +467,11 @@ final class AppState: ObservableObject {
     /// wrong as a stale write and previously had no coverage.
     ///
     /// Split out from the read so the guard can be tested without racing the
-    /// scheduler. See `applySessionContext(_:readFor:)` for why that matters.
+    /// scheduler: driving it through `refreshGitStatus` means landing a tab
+    /// switch inside a subprocess call, which is a margin, not a guarantee.
     func applyGitStatus(_ status: GitStatusInfo?, readFor sessionId: UUID) {
         guard activeSessionId == sessionId else { return }
         activeGitStatus = status
-    }
-
-    /// Reads the active session's newest Claude turn for the status bar.
-    ///
-    /// Keyed strictly on `claudeSessionId`, never on "newest transcript in this
-    /// directory" -- that fallback would report a `claude` run the user started
-    /// outside Canopy in the same cwd, which is the trap TranscriptSheet
-    /// documents.
-    func refreshActiveSessionContext() async {
-        guard let session = activeSession,
-              let claudeSessionId = session.claudeSessionId else {
-            activeSessionContext = nil
-            return
-        }
-        let sessionId = session.id
-        let path = ClaudeTranscriptLoader.sessionFilePath(
-            workingDirectory: session.workingDirectory,
-            sessionId: claudeSessionId
-        )
-
-        // Off the main actor: this runs on a timer and touches the filesystem,
-        // and the terminal shares this actor.
-        let context = await Task.detached {
-            SessionCostService.lastTurnContext(path: path)
-        }.value
-
-        applySessionContext(context, readFor: sessionId)
-    }
-
-    /// Publishes a context that was read for `sessionId`, unless the user has
-    /// switched sessions in the meantime -- issue #28 was this exact race in
-    /// the git maps, one session's numbers landing under another's name.
-    ///
-    /// Split out from the read so the guard can be tested without racing the
-    /// scheduler. Driving it through `refreshActiveSessionContext` means
-    /// arranging for a tab switch to land inside a file read, which is a
-    /// contest between a microsecond of I/O and a single assignment; the test
-    /// for it passed locally, failed under CI load, and was then broken
-    /// outright by making the read faster. A named seam is deterministic.
-    func applySessionContext(_ context: SessionContext?, readFor sessionId: UUID) {
-        guard activeSessionId == sessionId else { return }
-        activeSessionContext = context
     }
 
     /// Refreshes diff stats and commits-ahead for all sessions (sidebar indicators).
@@ -621,7 +547,6 @@ final class AppState: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refreshGitStatus()
-                await self.refreshActiveSessionContext()
                 await self.refreshAllSessionDiffStats()
                 await self.refreshAllSessionPRCounts()
                 try? await Task.sleep(for: .seconds(10))
