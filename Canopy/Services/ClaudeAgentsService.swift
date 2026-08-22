@@ -15,6 +15,28 @@ struct ClaudeAgent: Decodable, Equatable, Sendable {
     let sessionId: String
     let status: String?
     let startedAt: Double?
+    /// Host pid of the claude process. Absent on older CLIs, and meaningless
+    /// for container backends -- `reportsToHostAgentRegistry` already excludes
+    /// those, since a guest-namespace pid names nothing on this machine.
+    let pid: Int?
+
+    /// Identifies the *process*, so a session id that changes underneath one
+    /// can be told apart from a different claude appearing in the same
+    /// directory. Nil when the CLI reports too little to prove either.
+    ///
+    /// pids are recycled, so the start time is part of the identity: a
+    /// matching pid with a different start time is a new process wearing a
+    /// dead one's number.
+    var processIdentity: ClaudeProcessIdentity? {
+        guard let pid, let startedAt else { return nil }
+        return ClaudeProcessIdentity(pid: pid, startedAt: startedAt)
+    }
+}
+
+/// A specific claude process, as reported by the agent registry.
+struct ClaudeProcessIdentity: Equatable, Sendable {
+    let pid: Int
+    let startedAt: Double
 }
 
 /// Asks Claude Code which conversations are live, rather than inferring it.

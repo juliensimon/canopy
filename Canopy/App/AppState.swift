@@ -312,9 +312,52 @@ final class AppState: ObservableObject {
             // conversation and --resumes into it. An established id is user
             // data. The startedAt guard additionally rejects a claude that was
             // already running in the worktree before this tab opened.
-            if session.claudeSessionId == nil,
-               let startedAt = agent.startedAt,
-               Date(timeIntervalSince1970: startedAt / 1000) >= terminal.openedAt {
+            // Started after this tab opened, so it is this tab's claude and
+            // not one the user already had running in the worktree.
+            let isOurs = agent.startedAt.map {
+                Date(timeIntervalSince1970: $0 / 1000) >= terminal.openedAt
+            } ?? false
+
+            if session.claudeSessionId == nil, isOurs {
+                terminal.adoptedClaudeProcess = agent.processIdentity
+                assignClaudeSessionId(agent.sessionId, to: session.id)
+            } else if session.claudeSessionId == agent.sessionId, isOurs,
+                      terminal.adoptedClaudeProcess == nil {
+                // Nothing to adopt -- we already hold this id, because
+                // loadSessions restored it and the tab launched
+                // `claude --resume <id>`. Record whose process it is anyway,
+                // or the tab could never recognise a later re-key. This is the
+                // common path: most `/clear`s happen in a resumed session.
+                terminal.adoptedClaudeProcess = agent.processIdentity
+            } else if let owned = terminal.adoptedClaudeProcess,
+                      let reporting = agent.processIdentity,
+                      owned == reporting {
+                // The one case where replacing an established id is right:
+                // `/clear` does not restart claude, it re-keys the running
+                // process and starts a fresh transcript. Keeping the old id
+                // pins the transcript viewer, the token counts and the status
+                // bar to a file that will never change again, and makes the
+                // next launch `--resume` the conversation the user cleared.
+                //
+                // Narrow on purpose. This is still the same process we took
+                // ownership of, so it is not the hijack the never-overwrite
+                // rule exists to stop -- that is a *different* claude in the
+                // same directory, which fails on pid or start time.
+                assignClaudeSessionId(agent.sessionId, to: session.id)
+            } else if let owned = terminal.adoptedClaudeProcess,
+                      let reporting = agent.processIdentity,
+                      owned == reporting {
+                // The one case where replacing an established id is right:
+                // `/clear` does not restart claude, it re-keys the running
+                // process and starts a fresh transcript. Keeping the old id
+                // pins the transcript viewer, the token counts and the status
+                // bar to a file that will never change again, and makes the
+                // next launch `--resume` the conversation the user cleared.
+                //
+                // Narrow on purpose. This is still the same process we
+                // adopted from, so it is not the hijack the never-overwrite
+                // rule exists to stop -- that is a *different* claude in the
+                // same directory, which fails this check on pid or start time.
                 assignClaudeSessionId(agent.sessionId, to: session.id)
             }
 

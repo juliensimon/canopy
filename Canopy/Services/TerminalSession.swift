@@ -30,6 +30,12 @@ final class TerminalSession: ObservableObject {
     /// When this terminal session was opened in Canopy (for token counting).
     let openedAt = Date()
 
+    /// The claude process this tab's `claudeSessionId` was adopted from.
+    ///
+    /// Deliberately not persisted: it is only meaningful while that process is
+    /// alive, and this tab owns it for exactly as long as the tab lives.
+    var adoptedClaudeProcess: ClaudeProcessIdentity?
+
     /// See `CanopySettings.disableAltScreen`. Captured at creation: the env
     /// is built once when the shell starts, so later settings changes only
     /// affect new sessions.
