@@ -131,6 +131,28 @@ struct SessionContextParsingTests {
         #expect(SessionCostService.parseLastTurnContext(from: jsonl)?.contextTokens == 64)
     }
 
+    /// The reader rejects non-assistant lines on a substring marker before
+    /// paying for JSON parsing. That marker is a pre-filter, not the decision.
+    /// A transcript pasted into a tool result quotes it verbatim, which is not
+    /// hypothetical in this repo, and such an entry must still lose to the real
+    /// assistant turn behind it.
+    ///
+    /// Honest scope: this survives deleting the `type` check on its own,
+    /// because the entry is also rejected for having no `message.usage`. It
+    /// pins the outcome -- no false positive from the fast path -- rather than
+    /// any single guard.
+    @Test func aUserEntryQuotingTheAssistantMarkerDoesNotWin() {
+        let jsonl = [
+            assistantLine(model: "claude-opus-5", input: 33),
+            #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"pasted a transcript: {"type":"assistant","message":{}}"}]}}"#,
+        ].joined(separator: "\n")
+
+        let context = SessionCostService.parseLastTurnContext(from: jsonl)
+
+        #expect(context?.model == "claude-opus-5")
+        #expect(context?.contextTokens == 33)
+    }
+
     // MARK: - Nothing to report
 
     @Test func emptyContentYieldsNil() {
