@@ -344,21 +344,6 @@ final class AppState: ObservableObject {
                 // rule exists to stop -- that is a *different* claude in the
                 // same directory, which fails on pid or start time.
                 assignClaudeSessionId(agent.sessionId, to: session.id)
-            } else if let owned = terminal.adoptedClaudeProcess,
-                      let reporting = agent.processIdentity,
-                      owned == reporting {
-                // The one case where replacing an established id is right:
-                // `/clear` does not restart claude, it re-keys the running
-                // process and starts a fresh transcript. Keeping the old id
-                // pins the transcript viewer, the token counts and the status
-                // bar to a file that will never change again, and makes the
-                // next launch `--resume` the conversation the user cleared.
-                //
-                // Narrow on purpose. This is still the same process we
-                // adopted from, so it is not the hijack the never-overwrite
-                // rule exists to stop -- that is a *different* claude in the
-                // same directory, which fails this check on pid or start time.
-                assignClaudeSessionId(agent.sessionId, to: session.id)
             }
 
             // No opinion -> leave the PTY heuristic in charge. Reset the
