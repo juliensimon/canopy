@@ -6,19 +6,6 @@ import Foundation
 @Suite("Git Status Polling")
 struct GitStatusPollingTests {
 
-    /// An AppState whose persistence is confined to a throwaway directory.
-    /// A default-constructed AppState writes to the developer's real
-    /// ~/.config/canopy -- see ConfigIsolationGuardTests.
-    ///
-    /// ponytail: the directories are left in place under one parent rather
-    /// than cleaned per test; NSTemporaryDirectory is periodically cleared,
-    /// and threading a defer through every call site here buys tidiness at
-    /// the cost of restructuring tests that are not otherwise changing.
-    @MainActor
-    private func isolatedAppState() -> AppState {
-        AppState(configDir: NSTemporaryDirectory()
-            + "canopy-isolated-tests/\(UUID().uuidString)")
-    }
 
     private let fm = FileManager.default
 
