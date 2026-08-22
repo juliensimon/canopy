@@ -7,12 +7,14 @@ import Foundation
 /// adds ways for a schema change to break the whole array.
 ///
 /// `pid` was long excluded on the grounds that a container session's pid is a
-/// guest-namespace pid and names nothing on the host. That is still true, and
-/// `reportsToHostAgentRegistry` already excludes those backends before any of
-/// this is consulted. For the backends that do reach here, the pid identifies
-/// a real local process, which is what lets a tab tell its own claude
-/// re-keying itself under `/clear` from a different claude appearing in the
-/// same directory.
+/// guest-namespace pid and names nothing on the host. That remains true, and
+/// remains irrelevant here: nothing in Canopy resolves this pid to a process.
+/// It is compared only against a pid the *same registry entry* reported
+/// earlier, and a guest pid is perfectly stable for the process that owns it.
+/// Paired with `startedAt`, which is namespace-independent, it works as an
+/// opaque equality token in a container exactly as it does on the host -- and
+/// that is what lets a tab tell its own claude re-keying itself under `/clear`
+/// from a different claude appearing in the same directory.
 ///
 /// `status` and `startedAt` are optional because they really are absent in
 /// practice: sdk-cli entries carry no `status` key at all.
@@ -21,9 +23,12 @@ struct ClaudeAgent: Decodable, Equatable, Sendable {
     let sessionId: String
     let status: String?
     let startedAt: Double?
-    /// Host pid of the claude process. Absent on older CLIs, and meaningless
-    /// for container backends -- `reportsToHostAgentRegistry` already excludes
-    /// those, since a guest-namespace pid names nothing on this machine.
+    /// The pid as the registry reports it: a host pid for host backends, a
+    /// guest-namespace pid for a container. Absent on older CLIs.
+    ///
+    /// Deliberately not described as a host pid. It is never resolved to a
+    /// process -- only compared against an earlier reading from the same entry
+    /// -- so which namespace it belongs to does not matter.
     let pid: Int?
 
     /// Identifies the *process*, so a session id that changes underneath one

@@ -277,11 +277,19 @@ final class AppState: ObservableObject {
     /// declared such sessions finished mid-turn and then decayed them to a
     /// grey dot indistinguishable from an empty prompt.
     ///
-    /// Gated on backends that run Claude as a host process (`.off` and
-    /// `.claudeNative` -- see `reportsToHostAgentRegistry`). Container sessions
-    /// write their registry entry into the bind-mounted host ~/.claude, but
-    /// `pid` is a guest namespace pid and the peer socket is unreachable, so
-    /// their status cannot be trusted. `.dockerSbx` shares nothing at all.
+    /// Two gates, not one, because the registry makes two different claims.
+    ///
+    /// *Identity* -- which conversation a tab is running -- is read for every
+    /// backend whose entry lands on the host (`reportsHostRegistryIdentity`:
+    /// `.off`, `.claudeNative`, `.appleContainer`). A container bind-mounts
+    /// ~/.claude, which is the same reason its transcript is readable at all.
+    ///
+    /// *Status* -- whether it is busy, idle or blocked -- is read only for
+    /// backends that run Claude as a host process (`reportsToHostAgentRegistry`:
+    /// `.off`, `.claudeNative`). A container's peer socket is unreachable from
+    /// the host, so believing its status would make the activity dots lie.
+    ///
+    /// `.dockerSbx` shares nothing of ~/.claude and is excluded from both.
     func applyAgents(_ agents: [ClaudeAgent]) {
         for session in sessions {
             let backend = sandboxBackend(for: session)
@@ -361,7 +369,16 @@ final class AppState: ObservableObject {
             // Everything above is identity. Status is a different claim, and a
             // container cannot make it: its peer socket is unreachable, so a
             // reported busy/idle would make the activity dots lie.
-            guard backend.reportsToHostAgentRegistry else { continue }
+            //
+            // Reset the idle counter on the way out, as every other early
+            // return here does. A session's backend can change under it -- the
+            // project or global setting is editable while a tab is open -- and
+            // a count left over from when it was a host backend would count
+            // towards a confirmed finish the moment host status resumed.
+            guard backend.reportsToHostAgentRegistry else {
+                agentIdleObservations[session.id] = 0
+                continue
+            }
 
             guard let reported = ClaudeAgentsService.activity(for: agent.status) else {
                 agentIdleObservations[session.id] = 0
@@ -542,7 +559,7 @@ final class AppState: ObservableObject {
             SessionCostService.lastTurnContext(path: path)
         }.value
 
-        applySessionContext(context, readFor: sessionId)
+        applySessionContext(context, readFor: sessionId, transcript: claudeSessionId)
     }
 
     /// Publishes a context that was read for `sessionId`, unless the user has
@@ -555,8 +572,21 @@ final class AppState: ObservableObject {
     /// contest between a microsecond of I/O and a single assignment; the test
     /// for it passed locally, failed under CI load, and was then broken
     /// outright by making the read faster. A named seam is deterministic.
-    func applySessionContext(_ context: SessionContext?, readFor sessionId: UUID) {
-        guard activeSessionId == sessionId else { return }
+    func applySessionContext(
+        _ context: SessionContext?,
+        readFor sessionId: UUID,
+        transcript claudeSessionId: String
+    ) {
+        // Two things can change underneath a read, and the guard has to cover
+        // both. A tab switch is the obvious one. The other is the transcript
+        // itself: `/clear` re-keys the conversation while the tab's UUID stays
+        // exactly the same, so a read still in flight against the pre-clear
+        // file would sail through an activeSessionId check and republish the
+        // dead conversation's numbers over the reset.
+        guard activeSessionId == sessionId,
+              sessions.first(where: { $0.id == sessionId })?.claudeSessionId == claudeSessionId
+        else { return }
+
         activeSessionContext = context
     }
 

@@ -591,6 +591,29 @@ struct AgentReconciliationTests {
         #expect(!state.hasReconcilableSessions)
     }
 
+    /// A session's backend is editable while its tab is open -- the project and
+    /// global settings both feed `sandboxBackend(for:)`. Skipping the status
+    /// section for a container must therefore clear the idle counter like
+    /// every other early return here, or a count banked while the session was
+    /// a host backend sits waiting and turns the first idle poll after the
+    /// switch back into a confirmed finish.
+    @Test func switchingToAContainerBackendClearsTheIdleCounter() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-swap", claudeSessionId: UUID().uuidString)
+        let id = state.sessions[0].id
+
+        // Host backend, one idle observation banked.
+        state.applyAgents([agent(cwd: "/tmp/wt-swap", status: "idle")])
+        #expect(state.agentIdleObservations[id] == 1)
+
+        // The user switches this session to a container backend.
+        state.sessions[0].sandboxBackend = .appleContainer
+        state.applyAgents([agent(cwd: "/tmp/wt-swap", status: "idle")])
+
+        #expect(state.agentIdleObservations[id] == 0,
+                "a stale idle count survived the switch to a backend whose status is ignored")
+    }
+
     // MARK: - Poll gating
 
     /// The poll skips its subprocess entirely when nothing could be

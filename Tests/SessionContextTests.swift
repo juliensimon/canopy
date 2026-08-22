@@ -532,6 +532,39 @@ struct SessionContextAppStateTests {
         #expect(state.activeSessionContext == shown)
     }
 
+    /// The guard has to cover *two* things changing underneath a read, not
+    /// one. A tab switch is the obvious one. The other is the transcript
+    /// itself: `/clear` re-keys the session while the tab UUID stays exactly
+    /// the same, so a read already in flight against the pre-clear file
+    /// resumes, passes an activeSessionId check, and republishes the dead
+    /// conversation's numbers over the fresh ones -- undoing the reset this
+    /// feature exists to show.
+    @Test func aContextReadFromASupersededTranscriptIsNotPublished() {
+        let configDir = tempConfigDir()
+        defer { try? fm.removeItem(atPath: configDir) }
+
+        let state = AppState(configDir: configDir)
+        state.createSession(name: "s", directory: "/tmp/s")
+        let tab = state.sessions[0].id
+        state.activeSessionId = tab
+        let before = UUID().uuidString
+        state.assignClaudeSessionId(before, to: tab)
+
+        let stale = SessionContext(model: "claude-opus-5", effort: "high", contextTokens: 402_326)
+        state.applySessionContext(stale, readFor: tab, transcript: before)
+        #expect(state.activeSessionContext == stale)
+
+        // /clear: same tab, new transcript.
+        let afterClear = UUID().uuidString
+        state.assignClaudeSessionId(afterClear, to: tab)
+
+        // The read that started before the re-key now lands.
+        state.applySessionContext(stale, readFor: tab, transcript: before)
+
+        #expect(state.activeSessionContext == nil,
+                "a read of the pre-clear transcript was republished over the reset")
+    }
+
     /// Issue #28 in miniature: a read finishes for one session after the user
     /// has already switched to another, and the stale numbers land under the
     /// new session's name.
@@ -553,18 +586,20 @@ struct SessionContextAppStateTests {
         state.createSession(name: "second", directory: "/tmp/second")
         let first = state.sessions[0].id
         let second = state.sessions[1].id
+        let transcript = UUID().uuidString
+        state.assignClaudeSessionId(transcript, to: first)
         let context = SessionContext(model: "claude-opus-5", effort: "high", contextTokens: 1000)
 
         // A read that completes while its own session is still active applies.
         state.activeSessionId = first
-        state.applySessionContext(context, readFor: first)
+        state.applySessionContext(context, readFor: first, transcript: transcript)
         #expect(state.activeSessionContext == context)
 
         // The user switches tabs; a read still in flight for the old session
         // must not overwrite what the new one shows.
         state.activeSessionId = second
         state.activeSessionContext = nil
-        state.applySessionContext(context, readFor: first)
+        state.applySessionContext(context, readFor: first, transcript: transcript)
 
         #expect(state.activeSessionContext == nil,
                 "a context read for another session was published over the active one")
