@@ -79,6 +79,7 @@
 		B5EBB6002FC4E7AE9B88B3B2 /* UpdateCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ECA322FF097B59B49F68737 /* UpdateCheckerTests.swift */; };
 		B62F0F2D8BE2D11A6C3AD942 /* AgentReconciliationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DBA8013125A94627C67870D /* AgentReconciliationTests.swift */; };
 		B7E313D2316AD76F2C7CF7F9 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC34A1B34310D4ECCF8BA6E /* StatusBar.swift */; };
+		B8ECA754A053808C134179B1 /* SessionContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A65A3346496DD2A6BFD3B4 /* SessionContextTests.swift */; };
 		BADE4D87BE6EAAE9DFC0CF9F /* WorktreeCollisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1731FEC2A46A90F44E14EB1 /* WorktreeCollisionTests.swift */; };
 		C03B5B8ACB810576799B8653 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB4608E6506BCC0DD38B91D /* AppStateTests.swift */; };
 		C1ADFB5A6E22400C85855B41 /* ClaudeAgentsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9311D7F235BE554139C28AD /* ClaudeAgentsServiceTests.swift */; };
@@ -123,6 +124,7 @@
 /* Begin PBXFileReference section */
 		028C5B5137B3ECE6C957B6EC /* AddProjectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProjectSheet.swift; sourceTree = "<group>"; };
 		051E40D7278741B7C4B2DACC /* GitServiceBranchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitServiceBranchTests.swift; sourceTree = "<group>"; };
+		06A65A3346496DD2A6BFD3B4 /* SessionContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionContextTests.swift; sourceTree = "<group>"; };
 		09AE664951393052235EDCBA /* AppStateIsolation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateIsolation.swift; sourceTree = "<group>"; };
 		0E948527D5D146F27269411E /* SessionSandboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSandboxTests.swift; sourceTree = "<group>"; };
 		0ECA322FF097B59B49F68737 /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
@@ -377,6 +379,7 @@
 				DB01F64B012648D641FF741D /* ProjectTests.swift */,
 				71B9ED338BECE4C5A45CEF2F /* PromptLibraryTests.swift */,
 				850B26424BF5B827D9AC5AB2 /* SandboxCheckerTests.swift */,
+				06A65A3346496DD2A6BFD3B4 /* SessionContextTests.swift */,
 				4102FA193C043697E08EFD91 /* SessionCostFilteringTests.swift */,
 				4B876C5FDA76283957B8E9C5 /* SessionCostServiceTests.swift */,
 				774CEE75403401F0A7DE18E9 /* SessionNameTests.swift */,
@@ -600,6 +603,7 @@
 				2C1B79B946E6AD50EB0EC424 /* ProjectTests.swift in Sources */,
 				5095CCFA8207BB832FE7702F /* PromptLibraryTests.swift in Sources */,
 				257BE9FBDC281CB300ADD349 /* SandboxCheckerTests.swift in Sources */,
+				B8ECA754A053808C134179B1 /* SessionContextTests.swift in Sources */,
 				DF5DB9329C647A612F38E808 /* SessionCostFilteringTests.swift in Sources */,
 				7403E7DA09BC3CAD7004D877 /* SessionCostServiceTests.swift in Sources */,
 				A2E3315C93FEA826BF12CBCF /* SessionNameTests.swift in Sources */,
