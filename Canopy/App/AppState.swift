@@ -435,8 +435,7 @@ final class AppState: ObservableObject {
         let sessionId = session.id
         let path = session.workingDirectory
         guard await git.isGitRepo(path: path) else {
-            guard activeSessionId == sessionId else { return }
-            activeGitStatus = nil
+            applyGitStatus(nil, readFor: sessionId)
             return
         }
 
@@ -454,13 +453,29 @@ final class AppState: ObservableObject {
             prs = cachedPRsByRepo[path] ?? []
         }
 
-        // Guard against stale results if the session changed during async work.
-        guard activeSessionId == sessionId else { return }
-
-        activeGitStatus = GitStatusInfo(
-            diffStat: diff, commitsAhead: ahead,
-            openPRs: prs, changedFiles: diff?.changedFiles ?? []
+        applyGitStatus(
+            GitStatusInfo(
+                diffStat: diff, commitsAhead: ahead,
+                openPRs: prs, changedFiles: diff?.changedFiles ?? []
+            ),
+            readFor: sessionId
         )
+    }
+
+    /// Publishes a git status that was read for `sessionId`, unless the user
+    /// has switched sessions in the meantime -- issue #28 was this race,
+    /// one session's git state landing under another's name.
+    ///
+    /// Both exits from `refreshGitStatus` route through here, including the
+    /// early return that *clears* the status for a non-git path: a stale clear
+    /// blanks the git segments of a session that does have them, which is as
+    /// wrong as a stale write and previously had no coverage.
+    ///
+    /// Split out from the read so the guard can be tested without racing the
+    /// scheduler. See `applySessionContext(_:readFor:)` for why that matters.
+    func applyGitStatus(_ status: GitStatusInfo?, readFor sessionId: UUID) {
+        guard activeSessionId == sessionId else { return }
+        activeGitStatus = status
     }
 
     /// Reads the active session's newest Claude turn for the status bar.
