@@ -2,11 +2,19 @@ import Foundation
 
 /// One live `claude` process, as reported by `claude agents --json`.
 ///
-/// Only the fields Canopy actually uses are decoded. The real payload also
-/// carries `pid`, `kind` and `name`; `pid` is useless to us (a container
-/// session's pid is a guest-namespace pid, meaningless on the host) and
-/// decoding fields we don't read only adds ways for a schema change to break
-/// the whole array.
+/// Only the fields Canopy actually uses are decoded -- the real payload also
+/// carries `kind` and `name` -- because decoding fields we don't read only
+/// adds ways for a schema change to break the whole array.
+///
+/// `pid` was long excluded on the grounds that a container session's pid is a
+/// guest-namespace pid and names nothing on the host. That remains true, and
+/// remains irrelevant here: nothing in Canopy resolves this pid to a process.
+/// It is compared only against a pid the *same registry entry* reported
+/// earlier, and a guest pid is perfectly stable for the process that owns it.
+/// Paired with `startedAt`, which is namespace-independent, it works as an
+/// opaque equality token in a container exactly as it does on the host -- and
+/// that is what lets a tab tell its own claude re-keying itself under `/clear`
+/// from a different claude appearing in the same directory.
 ///
 /// `status` and `startedAt` are optional because they really are absent in
 /// practice: sdk-cli entries carry no `status` key at all.
@@ -15,6 +23,31 @@ struct ClaudeAgent: Decodable, Equatable, Sendable {
     let sessionId: String
     let status: String?
     let startedAt: Double?
+    /// The pid as the registry reports it: a host pid for host backends, a
+    /// guest-namespace pid for a container. Absent on older CLIs.
+    ///
+    /// Deliberately not described as a host pid. It is never resolved to a
+    /// process -- only compared against an earlier reading from the same entry
+    /// -- so which namespace it belongs to does not matter.
+    let pid: Int?
+
+    /// Identifies the *process*, so a session id that changes underneath one
+    /// can be told apart from a different claude appearing in the same
+    /// directory. Nil when the CLI reports too little to prove either.
+    ///
+    /// pids are recycled, so the start time is part of the identity: a
+    /// matching pid with a different start time is a new process wearing a
+    /// dead one's number.
+    var processIdentity: ClaudeProcessIdentity? {
+        guard let pid, let startedAt else { return nil }
+        return ClaudeProcessIdentity(pid: pid, startedAt: startedAt)
+    }
+}
+
+/// A specific claude process, as reported by the agent registry.
+struct ClaudeProcessIdentity: Equatable, Sendable {
+    let pid: Int
+    let startedAt: Double
 }
 
 /// Asks Claude Code which conversations are live, rather than inferring it.
@@ -78,7 +111,18 @@ enum ClaudeAgentsService {
     /// on macOS and claude reports its resolved cwd. Matches "at or under" the
     /// worktree, mirroring the CLI's own `--cwd` semantics -- but never
     /// upward, since a claude in the parent directory is a different session.
-    static func agent(forWorktree worktree: String, in agents: [ClaudeAgent]) -> Match {
+    /// - Parameter preferring: the process this tab took its session id from,
+    ///   when it has one. Two claudes under a directory normally make the tab
+    ///   give up, because picking the wrong one binds it to a stranger's
+    ///   transcript -- but a tab that knows its own process is not guessing,
+    ///   and giving up costs it a `/clear` it would otherwise follow along
+    ///   with its live status. Only an exact match counts: if our process is
+    ///   not in the set, the result is still ambiguous.
+    static func agent(
+        forWorktree worktree: String,
+        in agents: [ClaudeAgent],
+        preferring preferred: ClaudeProcessIdentity? = nil
+    ) -> Match {
         let target = SandboxBackend.realResolvedPath(worktree)
         guard !target.isEmpty else { return .none }
 
@@ -89,7 +133,13 @@ enum ClaudeAgentsService {
         switch matches.count {
         case 0: return .none
         case 1: return .one(matches[0])
-        default: return .ambiguous
+        default:
+            // Exactly one of them being ours resolves it. Two would mean the
+            // registry reported one process twice, which is not something to
+            // guess through.
+            guard let preferred else { return .ambiguous }
+            let ours = matches.filter { $0.processIdentity == preferred }
+            return ours.count == 1 ? .one(ours[0]) : .ambiguous
         }
     }
 

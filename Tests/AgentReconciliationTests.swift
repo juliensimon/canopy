@@ -40,11 +40,13 @@ struct AgentReconciliationTests {
 
     private func agent(
         cwd: String, sessionId: String = UUID().uuidString,
-        status: String?, startedAt: Date = Date().addingTimeInterval(60)
+        status: String?, startedAt: Date = Date().addingTimeInterval(60),
+        pid: Int? = nil
     ) -> ClaudeAgent {
         ClaudeAgent(
             cwd: cwd, sessionId: sessionId, status: status,
-            startedAt: startedAt.timeIntervalSince1970 * 1000
+            startedAt: startedAt.timeIntervalSince1970 * 1000,
+            pid: pid
         )
     }
 
@@ -366,20 +368,273 @@ struct AgentReconciliationTests {
     }
 
 
+    // MARK: - Re-keyed sessions (/clear)
+
+    /// `/clear` does not restart claude -- it re-keys the running process and
+    /// starts a fresh transcript. Verified on a live session: `ps` shows one
+    /// process, started 21:44:42, launched as `--resume 0cd83df7...`, while
+    /// `claude agents --json` reports that same pid under a *different*
+    /// sessionId. Canopy kept the pre-clear id, so the status bar, the
+    /// transcript sheet and the token counts all read a file that would never
+    /// change again -- and the next launch would `--resume` the conversation
+    /// the user had just cleared.
+    @Test func adoptsAReKeyedIdFromTheSameProcess() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-clear")
+        let startedAt = Date().addingTimeInterval(60)
+        let before = UUID().uuidString
+        let afterClear = UUID().uuidString
+
+        state.applyAgents([agent(cwd: "/tmp/wt-clear", sessionId: before,
+                                 status: "idle", startedAt: startedAt, pid: 4242)])
+        #expect(state.sessions[0].claudeSessionId == before)
+
+        // Same process, new conversation.
+        state.applyAgents([agent(cwd: "/tmp/wt-clear", sessionId: afterClear,
+                                 status: "idle", startedAt: startedAt, pid: 4242)])
+
+        #expect(state.sessions[0].claudeSessionId == afterClear)
+    }
+
+    /// The hijack this relaxation must not reopen: the tab's claude exits, the
+    /// user runs a plain `claude` in the same worktree, and Canopy adopts a
+    /// stranger's conversation. A different process is not ours, whatever id
+    /// it reports.
+    @Test func doesNotAdoptAReKeyedIdFromADifferentProcess() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-hijack")
+        let startedAt = Date().addingTimeInterval(60)
+        let owned = UUID().uuidString
+
+        state.applyAgents([agent(cwd: "/tmp/wt-hijack", sessionId: owned,
+                                 status: "idle", startedAt: startedAt, pid: 4242)])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-hijack", sessionId: "stranger",
+                                 status: "idle", startedAt: startedAt, pid: 9999)])
+
+        #expect(state.sessions[0].claudeSessionId == owned)
+    }
+
+    /// pids are recycled. A matching pid with a different start time is a
+    /// different process wearing a dead one's number, so the pid alone cannot
+    /// carry the ownership proof.
+    @Test func doesNotAdoptWhenThePidWasRecycled() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-recycled")
+        let owned = UUID().uuidString
+
+        state.applyAgents([agent(cwd: "/tmp/wt-recycled", sessionId: owned, status: "idle",
+                                 startedAt: Date().addingTimeInterval(60), pid: 4242)])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-recycled", sessionId: "stranger", status: "idle",
+                                 startedAt: Date().addingTimeInterval(600), pid: 4242)])
+
+        #expect(state.sessions[0].claudeSessionId == owned)
+    }
+
+    /// A CLI that reports no pid gives no ownership proof, so the established
+    /// id stands. Losing the /clear fix on an older CLI is the safe failure;
+    /// adopting on cwd alone is not.
+    @Test func doesNotAdoptAReKeyedIdWhenTheCliReportsNoPid() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-nopid")
+        let startedAt = Date().addingTimeInterval(60)
+        let owned = UUID().uuidString
+
+        state.applyAgents([agent(cwd: "/tmp/wt-nopid", sessionId: owned,
+                                 status: "idle", startedAt: startedAt)])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-nopid", sessionId: "stranger",
+                                 status: "idle", startedAt: startedAt)])
+
+        #expect(state.sessions[0].claudeSessionId == owned)
+    }
+
+    /// The case that actually happens. Canopy relaunches, `loadSessions`
+    /// restores an established id, and the tab starts `claude --resume <id>`.
+    /// Nothing is ever adopted, so without recording ownership here the tab
+    /// would have no idea which process is its own -- and a `/clear` after a
+    /// restart, which is most of them, would go unnoticed.
+    @Test func followsAReKeyAfterARestoredSessionResumes() {
+        let state = makeState()
+        let restored = UUID().uuidString
+        addSession(to: state, dir: "/tmp/wt-resumed", claudeSessionId: restored)
+        let startedAt = Date().addingTimeInterval(60)
+
+        // The resumed process reports the id we already hold: ours.
+        state.applyAgents([agent(cwd: "/tmp/wt-resumed", sessionId: restored,
+                                 status: "idle", startedAt: startedAt, pid: 4242)])
+        #expect(state.sessions[0].claudeSessionId == restored)
+
+        // It then re-keys under /clear.
+        let afterClear = UUID().uuidString
+        state.applyAgents([agent(cwd: "/tmp/wt-resumed", sessionId: afterClear,
+                                 status: "idle", startedAt: startedAt, pid: 4242)])
+
+        #expect(state.sessions[0].claudeSessionId == afterClear)
+    }
+
+    /// Ownership is only recorded for a process that started after this tab
+    /// did. A claude already running in the worktree when the tab opened is
+    /// not ours to follow, even if it happens to report the id we hold.
+    @Test func doesNotTakeOwnershipOfAProcessOlderThanTheTab() {
+        let state = makeState()
+        let restored = UUID().uuidString
+        addSession(to: state, dir: "/tmp/wt-older", claudeSessionId: restored)
+
+        state.applyAgents([agent(cwd: "/tmp/wt-older", sessionId: restored, status: "idle",
+                                 startedAt: Date().addingTimeInterval(-600), pid: 4242)])
+
+        state.applyAgents([agent(cwd: "/tmp/wt-older", sessionId: "stranger", status: "idle",
+                                 startedAt: Date().addingTimeInterval(-600), pid: 4242)])
+
+        #expect(state.sessions[0].claudeSessionId == restored)
+    }
+
+    /// End to end: a tab that knows its own process keeps working when a
+    /// second claude appears in the same worktree. Before, the whole tab went
+    /// dark -- no id following, and `releaseNeedsInput` on every poll.
+    @Test func keepsFollowingItsOwnProcessWhenASecondClaudeAppears() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-two")
+        let startedAt = Date().addingTimeInterval(60)
+        let mine = UUID().uuidString
+
+        state.applyAgents([agent(cwd: "/tmp/wt-two", sessionId: mine,
+                                 status: "idle", startedAt: startedAt, pid: 4242)])
+        #expect(state.sessions[0].claudeSessionId == mine)
+
+        // A second claude shows up in the same directory, and ours re-keys.
+        let afterClear = UUID().uuidString
+        state.applyAgents([
+            agent(cwd: "/tmp/wt-two", sessionId: "stranger", status: "busy",
+                  startedAt: Date().addingTimeInterval(120), pid: 9999),
+            agent(cwd: "/tmp/wt-two", sessionId: afterClear, status: "idle",
+                  startedAt: startedAt, pid: 4242),
+        ])
+
+        #expect(state.sessions[0].claudeSessionId == afterClear)
+    }
+
+    // MARK: - Container identity
+
+    /// The gate that kept `.appleContainer` out of reconciliation covers only
+    /// half of what it does. A container's *status* genuinely cannot be
+    /// trusted -- its peer socket is unreachable -- but its *identity* can: it
+    /// bind-mounts ~/.claude, which is the very reason the status bar can read
+    /// its transcript at all. Without this, a `/clear` in a container session
+    /// froze the segment permanently.
+    @Test func containerSessionFollowsAReKey() {
+        let state = makeState()
+        let assigned = UUID().uuidString
+        addSession(to: state, dir: "/tmp/wt-ctr", backend: .appleContainer,
+                   claudeSessionId: assigned)
+        let startedAt = Date().addingTimeInterval(60)
+
+        // Canopy assigned this id with --session-id, and the container's
+        // registry entry reports it back: ours.
+        state.applyAgents([agent(cwd: "/tmp/wt-ctr", sessionId: assigned,
+                                 status: "busy", startedAt: startedAt, pid: 7)])
+        #expect(state.sessions[0].claudeSessionId == assigned)
+
+        let afterClear = UUID().uuidString
+        state.applyAgents([agent(cwd: "/tmp/wt-ctr", sessionId: afterClear,
+                                 status: "busy", startedAt: startedAt, pid: 7)])
+
+        #expect(state.sessions[0].claudeSessionId == afterClear)
+    }
+
+    /// Identity yes, status no. The container's reported status must still be
+    /// ignored, or the activity dots start lying for those sessions.
+    @Test func containerSessionTakesNoActivityFromTheRegistry() {
+        let state = makeState()
+        let assigned = UUID().uuidString
+        addSession(to: state, dir: "/tmp/wt-ctr2", backend: .appleContainer,
+                   claudeSessionId: assigned)
+
+        state.applyAgents([agent(cwd: "/tmp/wt-ctr2", sessionId: assigned,
+                                 status: "busy", startedAt: Date().addingTimeInterval(60), pid: 7)])
+
+        #expect(state.terminalSessions[state.sessions[0].id]?.activity != .working)
+    }
+
+    /// `.dockerSbx` shares nothing of ~/.claude, so nothing about it can be
+    /// believed -- not status, and not identity either.
+    @Test func dockerSbxFollowsNothing() {
+        let state = makeState()
+        let assigned = UUID().uuidString
+        addSession(to: state, dir: "/tmp/wt-sbx2", backend: .dockerSbx,
+                   claudeSessionId: assigned)
+        let startedAt = Date().addingTimeInterval(60)
+
+        state.applyAgents([agent(cwd: "/tmp/wt-sbx2", sessionId: assigned,
+                                 status: "busy", startedAt: startedAt, pid: 7)])
+        state.applyAgents([agent(cwd: "/tmp/wt-sbx2", sessionId: "rekeyed",
+                                 status: "busy", startedAt: startedAt, pid: 7)])
+
+        #expect(state.sessions[0].claudeSessionId == assigned)
+    }
+
+    /// Without this the whole container path is dead code: the 2 s poll never
+    /// runs, so `applyAgents` is never called with anything.
+    @Test func containerSessionsKeepThePollAlive() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-ctr3", backend: .appleContainer)
+
+        #expect(state.hasReconcilableSessions)
+    }
+
+    @Test func dockerSbxAloneStillSkipsThePoll() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-sbx3", backend: .dockerSbx)
+
+        #expect(!state.hasReconcilableSessions)
+    }
+
+    /// A session's backend is editable while its tab is open -- the project and
+    /// global settings both feed `sandboxBackend(for:)`. Skipping the status
+    /// section for a container must therefore clear the idle counter like
+    /// every other early return here, or a count banked while the session was
+    /// a host backend sits waiting and turns the first idle poll after the
+    /// switch back into a confirmed finish.
+    @Test func switchingToAContainerBackendClearsTheIdleCounter() {
+        let state = makeState()
+        addSession(to: state, dir: "/tmp/wt-swap", claudeSessionId: UUID().uuidString)
+        let id = state.sessions[0].id
+
+        // Host backend, one idle observation banked.
+        state.applyAgents([agent(cwd: "/tmp/wt-swap", status: "idle")])
+        #expect(state.agentIdleObservations[id] == 1)
+
+        // The user switches this session to a container backend.
+        state.sessions[0].sandboxBackend = .appleContainer
+        state.applyAgents([agent(cwd: "/tmp/wt-swap", status: "idle")])
+
+        #expect(state.agentIdleObservations[id] == 0,
+                "a stale idle count survived the switch to a backend whose status is ignored")
+    }
+
     // MARK: - Poll gating
 
     /// The poll skips its subprocess entirely when nothing could be
     /// reconciled. On a 2-second loop that is the difference between an idle
     /// app and one spawning a process every 2 seconds for no reason.
+    ///
+    /// `.appleContainer` used to belong in the skipped set and no longer does:
+    /// its registry entry names the conversation it is running, so there is
+    /// now something to reconcile even though its *status* is still ignored.
+    /// The assertion that survives -- and the one that was always the point --
+    /// is `.dockerSbx`, which shares nothing of ~/.claude and can never be
+    /// reconciled at all.
     @Test func pollIsSkippedWhenNoSessionQualifies() {
         let state = makeState()
         #expect(!state.hasReconcilableSessions)          // no sessions at all
 
-        addSession(to: state, dir: "/tmp/wt-v", backend: .appleContainer)
-        #expect(!state.hasReconcilableSessions)          // sandboxed: invisible to the host
-
         addSession(to: state, dir: "/tmp/wt-w", backend: .dockerSbx)
-        #expect(!state.hasReconcilableSessions)
+        #expect(!state.hasReconcilableSessions)          // shares nothing: never reconcilable
+
+        addSession(to: state, dir: "/tmp/wt-v", backend: .appleContainer)
+        #expect(state.hasReconcilableSessions)           // identity only, but that is enough
 
         addSession(to: state, dir: "/tmp/wt-x")          // .off
         #expect(state.hasReconcilableSessions)

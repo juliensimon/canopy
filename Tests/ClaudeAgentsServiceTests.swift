@@ -17,6 +17,103 @@ struct ClaudeAgentsServiceTests {
 
     // MARK: - Parsing
 
+    // MARK: - Disambiguating by adopted process
+
+    /// Two claudes under one directory normally make the tab give up, because
+    /// picking the wrong one binds it to a stranger's transcript. Once a tab
+    /// knows which process it took its id from, that set is no longer
+    /// ambiguous *to that tab* -- and giving up costs it a `/clear` it would
+    /// otherwise follow, plus its live status.
+    @Test func prefersTheAdoptedProcessAmongAmbiguousMatches() {
+        let mine = ClaudeProcessIdentity(pid: 4242, startedAt: 1_000)
+        let agents = [
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "theirs", status: "busy",
+                        startedAt: 2_000, pid: 9999),
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "mine", status: "idle",
+                        startedAt: 1_000, pid: 4242),
+        ]
+
+        let match = ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: agents, preferring: mine)
+
+        guard case .one(let picked) = match else {
+            Issue.record("expected .one, got \(match)"); return
+        }
+        #expect(picked.sessionId == "mine")
+    }
+
+    /// Without an adopted process there is nothing to prefer, so the original
+    /// behaviour stands: Canopy cannot know which is the tab's.
+    @Test func staysAmbiguousWithNoAdoptedProcess() {
+        let agents = [
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "a", status: "busy", startedAt: 1_000, pid: 1),
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "b", status: "busy", startedAt: 2_000, pid: 2),
+        ]
+
+        #expect(ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: agents, preferring: nil)
+                == .ambiguous)
+    }
+
+    /// The tab's own process is gone and two strangers remain. Preferring an
+    /// identity that matches none of them must not pick one at random.
+    @Test func staysAmbiguousWhenTheAdoptedProcessIsAbsent() {
+        let mine = ClaudeProcessIdentity(pid: 4242, startedAt: 1_000)
+        let agents = [
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "a", status: "busy", startedAt: 5_000, pid: 7),
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "b", status: "busy", startedAt: 6_000, pid: 8),
+        ]
+
+        #expect(ClaudeAgentsService.agent(forWorktree: "/tmp/wt", in: agents, preferring: mine)
+                == .ambiguous)
+    }
+
+    /// A single match is still a single match; preferring must not turn a
+    /// lone stranger into "ours" just because our own process is missing.
+    @Test func aLoneAgentIsStillReturnedRegardlessOfPreference() {
+        let mine = ClaudeProcessIdentity(pid: 4242, startedAt: 1_000)
+        let agents = [
+            ClaudeAgent(cwd: "/tmp/wt", sessionId: "only", status: "busy", startedAt: 9_000, pid: 7)
+        ]
+
+        guard case .one(let picked) = ClaudeAgentsService.agent(
+            forWorktree: "/tmp/wt", in: agents, preferring: mine
+        ) else { Issue.record("expected .one"); return }
+        #expect(picked.sessionId == "only")
+    }
+
+    /// The /clear fix hangs entirely on this field being read: a re-keyed
+    /// session is only adopted when the reporting process is provably the one
+    /// Canopy adopted from, and `pid` is half that proof. If the key were
+    /// spelled wrong or the field dropped, every ownership check would fail
+    /// closed and the fix would silently do nothing.
+    ///
+    /// Literal JSON from real `claude agents --json` output, including the
+    /// interactive entry's neighbouring `background` entry, which carries no
+    /// `pid` at all.
+    @Test func decodesPidAndBuildsAProcessIdentity() throws {
+        let json = """
+        [
+          {"id":"63401c10","cwd":"/Users/j/demo","kind":"background",
+           "startedAt":1787303896140,"sessionId":"63401c10-479f-44f5-8f5b-16deccd5886a",
+           "name":"Fork demo","state":"blocked"},
+          {"pid":18001,"cwd":"/Users/j/site","kind":"interactive",
+           "startedAt":1787427887639,"sessionId":"52109c55-b4b2-4186-9ee4-14d651577ffb",
+           "name":"master","status":"busy"}
+        ]
+        """
+        let agents = try #require(ClaudeAgentsService.parse(data(json)))
+        #expect(agents.count == 2)
+
+        let interactive = try #require(agents.first { $0.sessionId.hasPrefix("52109c55") })
+        #expect(interactive.pid == 18001)
+        let identity = try #require(interactive.processIdentity)
+        #expect(identity == ClaudeProcessIdentity(pid: 18001, startedAt: 1787427887639))
+
+        // A background entry reports no pid, so it can prove no ownership.
+        let background = try #require(agents.first { $0.sessionId.hasPrefix("63401c10") })
+        #expect(background.pid == nil)
+        #expect(background.processIdentity == nil)
+    }
+
     @Test func parsesRealWorldArray() throws {
         let agents = try #require(ClaudeAgentsService.parse(data("""
         [
@@ -84,7 +181,7 @@ struct ClaudeAgentsServiceTests {
 
     private func agent(cwd: String, sessionId: String = "s", status: String? = "idle",
                        startedAt: Double? = 0) -> ClaudeAgent {
-        ClaudeAgent(cwd: cwd, sessionId: sessionId, status: status, startedAt: startedAt)
+        ClaudeAgent(cwd: cwd, sessionId: sessionId, status: status, startedAt: startedAt, pid: nil)
     }
 
     @Test func matchesExactWorktreePath() {

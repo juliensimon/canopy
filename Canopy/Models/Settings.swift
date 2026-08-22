@@ -62,6 +62,27 @@ enum SandboxBackend: String, Codable {
     /// nothing of ~/.claude at all.
     var reportsToHostAgentRegistry: Bool { self == .off || self == .claudeNative }
 
+    /// Whether the registry entry this backend writes can be trusted to say
+    /// *which conversation* a session is running, as opposed to how busy it is.
+    ///
+    /// A wider set than `reportsToHostAgentRegistry`, because that gate covers
+    /// only half of what it was doing. `.appleContainer` bind-mounts
+    /// ~/.claude, so its entry and its transcript both land on the host --
+    /// which is precisely why Canopy can read its transcript at all. What
+    /// cannot be trusted there is status: the peer socket is unreachable.
+    ///
+    /// The guest-namespace pid is no obstacle to identity. Nothing here
+    /// resolves a pid to a host process; it only compares one against a pid
+    /// the same entry reported earlier, and a guest pid is stable for the
+    /// process that owns it. `startedAt` is namespace-independent, so the pair
+    /// works as an opaque equality token inside a container exactly as outside.
+    ///
+    /// `.dockerSbx` shares nothing of ~/.claude, so nothing about it can be
+    /// believed -- not status, and not identity either.
+    var reportsHostRegistryIdentity: Bool {
+        reportsToHostAgentRegistry || self == .appleContainer
+    }
+
     /// Whether `--resume` works for this backend. Session JSONLs must
     /// persist on the host: sbx microVMs are ephemeral, while the Apple
     /// container backend bind-mounts ~/.claude from the host.

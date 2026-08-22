@@ -65,6 +65,23 @@ struct StatusBar: View {
                 if let status = appState.activeGitStatus {
                     gitIndicators(status)
                 }
+
+                // Claude model / effort / live context size
+                if let context = appState.activeSessionContext,
+                   let label = Self.contextLabel(context) {
+                    Divider()
+                        .frame(height: 12)
+
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 9))
+                        Text(label)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.secondary)
+                    .tooltip(Self.contextTooltip(context))
+                }
             }
 
             Spacer()
@@ -218,6 +235,43 @@ struct StatusBar: View {
             parts.append("\(total - accounted) idle")
         }
         return parts.joined(separator: ", ")
+    }
+
+    // MARK: - Claude Session Context
+
+    /// `opus-5 · high · 71.3K` -- model, reasoning effort, and how much context
+    /// the newest turn had to read.
+    ///
+    /// Nil when the turn says nothing worth a segment, so the bar drops it
+    /// entirely rather than showing a zero -- the same `if`-wrapped treatment
+    /// every git segment gets.
+    ///
+    /// Deliberately no percentage: `claude-opus-5` and `claude-opus-5[1m]` are
+    /// indistinguishable in the transcript, so a share-of-window figure would
+    /// be silently five times wrong for long-context sessions.
+    nonisolated static func contextLabel(_ context: SessionContext) -> String? {
+        var parts: [String] = []
+        if let attribution = ClaudeTranscriptLoader.attributionLabel(
+            model: context.model, effort: context.effort
+        ) {
+            parts.append(attribution)
+        }
+        if context.contextTokens > 0 {
+            parts.append(abbreviatedTokenCount(context.contextTokens))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The segment is abbreviated to fit a 24pt bar, so the exact figure lives
+    /// here -- otherwise the number could not be checked against the transcript.
+    nonisolated static func contextTooltip(_ context: SessionContext) -> String {
+        var lines: [String] = []
+        if let model = context.model { lines.append(model) }
+        if let effort = context.effort { lines.append("Reasoning effort: \(effort)") }
+        if context.contextTokens > 0 {
+            lines.append("\(context.contextTokens.formatted()) tokens of context as of the last turn")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Helpers
