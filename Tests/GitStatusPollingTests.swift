@@ -5,6 +5,8 @@ import Foundation
 /// Tests for git status polling infrastructure in AppState.
 @Suite("Git Status Polling")
 struct GitStatusPollingTests {
+
+
     private let fm = FileManager.default
 
     private func makeTempRepo() throws -> String {
@@ -40,7 +42,7 @@ struct GitStatusPollingTests {
         let repo = try makeTempRepo()
         defer { try? fm.removeItem(atPath: repo) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "test", directory: repo)
 
         await state.refreshGitStatus()
@@ -54,7 +56,7 @@ struct GitStatusPollingTests {
         let repo = try makeTempRepo()
         defer { try? fm.removeItem(atPath: repo) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "test", directory: repo)
 
         // Dirty the repo
@@ -73,7 +75,7 @@ struct GitStatusPollingTests {
         try? fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: tempDir) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "test", directory: tempDir)
 
         await state.refreshGitStatus()
@@ -82,7 +84,7 @@ struct GitStatusPollingTests {
     }
 
     @Test @MainActor func refreshGitStatusNilWhenNoActiveSession() async {
-        let state = AppState()
+        let state = isolatedAppState()
 
         await state.refreshGitStatus()
 
@@ -97,7 +99,7 @@ struct GitStatusPollingTests {
         try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: tempDir) }
 
-        let state = AppState()
+        let state = isolatedAppState()
 
         // Session 1: git repo with changes
         state.createSession(name: "git-session", directory: repo)
@@ -130,7 +132,7 @@ struct GitStatusPollingTests {
         try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: tempDir) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "git-session", directory: repo)
         state.createSession(name: "plain-session", directory: tempDir)
 
@@ -169,7 +171,7 @@ struct GitStatusPollingTests {
             branch: "feat/poll-test", createBranch: true
         )
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "wt-session", directory: wtPath)
 
         // Dirty the worktree
@@ -188,7 +190,7 @@ struct GitStatusPollingTests {
         let repo2 = try makeTempRepo()
         defer { try? fm.removeItem(atPath: repo1); try? fm.removeItem(atPath: repo2) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "clean", directory: repo1)
         state.createSession(name: "dirty", directory: repo2)
 
@@ -220,7 +222,7 @@ struct GitStatusPollingTests {
         try "new".write(toFile: "\(wt)/new.txt", atomically: true, encoding: .utf8)
         try shell("git add -A && git commit -m 'ahead'", in: wt)
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "feat", directory: wt)
 
         await state.refreshAllSessionDiffStats()
@@ -232,7 +234,7 @@ struct GitStatusPollingTests {
     // MARK: - refreshAllSessionPRCounts throttling
 
     @Test @MainActor func refreshAllSessionPRCountsReturnsEmptyForNoSessions() async {
-        let state = AppState()
+        let state = isolatedAppState()
         await state.refreshAllSessionPRCounts(force: true)
         #expect(state.sessionPRCount.isEmpty)
     }
@@ -246,7 +248,7 @@ struct GitStatusPollingTests {
         let repo = try makeTempRepo()
         defer { try? fm.removeItem(atPath: repo) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "s", directory: repo)
         let id = state.sessions[0].id
 
@@ -267,7 +269,7 @@ struct GitStatusPollingTests {
         let repo = try makeTempRepo()
         defer { try? fm.removeItem(atPath: repo) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "s", directory: repo)
         let id = state.sessions[0].id
 
@@ -287,7 +289,7 @@ struct GitStatusPollingTests {
         try? fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(atPath: tempDir) }
 
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "nongit", directory: tempDir)
 
         await state.refreshAllSessionDiffStats()

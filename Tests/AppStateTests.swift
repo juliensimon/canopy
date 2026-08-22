@@ -5,6 +5,8 @@ import Foundation
 @Suite("AppState")
 struct AppStateTests {
 
+
+
     // MARK: - Session-selection safety
 
     /// `selectSession(id)` is reachable from notification callbacks (stale
@@ -12,7 +14,7 @@ struct AppStateTests {
     /// AppState instances. It must no-op when the id isn't in `sessions`;
     /// otherwise activeSessionId points at a ghost and the UI breaks.
     @Test @MainActor func selectSessionIgnoresUnknownSessionId() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "real", directory: "/tmp")
         let originalId = state.activeSessionId
 
@@ -24,7 +26,7 @@ struct AppStateTests {
     // MARK: - Session Management
 
     @Test @MainActor func createSession() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Test", directory: "/tmp")
 
         #expect(state.sessions.count == 1)
@@ -34,7 +36,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func createSessionDefaultName() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession()
         #expect(state.sessions[0].name == "Session 1")
 
@@ -43,14 +45,14 @@ struct AppStateTests {
     }
 
     @Test @MainActor func createSessionDefaultDirectory() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession()
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         #expect(state.sessions[0].workingDirectory == home)
     }
 
     @Test @MainActor func newSessionBecomesActive() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "First")
         let firstId = state.activeSessionId
 
@@ -60,18 +62,18 @@ struct AppStateTests {
     }
 
     @Test @MainActor func activeSession() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Test")
         #expect(state.activeSession?.name == "Test")
     }
 
     @Test @MainActor func activeSessionNilWhenEmpty() {
-        let state = AppState()
+        let state = isolatedAppState()
         #expect(state.activeSession == nil)
     }
 
     @Test @MainActor func closeSession() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = false
         state.createSession(name: "A")
         state.createSession(name: "B")
@@ -84,7 +86,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func closeSessionWithForce() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A")
         state.createSession(name: "B")
         let idA = state.sessions[0].id
@@ -96,7 +98,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func closeSessionShowsConfirmation() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = true
         state.createSession(name: "A")
         let idA = state.sessions[0].id
@@ -114,7 +116,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func closeActiveSessionSwitchesToLast() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = false
         state.createSession(name: "A")
         state.createSession(name: "B")
@@ -127,7 +129,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func closeLastSessionClearsActive() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = false
         state.createSession(name: "Only")
         let id = state.sessions[0].id
@@ -138,7 +140,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func closeNonActiveKeepsActive() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = false
         state.createSession(name: "A")
         state.createSession(name: "B")
@@ -150,7 +152,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func renameSession() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Old")
         let id = state.sessions[0].id
 
@@ -159,7 +161,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func renameNonexistentDoesNothing() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Original")
         state.renameSession(id: UUID(), to: "Nope")
         #expect(state.sessions[0].name == "Original")
@@ -205,7 +207,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func movePlainSessions() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         state.createSession(name: "C", directory: "/tmp/c")
@@ -216,7 +218,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func movePlainSessionsRevertsSortMode() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         state.tabSortMode = .name
@@ -229,7 +231,7 @@ struct AppStateTests {
     @Test @MainActor func movePlainSessionsLeavesProjectSessionsInPlace() {
         // The sidebar passes offsets into the FILTERED plain list; applying
         // them to the full array used to move arbitrary project sessions.
-        let state = AppState()
+        let state = isolatedAppState()
         let project = Project(name: "p", repositoryPath: "/tmp/p")
         state.projects = [project]
         var worktree = SessionInfo(name: "WT", workingDirectory: "/tmp/wt", projectId: project.id)
@@ -245,7 +247,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func swapSessions() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         state.createSession(name: "C", directory: "/tmp/c")
@@ -258,7 +260,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func swapSessionsRevertsSortMode() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         state.tabSortMode = .name
@@ -343,7 +345,7 @@ struct AppStateTests {
     // MARK: - Sorted Insertion
 
     @Test @MainActor func newSessionInsertedInSortedPosition() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Apple", directory: "/tmp/a")
         state.createSession(name: "Cherry", directory: "/tmp/c")
         state.tabSortMode = .name
@@ -355,7 +357,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func newSessionAppendsInManualMode() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Apple", directory: "/tmp/a")
         state.createSession(name: "Cherry", directory: "/tmp/c")
         state.tabSortMode = .manual
@@ -368,12 +370,12 @@ struct AppStateTests {
     // MARK: - Tab Sorting
 
     @Test @MainActor func defaultSortModeIsManual() {
-        let state = AppState()
+        let state = isolatedAppState()
         #expect(state.tabSortMode == .manual)
     }
 
     @Test @MainActor func orderedSessionsManualReturnsInsertionOrder() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Zebra", directory: "/tmp/z")
         state.createSession(name: "Apple", directory: "/tmp/a")
         state.createSession(name: "Mango", directory: "/tmp/m")
@@ -382,7 +384,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func orderedSessionsSortedByName() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Zebra", directory: "/tmp/z")
         state.createSession(name: "Apple", directory: "/tmp/a")
         state.createSession(name: "Mango", directory: "/tmp/m")
@@ -392,7 +394,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func orderedSessionsSortedByCreationDate() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "First", directory: "/tmp/1")
         state.createSession(name: "Second", directory: "/tmp/2")
         state.createSession(name: "Third", directory: "/tmp/3")
@@ -402,7 +404,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func orderedSessionsSortedByDirectory() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "C", directory: "/tmp/zebra")
         state.createSession(name: "A", directory: "/tmp/apple")
         state.createSession(name: "B", directory: "/tmp/mango")
@@ -432,7 +434,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func dragRevertsThenNewSessionAppends() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Banana", directory: "/tmp/b")
         state.createSession(name: "Apple", directory: "/tmp/a")
         state.tabSortMode = .name
@@ -452,7 +454,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func cycleSortModes() {
-        let state = AppState()
+        let state = isolatedAppState()
         let allModes = TabSortMode.allCases
         #expect(allModes.count == 5)
         #expect(allModes[0] == .manual)
@@ -536,7 +538,7 @@ struct AppStateTests {
     // MARK: - Split Terminal
 
     @Test @MainActor func toggleSplitTerminalOpensAndCloses() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Test", directory: "/tmp")
         let sessionId = state.sessions[0].id
 
@@ -552,7 +554,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func closingSessionClosesSplitTerminal() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Test", directory: "/tmp")
         let sessionId = state.sessions[0].id
 
@@ -565,7 +567,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func splitTerminalUsesSessionWorkingDirectory() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Test", directory: "/tmp/my-project")
         let sessionId = state.sessions[0].id
 
@@ -574,7 +576,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func toggleSplitTerminalIgnoresInvalidSession() {
-        let state = AppState()
+        let state = isolatedAppState()
         let fakeId = UUID()
 
         state.toggleSplitTerminal(for: fakeId)
@@ -583,7 +585,7 @@ struct AppStateTests {
     }
 
     @Test @MainActor func splitTerminalSurvivesTabSwitch() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A", directory: "/tmp/a")
         state.createSession(name: "B", directory: "/tmp/b")
         let idA = state.sessions[0].id

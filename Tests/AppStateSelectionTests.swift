@@ -7,6 +7,8 @@ import Foundation
 @Suite("AppState Selection & Caching")
 struct AppStateSelectionTests {
 
+
+
     // MARK: - Mutual Exclusion: selectSession / selectProject
 
     @Test @MainActor func selectSessionClearsProject() {
@@ -57,7 +59,7 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func selectedProjectNilWhenNoneSelected() {
-        let state = AppState()
+        let state = isolatedAppState()
         #expect(state.selectedProject == nil)
     }
 
@@ -85,7 +87,7 @@ struct AppStateSelectionTests {
     // MARK: - Terminal Session Caching
 
     @Test @MainActor func terminalSessionReturnsSameInstance() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Test", directory: "/tmp")
         let sessionInfo = state.sessions[0]
 
@@ -96,7 +98,7 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func terminalSessionCreatesNew() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "A", directory: "/tmp")
         state.createSession(name: "B", directory: "/tmp")
 
@@ -109,7 +111,7 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func closeSessionRemovesTerminalSession() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = false
         state.createSession(name: "Test", directory: "/tmp")
         let info = state.sessions[0]
@@ -124,7 +126,7 @@ struct AppStateSelectionTests {
     /// closes. Otherwise entries grow unbounded over the app's lifetime
     /// and any future code iterating the dicts will see dead UUIDs.
     @Test @MainActor func closeSessionClearsSidebarGitDicts() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.settings.confirmBeforeClosing = false
         state.createSession(name: "Test", directory: "/tmp")
         let id = state.sessions[0].id
@@ -146,14 +148,14 @@ struct AppStateSelectionTests {
     // MARK: - Session Naming
 
     @Test @MainActor func createSessionDefaultsToSessionNumber() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(directory: "/Users/dev/my-project")
         // Name is set synchronously to "Session N"; async git detection updates it later
         #expect(state.sessions[0].name == "Session 1")
     }
 
     @Test @MainActor func createSessionFallsBackToSessionNumber() {
-        let state = AppState()
+        let state = isolatedAppState()
         // Home directory → "Session N"
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         state.createSession(directory: home)
@@ -161,7 +163,7 @@ struct AppStateSelectionTests {
     }
 
     @Test @MainActor func createSessionExplicitNameOverridesDirectory() {
-        let state = AppState()
+        let state = isolatedAppState()
         state.createSession(name: "Custom", directory: "/Users/dev/my-project")
         #expect(state.sessions[0].name == "Custom")
     }
