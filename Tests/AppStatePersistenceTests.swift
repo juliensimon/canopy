@@ -6,17 +6,32 @@ import Foundation
 @Suite("AppState Persistence & Worktree")
 struct AppStatePersistenceTests {
 
+    /// An AppState whose persistence is confined to a throwaway directory.
+    /// A default-constructed AppState writes to the developer's real
+    /// ~/.config/canopy -- see ConfigIsolationGuardTests.
+    ///
+    /// ponytail: the directories are left in place under one parent rather
+    /// than cleaned per test; NSTemporaryDirectory is periodically cleared,
+    /// and threading a defer through every call site here buys tidiness at
+    /// the cost of restructuring tests that are not otherwise changing.
+    @MainActor
+    private func isolatedAppState() -> AppState {
+        AppState(configDir: NSTemporaryDirectory()
+            + "canopy-isolated-tests/\(UUID().uuidString)")
+    }
+
+
     // MARK: - Project Expanded Binding
 
     @Test @MainActor func projectExpandedBindingDefaultFalse() {
-        let state = AppState()
+        let state = isolatedAppState()
         let projectId = UUID()
         let binding = state.projectExpandedBinding(for: projectId)
         #expect(binding.wrappedValue == false)
     }
 
     @Test @MainActor func projectExpandedBindingSetTrue() {
-        let state = AppState()
+        let state = isolatedAppState()
         let projectId = UUID()
         let binding = state.projectExpandedBinding(for: projectId)
 
@@ -25,7 +40,7 @@ struct AppStatePersistenceTests {
     }
 
     @Test @MainActor func projectExpandedBindingSetFalse() {
-        let state = AppState()
+        let state = isolatedAppState()
         let projectId = UUID()
         state.expandedProjects.insert(projectId)
 
@@ -147,7 +162,7 @@ struct AppStatePersistenceTests {
             filesToCopy: [".env"]
         )
 
-        let state = AppState()
+        let state = isolatedAppState()
         try await state.createWorktreeSession(
             project: project,
             branchName: "feat/e2e-test",
@@ -181,7 +196,7 @@ struct AppStatePersistenceTests {
         try shell("git add -A && git commit -m 'init'", in: repoPath)
 
         let project = Project(name: "status-test", repositoryPath: repoPath)
-        let state = AppState()
+        let state = isolatedAppState()
 
         try await state.createWorktreeSession(
             project: project,
@@ -200,7 +215,7 @@ struct AppStatePersistenceTests {
 
     @Test @MainActor func createWorktreeSessionFailsGracefully() async {
         let project = Project(name: "fail-test", repositoryPath: "/nonexistent/path")
-        let state = AppState()
+        let state = isolatedAppState()
 
         do {
             try await state.createWorktreeSession(
