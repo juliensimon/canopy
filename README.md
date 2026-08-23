@@ -24,7 +24,7 @@
 
 ### [⬇ Download Canopy for macOS](https://github.com/juliensimon/canopy/releases/latest/download/Canopy.dmg)
 
-<sub>Universal binary · Apple Silicon + Intel · Notarized · macOS 14+</sub>
+<sub>Free and open source · Universal binary · Apple Silicon + Intel · Notarized · macOS 14+</sub>
 
 <br/>
 
@@ -39,6 +39,16 @@
 https://github.com/user-attachments/assets/e455e1a9-884c-46e5-bd14-9c0fc3424672
 
 </div>
+
+---
+
+| You used to do this | With Canopy |
+|---|---|
+| Hunt through `~/.claude/projects/<hash>/` for a session ID, then `claude --resume abc123…` | Click the tab. Canopy resumes the right session automatically. |
+| Juggle six Terminal.app windows, cmd-tabbing to find the right one | One window, one tab bar, `Cmd+1`–`Cmd+9` to jump anywhere |
+| `git checkout main && git pull && git merge feat/… && git worktree remove … && git branch -d …` | Right-click → **Merge & Finish** — two panels, one button |
+
+*[Nine more of these below.](#what-you-actually-get-back)*
 
 ---
 
@@ -93,13 +103,26 @@ brew install --cask juliensimon/canopy/canopy
 
 ### Direct download
 
-Grab the latest signed and notarized `.dmg` from **[Releases](https://github.com/juliensimon/canopy/releases/latest)**. Open, drag to Applications, launch.
+Grab the latest `.dmg` from **[Releases](https://github.com/juliensimon/canopy/releases/latest)**. Open, drag to Applications, launch.
 
-**Requirements:** macOS 14 Sonoma or later. Apple Silicon or Intel. Claude Code installed (`claude` available in your `$PATH`).
+Canopy is signed and notarized, so it opens normally — no Gatekeeper warning, no right-click-Open dance.
+
+### Requirements
+
+| | |
+|---|---|
+| **Required** | macOS 14 Sonoma or later · Apple Silicon or Intel · Claude Code on your `$PATH` |
+| **Optional** | `gh` for pull-request data (`brew install gh`) · Docker Desktop + `sbx`, or Apple `container`, for the VM sandboxes |
+
+Using it at work? Canopy is AGPL-3.0, and commercial licenses are available — see **[License](#license)**.
 
 ---
 
 ## Quick start
+
+**Fastest path:** press `Cmd+T`, point at any git repository, and start prompting. No project to add, nothing to configure — that is already Canopy working, and it is worth doing before anything else.
+
+The five steps below are for the part that needs a little setup: several worktrees running at once.
 
 1. **Add a project** (`Cmd+Shift+P`) — point at any git repository. Configure files to copy (`.env`), symlink paths (`node_modules`), and setup commands (`npm install`).
 2. **Create a worktree session** (`Cmd+Shift+T`) — pick a base branch, name your feature branch.
@@ -139,7 +162,7 @@ The **Activity** view parses your `~/.claude/projects/` JSONL files and gives yo
 - **Last 12 weeks** — same breakdown, so you can see recent trends
 - **Session count** — how many conversations you've had in the window
 - **Busiest day** — when were you deep in Claude?
-- **Model breakdown** — percentage split across Opus, Sonnet, and Haiku
+- **Model breakdown** — percentage split by model family (Opus, Fable, Sonnet, Haiku), derived from the model ID so a newly released family shows up as itself rather than in a catch-all
 - **Hour-by-hour heatmap** — 12 weeks of your actual working hours, visualized
 
 This is the view I use to answer "am I on track for my API budget this month" and "when am I most productive." No third-party tools, no scraping, no estimation — it's reading the same JSONL files Claude Code writes.
