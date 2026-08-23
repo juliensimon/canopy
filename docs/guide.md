@@ -299,6 +299,10 @@ A thin status bar runs along the bottom of the window. For the active session it
 - **Commits ahead** — how many commits your branch has that the upstream doesn't
 - **Pull requests** — open PR count (with draft count in parentheses), hover for titles and numbers
 
+Next to the git pills sits the active session's Claude state: `opus-5 · xhigh · 402.3K` — the model that produced its most recent turn, the reasoning effort, and the size of the context that turn had to read (fresh input plus both cache tiers). Hover it for the exact figure and the full model ID. The segment disappears for a session that has never run Claude.
+
+Two things are worth knowing about what it reports. The count is absolute, not a percentage of the context window: `claude-opus-5` and `claude-opus-5[1m]` look identical in the transcript, so a share-of-window reading would be five times wrong for a long-context session. And the model and effort follow the last *completed* turn — Claude Code writes no transcript record for `/model` or `/effort`, so the bar reports what actually produced a turn rather than what a setting says will happen next. After `/clear` the segment resets within a couple of seconds, because Canopy follows the new conversation the running process switches to.
+
 The right side of the status bar shows an activity strip: one dot per session — green working, amber blocked on you, grey idle — with a summary that leads on what needs you ("1 needs input, 2 working").
 
 Canopy asks Claude Code itself for this, by polling `claude agents --json`, so it can tell a permission prompt apart from a finished turn. That needs a backend that runs Claude on the host: **Off** or **Claude sandbox**. Docker Sandbox and Apple container sessions fall back to the older output-versus-silence heuristic and never go amber.

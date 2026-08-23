@@ -119,6 +119,8 @@ That's the whole loop. Repeat forever.
 
 Each tab is a separate worktree running its own Claude Code instance. Switch between them with `Cmd+1`–`Cmd+9`. Drag tabs to reorder. Sort by name, project, creation date, or directory with `Cmd+Shift+S`. Activity dots show which sessions are working, and — the one you actually want — which are **blocked waiting on you**. A permission prompt turns the dot amber and the status bar reads "1 needs input", so a stalled agent no longer looks identical to an idle one. (Canopy asks Claude Code directly for this, so it needs a backend that runs Claude on the host: *Off* or *Claude sandbox*.)
 
+The status bar names the active session's Claude run: `opus-5 · xhigh · 402.3K` — the model that produced its last turn, the reasoning effort, and how much context that turn had to read. With six worktrees open, that is how you tell which session is on which model and which one is close to compacting. The count is absolute rather than a share of the window, because a 200k and a 1M session are indistinguishable in the transcript and a percentage would be confidently wrong for one of them.
+
 When you close and reopen Canopy, every session comes back — **with its Claude conversation resumed automatically**. No session IDs to remember, no `--resume` flags to type.
 
 Canopy *assigns* the ID rather than guessing it: a new session is launched with `--session-id <uuid>`, and every launch after that resumes that exact conversation. So a tab is bound to its own conversation from the start — running `claude` yourself in the same directory can't hijack it, and the transcript and token counts work immediately instead of only after the first restart.
@@ -233,7 +235,7 @@ The project view also lists every open pull request for the repository, pulled v
 
 Canopy polls `git` and `gh` every 10 seconds so you never have to drop into a shell to check the state of the current worktree. You see:
 
-- **Status bar** at the bottom of the window, for the active session: modified files with `+` / `−` line counts, commits ahead of the upstream, and open pull request count (with draft split). Hover any pill for a full tooltip — file list, push status, PR titles.
+- **Status bar** at the bottom of the window, for the active session: modified files with `+` / `−` line counts, commits ahead of the upstream, and open pull request count (with draft split). Hover any pill for a full tooltip — file list, push status, PR titles. The same bar carries the session's model, effort and live context size — see *Parallel sessions* above.
 - **Sidebar session rows** show a compact `+N / −N` diffstat and an up-arrow count for commits-ahead, so you can scan all your worktrees at once.
 - **Project detail view** lists every open PR with title, number, author, and draft status.
 

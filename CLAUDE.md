@@ -5,7 +5,7 @@ macOS app for running parallel Claude Code sessions across git worktrees (versio
 ## Build
 
 - `swift build` — debug build. **Does NOT compile the test target**: a syntactically broken test file builds clean here and only fails under `swift test`.
-- `swift test` — run test suite (722 tests, 53 suites). Run this, not just `swift build`, before claiming anything works.
+- `swift test` — run test suite (783 tests, 58 suites). Run this, not just `swift build`, before claiming anything works.
 - `scripts/bundle.sh` — release build via Xcode; auto-generates BuildInfo.swift; installs to /Applications
 - **Always run `scripts/bundle.sh` after code changes** — it archives via Xcode and installs to /Applications, which `swift build` does not do. It no longer dirties the tree: the committed `BuildInfo.swift` is restored on exit unless `--release` is passed. `--dry-run` stops before the archive.
 

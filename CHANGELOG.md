@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-23
+
+### Added
+- **Model, effort, and live context size in the status bar** (#78, #83, #84, #86):
+  the active session's segment reads `opus-5 · xhigh · 402.3K` — which model
+  produced its last turn, at what reasoning effort, and how much context that
+  turn had to read. With several worktrees open there was previously no way to
+  see which session was on which model, or how full its context had become,
+  which is the number that decides whether a session is about to compact.
+
+  The figure is deliberately absolute rather than a percentage. `claude-opus-5`
+  and `claude-opus-5[1m]` are indistinguishable in the transcript, so a
+  share-of-window reading would be silently five times wrong for long-context
+  sessions — one real session here reads 991.5K, which a 200k assumption would
+  render as 496%.
+
+  Model and effort follow the last *completed* turn. Claude Code writes no
+  transcript record for `/model` or `/effort`, so those fields exist only as
+  attributes of an assistant turn: the bar reports what actually produced a
+  turn rather than what a setting claims will happen next.
+
+### Fixed
+- **`/clear` no longer strands a session on its old conversation** (#83, #84, #86):
+  `/clear` does not restart Claude, it re-keys the running process and starts a
+  fresh transcript. Canopy kept the previous ID, so the status bar, the
+  transcript viewer and the token counts all read a file that would never change
+  again — and the next launch `--resume`d the conversation you had just cleared.
+  A tab now records which process it took its ID from and follows that process
+  when it re-keys. A different `claude` in the same directory still cannot take
+  a session over.
+- **Two Claude sessions in one worktree no longer blind the tab** (#86):
+  previously an ambiguous match made Canopy give up on the whole directory,
+  losing both the re-key and the live status. A tab that knows its own process
+  is not guessing, so it picks its own out of the set.
+- **Apple container sessions follow a re-key too** (#86): the gate that kept
+  them out was doing two jobs. A container's *status* genuinely cannot be
+  trusted — its peer socket is unreachable — but its *identity* can, because it
+  bind-mounts `~/.claude`, which is why its transcript is readable at all.
+  Status stays host-only; Docker Sandbox still reports nothing.
+- **Fable usage no longer files under a label naming no model** (#77): the
+  Activity view derived a model family from a hardcoded list with a `Claude`
+  catch-all. Fable shipped after that was written, so 1.2M tokens landed under
+  a name that identifies nothing. The family is now derived from the ID's shape,
+  which also stops every future model family joining that same bucket.
+
+### Changed
+- Screenshots retaken at the current UI and compressed (#87). `project-detail`
+  still showed the prominent "New Worktree Session" button that #60 demoted.
+  The set drops from 6.4 MB to 1.6 MB, applying the `pngquant` rule that
+  `docs/screenshots/README.md` documents and only `hero.png` had followed.
+
+### Internal
+- `swift test` no longer writes to the developer's real `~/.config/canopy`
+  (#79, #80). `AppState(configDir:)` isolates persistence, but the parameter
+  defaults to the real directory, so a bare `AppState()` followed by any write
+  landed on your own config — fake sessions then appeared in the sidebar
+  pointing at deleted temp directories. A guard test now fails if a test file
+  default-constructs `AppState` at all.
+- The git stale-session guard is tested through a seam rather than by winning a
+  scheduling race (#81, #82), and the same treatment covers the session-context
+  guard. The previous approach passed in isolation, failed under load, and was
+  finally broken outright by an optimisation that made the awaited work faster.
+  The clearing branch of that guard had no coverage at all.
+
 ## [1.2.0] - 2026-08-08
 
 ### Added

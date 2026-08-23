@@ -97,6 +97,8 @@ struct HelpView: View {
                             "The New Worktree Session sheet has a Claude Flags field. Any `claude` flag works — --model, --effort, --permission-mode. It overrides the project and global flags for that session only, so you can run one branch on a different model without touching its siblings. Leave it empty to inherit.")
                     concept("Session Info",
                             "Right-click a session for Session Info: working directory, branch, token counts, and — so you can check rather than assume — which sandbox it resolved to and the exact Claude flags it launched with.")
+                    concept("Status Bar Session State",
+                            "The status bar names the active session's Claude run: the model that produced its last turn, the reasoning effort, and how much context that turn had to read (for example opus-5 · xhigh · 402.3K). Hover for the exact token count and the full model ID. It is an absolute count rather than a percentage, because a 200k and a 1M context session look the same in the transcript and a percentage would be wrong for one of them. Model and effort follow the last completed turn, so /model and /effort show up on the next turn rather than immediately. After /clear the segment resets on its own.")
                     concept("Transcript Attribution",
                             "Show Transcript labels each Claude turn with the model and reasoning effort that produced it (for example opus-5 · xhigh). Older transcripts and models without an effort setting simply show less. Copy includes it, so a transcript pasted into an issue says which model wrote it.")
                     concept("Sandbox Backends",
