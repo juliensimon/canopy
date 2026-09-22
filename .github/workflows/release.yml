@@ -65,6 +65,21 @@ jobs:
             "$KEYCHAIN_PATH" \
             $(security list-keychains -d user | sed -e 's/ *"//g')
 
+      # Xcode 26+ ships without the Metal compiler; it is a separately
+      # downloaded component. SwiftTerm resource-processes
+      # Apple/Metal/Shaders.metal, so *both* `swift build` and `xcodebuild
+      # archive` invoke `metal` and fail with "cannot execute tool 'metal'" on
+      # any image whose Xcode lacks it. Xcode 16 bundles the compiler, so the
+      # guard keeps this a no-op until the runner image moves on.
+      - name: Ensure Metal toolchain
+        run: |
+          xcrun metal --version >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+          # Re-assert: -downloadComponent can exit 0 having installed nothing
+          # (it wants root for the system MobileAsset). Without this the step
+          # goes green and the build fails minutes later with the very error
+          # this guard exists to replace.
+          xcrun metal --version
+
       # Run tests before building the release artifact
       - name: Run tests
         run: swift test

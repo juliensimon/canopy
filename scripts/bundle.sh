@@ -72,6 +72,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     exit 0
 fi
 
+scripts/require-metal.sh
+
 echo "Building with Xcode (Release)..."
 # Preserve the archive command's exit status across the pipe. Without
 # pipefail-aware checking, a failed `xcodebuild archive` whose output went

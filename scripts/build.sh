@@ -6,6 +6,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+scripts/require-metal.sh
+
 echo "Building debug..."
 swift build 2>&1
 
