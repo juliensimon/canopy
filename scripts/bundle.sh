@@ -29,16 +29,6 @@ if [[ -z "$VERSION_STR" ]]; then
     exit 1
 fi
 
-# Xcode 26 and later ship without the Metal compiler -- it is a separately
-# downloaded component (~840 MB). SwiftTerm resource-processes
-# Apple/Metal/Shaders.metal, so the archive shells out to `metal` and fails
-# deep in the build log. Catch it here instead of after a multi-minute archive.
-if ! xcrun metal --version >/dev/null 2>&1; then
-    echo "ERROR: Metal toolchain missing (Xcode 26+ ships it separately)." >&2
-    echo "       Install it with: xcodebuild -downloadComponent MetalToolchain" >&2
-    exit 1
-fi
-
 APP_NAME="Canopy"
 SCHEME="Canopy"
 PROJECT="Canopy.xcodeproj"
@@ -81,6 +71,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "Dry run: BuildInfo.swift generated, skipping archive and install."
     exit 0
 fi
+
+scripts/require-metal.sh
 
 echo "Building with Xcode (Release)..."
 # Preserve the archive command's exit status across the pipe. Without

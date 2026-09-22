@@ -11,7 +11,10 @@ import Foundation
 /// The script restores the committed copy on exit unless `--release` is
 /// passed. Without a check, that restore can be removed and the trap silently
 /// returns, so this suite pins it.
-@Suite("bundle.sh BuildInfo handling")
+// .serialized: every test here shells out to bundle.sh, which rewrites the
+// tracked BuildInfo.swift and restores it on exit. Run in parallel, one
+// test reads the file while another has it mid-flight.
+@Suite("bundle.sh BuildInfo handling", .serialized)
 struct BundleScriptTests {
 
     /// Derived from this file's location, not the process working directory.
@@ -46,6 +49,31 @@ struct BundleScriptTests {
         let status = try shell("git status --porcelain -- Canopy/App/BuildInfo.swift", in: repoRoot)
         #expect(status.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 "bundle.sh left BuildInfo.swift dirty: \(status.output)")
+    }
+
+    /// `--dry-run` is documented in CLAUDE.md as stopping *before* the archive,
+    /// and `dryRunLeavesBuildInfoUnchangedInGit` depends on it exiting 0. So a
+    /// prerequisite that only the build needs must not gate it -- otherwise a
+    /// developer with an incomplete toolchain sees the BuildInfo guarantee go
+    /// red for a reason that has nothing to do with BuildInfo.
+    @Test func dryRunDoesNotRequireBuildToolchain() throws {
+        let stubDir = NSTemporaryDirectory() + "canopy-metal-stub-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: stubDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: stubDir) }
+
+        // Stands in for Xcode 26+ without the separately-downloaded Metal component.
+        let stub = "\(stubDir)/xcrun"
+        try #"""
+        #!/bin/sh
+        if [ "$1" = "metal" ]; then exit 1; fi
+        exec /usr/bin/xcrun "$@"
+        """#.write(toFile: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stub)
+
+        let run = try shell("PATH='\(stubDir)':\"$PATH\" '\(repoRoot)/scripts/bundle.sh' --dry-run",
+                            in: repoRoot)
+        #expect(run.status == 0,
+                "bundle.sh --dry-run must not require the Metal toolchain: \(run.output)")
     }
 
     @Test func releaseModeIsOptIn() throws {
