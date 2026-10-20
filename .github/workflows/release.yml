@@ -12,6 +12,8 @@ concurrency:
 
 permissions:
   contents: write  # required for gh release create
+  id-token: write      # sigstore signing for build provenance
+  attestations: write  # store the provenance attestation
 
 jobs:
   release:
@@ -185,6 +187,12 @@ jobs:
           shasum -a 256 "build/Canopy-${VERSION}.dmg" > checksums-sha256.txt
           cat checksums-sha256.txt
 
+      # Signed provenance: users verify with `gh attestation verify`
+      - name: Attest DMG provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/Canopy-*.dmg
+
       # Extract release notes from CHANGELOG.md for this version
       - name: Extract release notes
         run: |
@@ -203,12 +211,16 @@ jobs:
           # Publish a version-less copy as well so the README can link to a
           # stable URL: /releases/latest/download/Canopy.dmg
           cp "build/Canopy-${VERSION}.dmg" "build/Canopy.dmg"
+          # Draft first: with release immutability on, assets cannot be added
+          # after publication, so upload everything, then publish.
           gh release create "v${VERSION}" \
+            --draft \
             --title "Canopy v${VERSION}" \
             --notes-file RELEASE_NOTES.md \
             "build/Canopy-${VERSION}.dmg" \
             "build/Canopy.dmg" \
             "checksums-sha256.txt"
+          gh release edit "v${VERSION}" --draft=false
 
       # Clean up the temporary keychain (always runs, even on failure)
       - name: Clean up keychain
